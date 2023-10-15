@@ -662,7 +662,7 @@ async fn download_image(
                 page_str,
                 "Downloading",
                 file_name_brief,
-                (100.0 / (total_size as f32)) * (downloaded as f32)
+                ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64
             );
             string(
                 5 + 1 + (page as i32),
