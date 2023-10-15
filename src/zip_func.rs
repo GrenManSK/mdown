@@ -4,7 +4,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::Write;
 use std::path::Path;
-use walkdir::{DirEntry, WalkDir};
+use walkdir::{ DirEntry, WalkDir };
 use zip::result::ZipError;
 use zip::write::FileOptions;
 
@@ -15,21 +15,18 @@ fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
     prefix: &str,
     writer: T,
-    method: zip::CompressionMethod,
+    method: zip::CompressionMethod
 ) -> zip::result::ZipResult<()>
-where
-    T: Write + Seek,
+    where T: Write + Seek
 {
     let walkdir = WalkDir::new(prefix);
     let it_temp = &mut walkdir.into_iter().filter_map(|e| e.ok());
     let dir_entries_vec: Vec<DirEntry> = it_temp.collect();
     let total_items = dir_entries_vec.len();
-    let start = stdscr().get_max_x() / 3 - (total_items / 2) as i32;
+    let start = stdscr().get_max_x() / 3 - ((total_items / 2) as i32);
     progress_bar_preparation(start, total_items, 8);
     let mut zip = zip::ZipWriter::new(writer);
-    let options = FileOptions::default()
-        .compression_method(method)
-        .unix_permissions(0o755);
+    let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
 
     let mut buffer = Vec::new();
     let mut times = -1;
@@ -58,7 +55,7 @@ where
 fn doit(
     src_dir: &str,
     dst_file: &str,
-    method: zip::CompressionMethod,
+    method: zip::CompressionMethod
 ) -> zip::result::ZipResult<()> {
     if !Path::new(src_dir).is_dir() {
         return Err(ZipError::FileNotFound);
@@ -77,7 +74,7 @@ fn doit(
 const METHOD_STORED: Option<zip::CompressionMethod> = Some(zip::CompressionMethod::Stored);
 pub(crate) async fn to_zip(src_dir: &str, dst_file: &str) {
     match doit(src_dir, dst_file, METHOD_STORED.unwrap()) {
-        Ok(_) => string(9,0,"   done: {src_dir} written to {dst_file}"),
+        Ok(_) => string(9, 0, "   done: {src_dir} written to {dst_file}"),
         Err(e) => println!("  Error: {e:?}"),
     }
 }
