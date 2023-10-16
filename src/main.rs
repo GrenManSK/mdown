@@ -18,6 +18,8 @@ struct Args {
     lang: String,
     #[arg(short, long, default_value_t)]
     offset: String,
+    #[arg(short, long, default_value_t)]
+    database_offset: String,
 }
 fn string(y: i32, x: i32, value: &str) {
     stdscr().mvaddnstr(y, x, value, stdscr().get_max_x() - x);
@@ -40,6 +42,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         x => x,
     };
     let arg_offset = arg_offset.parse().unwrap();
+
+    let arg_database_offset = match args.database_offset.as_str() {
+        "" => "0",
+        x => x,
+    };
+    let arg_database_offset: i32 = arg_database_offset.parse().unwrap();
 
     let input = args.url;
 
@@ -65,14 +73,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 .get("en")
                                                 .and_then(Value::as_str)
                                         {
-                                            let going_offset = arg_offset;
+                                            let going_offset = arg_database_offset;
                                             for _ in 0..2 {
                                                 match get_manga(id, going_offset).await {
                                                     Ok((json, _offset)) => {
                                                         download_manga(
                                                             json,
                                                             language,
-                                                            manga_name
+                                                            manga_name,
+                                                            arg_offset
                                                         ).await;
                                                     }
                                                     Err(err) => println!("Error: {}", err),
@@ -161,13 +170,14 @@ fn sort(data: &Vec<Value>) -> Vec<Value> {
     return data_array;
 }
 
-async fn download_manga(manga_json: String, language: &str, manga_name: &str) {
+async fn download_manga(manga_json: String, language: &str, manga_name: &str, arg_offset: i32) {
     match serde_json::from_str(&manga_json) {
         Ok(json_value) =>
             match json_value {
                 Value::Object(obj) => {
                     if let Some(data_array) = obj.get("data").and_then(Value::as_array) {
                         let data_array = sort(data_array);
+                        let mut times = 0;
                         for item in 0..data_array.len() {
                             if let Some(array_item) = data_array.get(item) {
                                 if let Some(field_value) = array_item.get("id") {
@@ -277,6 +287,21 @@ async fn download_manga(manga_json: String, language: &str, manga_name: &str) {
                                                         lang == language &&
                                                         chapter_num != "This is test"
                                                     {
+                                                        if arg_offset > (times as i32) {
+                                                            string(
+                                                                3,
+                                                                0,
+                                                                format!(
+                                                                    "({}) Skipping because of offset",
+                                                                    item as i32
+                                                                ).as_str()
+                                                            );
+                                                            std::thread::sleep(
+                                                                Duration::from_millis(10)
+                                                            );
+                                                            times += 1;
+                                                            continue;
+                                                        }
                                                         let folder_name = &format!(
                                                             "{} - {}Ch.{} - {}",
                                                             manga_name,
