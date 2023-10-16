@@ -653,7 +653,7 @@ async fn download_image(
         .replace('\'', "");
 
     string(5 + 1, -1 + start + (page as i32), "|");
-    string(5 + 1 + (page as i32), 0, "  Sleeping");
+    string(5 + 1 + (page as i32), 0, "   Sleeping");
     thread::sleep(Duration::from_millis((page * 50) as u64));
     string(
         5 + 1 + (page as i32),
@@ -693,7 +693,7 @@ async fn download_image(
                 5 + 1 + (page as i32),
                 0,
                 format!(
-                    "   {} {}",
+                    "{} {}",
                     message,
                     "#".repeat(
                         ((((stdscr().get_max_x() - (message.len() as i32)) as f32) /
