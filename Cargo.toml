@@ -18,6 +18,7 @@ walkdir = "2.3.2"
 indicatif = "0.17.7"
 futures = "0.3.28"
 colored = "2.0"
+rustix = "0.38.19"
 
 [dependencies.crosscurses]
 version = "0.1.0"
