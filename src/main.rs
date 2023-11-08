@@ -28,6 +28,13 @@ fn string(y: i32, x: i32, value: &str) {
     stdscr().refresh();
 }
 
+fn print_version() {
+    let version = env!("CARGO_PKG_VERSION");
+    string(stdscr().get_max_y() - 1, 0, format!("Current version: {}", version).as_str());
+    thread::sleep(Duration::from_millis(1000));
+    string(stdscr().get_max_y() - 1, 0, " ".repeat(stdscr().get_max_x() as usize).as_str());
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = initscr();
@@ -55,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input = args.url;
 
     let re = regex::Regex::new(r"/title/([\w-]+)/").unwrap();
+    tokio::spawn(async move { print_version() });
 
     if let Some(captures) = re.captures(&input) {
         if let Some(id) = captures.get(1) {
