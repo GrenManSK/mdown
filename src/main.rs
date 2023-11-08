@@ -20,6 +20,8 @@ struct Args {
     offset: String,
     #[arg(short, long, default_value_t)]
     database_offset: String,
+    #[arg(short, long)]
+    force: bool,
 }
 fn string(y: i32, x: i32, value: &str) {
     stdscr().mvaddnstr(y, x, value, stdscr().get_max_x() - x);
@@ -41,6 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "" => "0",
         x => x,
     };
+    let mut arg_force = args.force as bool;
     let arg_offset = arg_offset.parse().unwrap();
 
     let arg_database_offset = match args.database_offset.as_str() {
@@ -81,11 +84,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                             json,
                                                             language,
                                                             manga_name,
-                                                            arg_offset
+                                                            arg_offset,
+                                                            arg_force
                                                         ).await;
                                                     }
                                                     Err(err) => println!("Error: {}", err),
                                                 }
+                                                arg_force = false;
                                             }
                                             string(
                                                 stdscr().get_max_y(),
@@ -170,7 +175,13 @@ fn sort(data: &Vec<Value>) -> Vec<Value> {
     return data_array;
 }
 
-async fn download_manga(manga_json: String, language: &str, manga_name: &str, arg_offset: i32) {
+async fn download_manga(
+    manga_json: String,
+    language: &str,
+    manga_name: &str,
+    arg_offset: i32,
+    arg_force: bool
+) {
     match serde_json::from_str(&manga_json) {
         Ok(json_value) =>
             match json_value {
@@ -258,7 +269,8 @@ async fn download_manga(manga_json: String, language: &str, manga_name: &str, ar
                                                                     )
                                                                 )
                                                             ).await
-                                                            .is_ok()
+                                                            .is_ok() &&
+                                                        !arg_force
                                                     {
                                                         string(
                                                             3,
@@ -658,7 +670,7 @@ async fn download_image(
     string(
         5 + 1 + (page as i32),
         0,
-        format!("   {} {} {}", page_str, "Downloading", file_name_brief).as_str()
+        format!("   {} Downloading {}", page_str, file_name_brief).as_str()
     );
     string(5 + 1, -1 + start + (page as i32), "/");
     let full_path = format!("{}/{}", folder_name, file_name);
@@ -670,6 +682,7 @@ async fn download_image(
     // download chunks
     let mut file = File::create(full_path).unwrap();
     let mut downloaded = 0;
+    let mut last_size = 0.0;
 
     let interval = Duration::from_millis(250);
     let mut last_check_time = Instant::now();
@@ -682,12 +695,23 @@ async fn download_image(
         let current_time = Instant::now();
         if current_time.duration_since(last_check_time) >= interval {
             last_check_time = current_time;
+            let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
+            let perc_string;
+            if percentage < 10 {
+                perc_string = format!("  {}", percentage);
+            } else if percentage < 100 {
+                perc_string = format!(" {}", percentage);
+            } else {
+                perc_string = format!("{}", percentage);
+            }
             let message = format!(
-                "   {} {} {} {}%",
+                "   {} Downloading {} {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]",
                 page_str,
-                "Downloading",
                 file_name_brief,
-                ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64
+                perc_string,
+                (downloaded as f32) / (1024 as f32) / (1024 as f32),
+                (total_size as f32) / (1024 as f32) / (1024 as f32),
+                (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
             );
             string(
                 5 + 1 + (page as i32),
@@ -702,10 +726,18 @@ async fn download_image(
                     )
                 ).as_str()
             );
+            last_size = downloaded as f32;
         }
     }
 
-    let message = format!("   {} {} {} {}%", page_str, "Downloading", file_name_brief, 100);
+    let message = format!(
+        "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
+        page_str,
+        file_name_brief,
+        100,
+        (downloaded as f32) / (1024 as f32) / (1024 as f32),
+        (total_size as f32) / (1024 as f32) / (1024 as f32)
+    );
 
     string(
         5 + 1 + (page as i32),

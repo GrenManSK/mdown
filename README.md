@@ -13,3 +13,5 @@ mangadex manga downloader
 `--offset [Integer]` - changes start offset e.g. 50 starts from chapter 50
 
 `--database-offset [Integer]` - changes start offset e.g. 50 starts from item 50 in database
+
+`--force` - will download manga even if it already exists

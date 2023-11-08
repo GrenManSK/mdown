@@ -74,7 +74,7 @@ fn doit(
 const METHOD_STORED: Option<zip::CompressionMethod> = Some(zip::CompressionMethod::Stored);
 pub(crate) async fn to_zip(src_dir: &str, dst_file: &str) {
     match doit(src_dir, dst_file, METHOD_STORED.unwrap()) {
-        Ok(_) => string(9, 0, "   done: {src_dir} written to {dst_file}"),
+        Ok(_) => string(9, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str()),
         Err(e) => println!("  Error: {e:?}"),
     }
 }
