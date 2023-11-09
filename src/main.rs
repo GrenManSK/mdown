@@ -38,7 +38,7 @@ fn string(y: i32, x: i32, value: &str) {
 fn print_version() {
     let version = env!("CARGO_PKG_VERSION");
     string(stdscr().get_max_y() - 1, 0, format!("Current version: {}", version).as_str());
-    thread::sleep(Duration::from_millis(1000));
+    thread::sleep(Duration::from_millis(5000));
     string(stdscr().get_max_y() - 1, 0, " ".repeat(stdscr().get_max_x() as usize).as_str());
 }
 lazy_static! {
@@ -66,16 +66,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(json_value) =>
                 match json_value {
                     Value::Object(obj) => {
-                        if
-                            let Some(title_data) = obj
-                                .get("data")
-                                .and_then(|name_data| name_data.get("attributes"))
-                                .and_then(|attr_data| attr_data.get("title"))
-                        {
-                            resolve_manga_language(id, title_data).await;
-                        } else {
-                            println!("Some fields is not available");
-                        }
+                        let title_data = obj
+                            .get("data")
+                            .and_then(|name_data| name_data.get("attributes"))
+                            .and_then(|attr_data| attr_data.get("title"))
+                            .unwrap_or_else(|| {
+                                println!("attributes or title doesn't exist");
+                                process::exit(1);
+                            });
+
+                        resolve_manga_verbose(id, title_data).await;
                     }
                     _ => todo!(),
                 }
@@ -86,15 +86,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn resolve_manga_language(id: &str, title_data: &Value) {
-    if let Some(manga_name) = title_data.get("en").and_then(Value::as_str) {
-        resolve_manga_verbose(id, manga_name).await;
-    } else {
-        println!("eng_title is not available");
-    }
-}
-
-async fn resolve_manga_verbose(id: &str, manga_name: &str) {
+async fn resolve_manga_verbose(id: &str, title_data: &Value) {
+    let manga_name = title_data
+        .get("en")
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| {
+            println!("enn_title doesn't exist");
+            process::exit(1);
+        });
     resolve_manga(id, manga_name).await;
     string(
         stdscr().get_max_y(),
@@ -115,6 +114,7 @@ async fn resolve_manga(id: &str, manga_name: &str) {
             Err(err) => println!("Error: {}", err),
         }
         arg_force = false;
+        clear_screen(1);
     }
 }
 async fn get_manga_name(id: &str) -> Result<String, reqwest::Error> {
@@ -185,315 +185,246 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
         Ok(json_value) =>
             match json_value {
                 Value::Object(obj) => {
-                    if let Some(data_array) = obj.get("data").and_then(Value::as_array) {
-                        let data_array = sort(data_array);
-                        let mut times = 0;
-                        for item in 0..data_array.len() {
-                            if let Some(array_item) = data_array.get(item) {
-                                if let Some(field_value) = array_item.get("id") {
-                                    let value = &field_value.to_string();
-                                    let id = value.trim_matches('"');
-                                    string(
-                                        2,
-                                        0,
-                                        format!(
-                                            " ({}) Found chapter with id: {}",
-                                            item as i32,
-                                            id
-                                        ).as_str()
-                                    );
-                                    if let Some(chapter_attr) = array_item.get("attributes") {
-                                        if
-                                            let Some(lang) = chapter_attr
-                                                .get("translatedLanguage")
-                                                .and_then(Value::as_str)
-                                        {
-                                            if
-                                                let Some(pages) = chapter_attr
-                                                    .get("pages")
-                                                    .and_then(Value::as_u64)
-                                            {
-                                                let mut con_chap = true;
-                                                if
-                                                    let Some(chapter_num) = chapter_attr
-                                                        .get("chapter")
-                                                        .and_then(Value::as_str)
-                                                {
-                                                    if
-                                                        arg_chapter == "*" ||
-                                                        arg_chapter == chapter_num
-                                                    {
-                                                        con_chap = false;
-                                                    }
-                                                    let title;
-                                                    let vol;
-                                                    let mut con_vol = true;
-                                                    if
-                                                        let Some(title_temp) = chapter_attr
-                                                            .get("title")
-                                                            .and_then(Value::as_str)
-                                                    {
-                                                        title = title_temp;
-                                                    } else {
-                                                        title = "";
-                                                    }
-                                                    if
-                                                        let Some(vol_temp) = chapter_attr
-                                                            .get("volume")
-                                                            .and_then(Value::as_str)
-                                                    {
-                                                        if
-                                                            arg_volume == "*" ||
-                                                            arg_volume == vol_temp
-                                                        {
-                                                            con_vol = false;
-                                                        }
-                                                        vol = format!("Vol.{} ", &vol_temp);
-                                                    } else {
-                                                        vol = "".to_string();
-                                                        con_vol = false;
-                                                    }
-                                                    let vol = vol.as_str();
-
-                                                    let folder_path = format!(
-                                                        "{} - {}Ch.{} - {}",
-                                                        manga_name,
-                                                        vol,
-                                                        chapter_num,
-                                                        title
-                                                    );
-                                                    if
-                                                        tokio::fs
-                                                            ::metadata(
-                                                                format!(
-                                                                    "{}.cbz",
-                                                                    format!(
-                                                                        "{}",
-                                                                        folder_path
-                                                                            .replace('<', "")
-                                                                            .replace('>', "")
-                                                                            .replace(':', "")
-                                                                            .replace('|', "")
-                                                                            .replace('?', "")
-                                                                            .replace('*', "")
-                                                                            .replace('/', "")
-                                                                            .replace('\\', "")
-                                                                            .replace('"', "")
-                                                                            .replace('\'', "")
-                                                                    )
-                                                                )
-                                                            ).await
-                                                            .is_ok() &&
-                                                        !arg_force
-                                                    {
-                                                        string(
-                                                            3,
-                                                            0,
-                                                            format!(
-                                                                "  Skipping because file is already downloaded {}",
-                                                                format!(
-                                                                    "{}",
-                                                                    folder_path
-                                                                        .replace('<', "")
-                                                                        .replace('>', "")
-                                                                        .replace(':', "")
-                                                                        .replace('|', "")
-                                                                        .replace('?', "")
-                                                                        .replace('*', "")
-                                                                        .replace('/', "")
-                                                                        .replace('\\', "")
-                                                                        .replace('"', "")
-                                                                        .replace('\'', "")
-                                                                )
-                                                            ).as_str()
-                                                        );
-                                                        continue;
-                                                    }
-                                                    if con_vol {
-                                                        string(
-                                                            3,
-                                                            0,
-                                                            format!(
-                                                                "({}) Skipping because supplied volume doesn't match",
-                                                                item as i32
-                                                            ).as_str()
-                                                        );
-                                                        std::thread::sleep(
-                                                            Duration::from_millis(10)
-                                                        );
-                                                        continue;
-                                                    }
-                                                    if con_chap {
-                                                        string(
-                                                            3,
-                                                            0,
-                                                            format!(
-                                                                "({}) Skipping because supplied chapter doesn't match",
-                                                                item as i32
-                                                            ).as_str()
-                                                        );
-                                                        std::thread::sleep(
-                                                            Duration::from_millis(10)
-                                                        );
-                                                        continue;
-                                                    }
-                                                    if
-                                                        lang == language &&
-                                                        chapter_num != "This is test"
-                                                    {
-                                                        if arg_offset > (times as i32) {
-                                                            string(
-                                                                3,
-                                                                0,
-                                                                format!(
-                                                                    "({}) Skipping because of offset",
-                                                                    item as i32
-                                                                ).as_str()
-                                                            );
-                                                            std::thread::sleep(
-                                                                Duration::from_millis(10)
-                                                            );
-                                                            times += 1;
-                                                            continue;
-                                                        }
-                                                        let folder_name = &format!(
-                                                            "{} - {}Ch.{} - {}",
-                                                            manga_name,
-                                                            vol,
-                                                            chapter_num,
-                                                            title
-                                                        );
-                                                        let folder_path = format!(
-                                                            "{}/",
-                                                            folder_name
-                                                                .replace('<', "")
-                                                                .replace('>', "")
-                                                                .replace(':', "")
-                                                                .replace('|', "")
-                                                                .replace('?', "")
-                                                                .replace('*', "")
-                                                                .replace('/', "")
-                                                                .replace('\\', "")
-                                                                .replace('"', "")
-                                                                .replace('\'', "")
-                                                        );
-                                                        string(
-                                                            3,
-                                                            0,
-                                                            format!(
-                                                                "  Metadata: Language: {};Pages: {};Vol: {};Chapter: {};Title: {}",
-                                                                lang,
-                                                                pages,
-                                                                vol,
-                                                                chapter_num,
-                                                                title
-                                                            ).as_str()
-                                                        );
-                                                        match get_chapter(id).await {
-                                                            Ok(id) => {
-                                                                download_chapter(
-                                                                    id,
-                                                                    &manga_name,
-                                                                    title,
-                                                                    vol,
-                                                                    chapter_num,
-                                                                    &folder_path
-                                                                ).await;
-                                                            }
-                                                            Err(err) => println!("Error: {}", err),
-                                                        }
-                                                        let folder_path = format!(
-                                                            "{}/",
-                                                            folder_name
-                                                                .replace('<', "")
-                                                                .replace('>', "")
-                                                                .replace(':', "")
-                                                                .replace('|', "")
-                                                                .replace('?', "")
-                                                                .replace('*', "")
-                                                                .replace('/', "")
-                                                                .replace('\\', "")
-                                                                .replace('"', "")
-                                                                .replace('\'', "")
-                                                        );
-                                                        let folder_name = folder_name
-                                                            .replace('<', "")
-                                                            .replace('>', "")
-                                                            .replace(':', "")
-                                                            .replace('|', "")
-                                                            .replace('?', "")
-                                                            .replace('*', "")
-                                                            .replace('/', "")
-                                                            .replace('\\', "")
-                                                            .replace('"', "")
-                                                            .replace('\'', "");
-                                                        for i in 7..stdscr().get_max_y() {
-                                                            string(
-                                                                i as i32,
-                                                                0,
-                                                                " "
-                                                                    .repeat(
-                                                                        stdscr().get_max_x() as usize
-                                                                    )
-                                                                    .as_str()
-                                                            );
-                                                        }
-                                                        string(
-                                                            7,
-                                                            0,
-                                                            format!(
-                                                                "  Converting images to cbz files: {}",
-                                                                format!("{}.cbz", folder_path).as_str()
-                                                            ).as_str()
-                                                        );
-                                                        let _ = zip_func::to_zip(
-                                                            folder_path.as_str(),
-                                                            format!("{}.cbz", folder_name).as_str()
-                                                        ).await;
-                                                        let _ =
-                                                            tokio::fs::remove_dir_all(
-                                                                folder_path
-                                                            ).await;
-                                                        for i in 3..stdscr().get_max_y() {
-                                                            string(
-                                                                i as i32,
-                                                                0,
-                                                                " "
-                                                                    .repeat(
-                                                                        stdscr().get_max_x() as usize
-                                                                    )
-                                                                    .as_str()
-                                                            );
-                                                        }
-                                                    } else {
-                                                        string(
-                                                            3,
-                                                            0,
-                                                            format!(
-                                                                "  Skipping because of wrong language; found '{}', target '{}' ...",
-                                                                lang,
-                                                                language
-                                                            ).as_str()
-                                                        );
-                                                    }
-                                                    std::thread::sleep(Duration::from_millis(10));
-                                                } else {
-                                                    println!("Chapter number found");
-                                                }
-                                            } else {
-                                                println!("Pages count not found");
-                                            }
-                                        } else {
-                                            println!("Language not found in chapter attributes");
-                                        }
-                                    } else {
-                                        println!("attributes not found in chapter");
-                                    }
-                                }
-                            }
+                    let data_array = obj
+                        .get("data")
+                        .and_then(Value::as_array)
+                        .unwrap_or_else(|| {
+                            println!("data doesn't exist");
+                            process::exit(1);
+                        });
+                    let data_array = sort(data_array);
+                    let mut times = 0;
+                    let mut moves = 0;
+                    let mut hist: Vec<String> = vec![];
+                    for item in 0..data_array.len() {
+                        let array_item = data_array.get(item).unwrap_or_else(|| {
+                            println!("{} doesn't exist", item);
+                            process::exit(1);
+                        });
+                        let field_value = array_item.get("id").unwrap_or_else(|| {
+                            println!("id doesn't exist");
+                            process::exit(1);
+                        });
+                        let value = &field_value.to_string();
+                        let id = value.trim_matches('"');
+                        string(
+                            2,
+                            0,
+                            format!(" ({}) Found chapter with id: {}", item as i32, id).as_str()
+                        );
+                        let chapter_attr = array_item.get("attributes").unwrap_or_else(|| {
+                            println!("attributes doesn't exist");
+                            process::exit(1);
+                        });
+                        let lang = chapter_attr
+                            .get("translatedLanguage")
+                            .and_then(Value::as_str)
+                            .unwrap_or_else(|| {
+                                println!("translatedLanguage doesn't exist");
+                                process::exit(1);
+                            });
+                        let pages = chapter_attr
+                            .get("pages")
+                            .and_then(Value::as_u64)
+                            .unwrap_or_else(|| {
+                                println!("pages doesn't exist");
+                                process::exit(1);
+                            });
+                        let mut con_chap = true;
+                        let chapter_num = chapter_attr
+                            .get("chapter")
+                            .and_then(Value::as_str)
+                            .unwrap_or_else(|| {
+                                println!("chapter doesn't exist");
+                                process::exit(1);
+                            });
+                        if arg_chapter == "*" || arg_chapter == chapter_num {
+                            con_chap = false;
                         }
-                    } else {
-                        println!("JSON does not contain a 'data' array.");
+                        let vol;
+                        let mut con_vol = true;
+                        let title = chapter_attr
+                            .get("title")
+                            .and_then(Value::as_str)
+                            .unwrap_or_else(|| { "" });
+                        if let Some(vol_temp) = chapter_attr.get("volume").and_then(Value::as_str) {
+                            if arg_volume == "*" || arg_volume == vol_temp {
+                                con_vol = false;
+                            }
+                            vol = format!("Vol.{} ", &vol_temp);
+                        } else {
+                            vol = "".to_string();
+                            con_vol = false;
+                        }
+                        let vol = vol.as_str();
+                        let folder_path = format!(
+                            "{} - {}Ch.{} - {}",
+                            manga_name,
+                            vol,
+                            chapter_num,
+                            title
+                        );
+                        if
+                            tokio::fs
+                                ::metadata(
+                                    format!(
+                                        "{}.cbz",
+                                        format!(
+                                            "{}",
+                                            folder_path
+                                                .replace('<', "")
+                                                .replace('>', "")
+                                                .replace(':', "")
+                                                .replace('|', "")
+                                                .replace('?', "")
+                                                .replace('*', "")
+                                                .replace('/', "")
+                                                .replace('\\', "")
+                                                .replace('"', "")
+                                                .replace('\'', "")
+                                        )
+                                    )
+                                ).await
+                                .is_ok() &&
+                            !arg_force
+                        {
+                            let message: String = folder_path
+                                .chars()
+                                .filter(|&c| !"<>:|?*/\\\"'".contains(c))
+                                .collect();
+                            let al_dow =
+                                format!("  Skipping because file is already downloaded {}", message);
+                            hist.push(al_dow);
+                            (moves, hist) = resolve_move(moves, hist.clone());
+                            continue;
+                        }
+                        if con_vol {
+                            let message = format!(
+                                "({}) Skipping because supplied volume doesn't match",
+                                item as i32
+                            );
+                            hist.push(message);
+                            (moves, hist) = resolve_move(moves, hist.clone());
+                            continue;
+                        }
+                        if con_chap {
+                            let message = format!(
+                                "({}) Skipping because supplied chapter doesn't match",
+                                item as i32
+                            );
+                            hist.push(message);
+                            (moves, hist) = resolve_move(moves, hist.clone());
+                            continue;
+                        }
+                        if lang == language && chapter_num != "This is test" {
+                            if arg_offset > (times as i32) {
+                                let message = format!(
+                                    "({}) Skipping because of offset",
+                                    item as i32
+                                );
+                                hist.push(message);
+                                (moves, hist) = resolve_move(moves, hist.clone());
+                                times += 1;
+                                continue;
+                            }
+                            clear_screen(3);
+                            let folder_name = &format!(
+                                "{} - {}Ch.{} - {}",
+                                manga_name,
+                                vol,
+                                chapter_num,
+                                title
+                            );
+                            let folder_path = format!(
+                                "{}/",
+                                folder_name
+                                    .replace('<', "")
+                                    .replace('>', "")
+                                    .replace(':', "")
+                                    .replace('|', "")
+                                    .replace('?', "")
+                                    .replace('*', "")
+                                    .replace('/', "")
+                                    .replace('\\', "")
+                                    .replace('"', "")
+                                    .replace('\'', "")
+                            );
+                            string(
+                                3,
+                                0,
+                                format!(
+                                    "  Metadata: Language: {};Pages: {};Vol: {};Chapter: {};Title: {}",
+                                    lang,
+                                    pages,
+                                    vol,
+                                    chapter_num,
+                                    title
+                                ).as_str()
+                            );
+                            match get_chapter(id).await {
+                                Ok(id) => {
+                                    download_chapter(
+                                        id,
+                                        &manga_name,
+                                        title,
+                                        vol,
+                                        chapter_num,
+                                        &folder_path
+                                    ).await;
+                                }
+                                Err(err) => println!("Error: {}", err),
+                            }
+                            let folder_path = format!(
+                                "{}/",
+                                folder_name
+                                    .replace('<', "")
+                                    .replace('>', "")
+                                    .replace(':', "")
+                                    .replace('|', "")
+                                    .replace('?', "")
+                                    .replace('*', "")
+                                    .replace('/', "")
+                                    .replace('\\', "")
+                                    .replace('"', "")
+                                    .replace('\'', "")
+                            );
+                            let folder_name = folder_name
+                                .replace('<', "")
+                                .replace('>', "")
+                                .replace(':', "")
+                                .replace('|', "")
+                                .replace('?', "")
+                                .replace('*', "")
+                                .replace('/', "")
+                                .replace('\\', "")
+                                .replace('"', "")
+                                .replace('\'', "");
+                            clear_screen(7);
+                            string(
+                                7,
+                                0,
+                                format!(
+                                    "  Converting images to cbz files: {}",
+                                    format!("{}.cbz", folder_path).as_str()
+                                ).as_str()
+                            );
+                            let _ = zip_func::to_zip(
+                                folder_path.as_str(),
+                                format!("{}.cbz", folder_name).as_str()
+                            ).await;
+                            let _ = tokio::fs::remove_dir_all(folder_path).await;
+                            clear_screen(3);
+                        } else {
+                            string(
+                                3,
+                                0,
+                                format!(
+                                    "  Skipping because of wrong language; found '{}', target '{}' ...",
+                                    lang,
+                                    language
+                                ).as_str()
+                            );
+                        }
                     }
                 }
                 _ => {
@@ -501,6 +432,36 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
                 }
             }
         Err(err) => println!("Error parsing JSON: {}", err),
+    }
+}
+
+fn resolve_move(mut moves: i32, mut hist: Vec<String>) -> (i32, Vec<String>) {
+    if moves + 3 >= stdscr().get_max_y() {
+        hist.remove(0);
+    } else {
+        moves += 1;
+    }
+    for i in 0..moves {
+        if i == moves - 1 {
+            break;
+        }
+        let message = hist[i as usize].as_str();
+        string(
+            3 + i,
+            0,
+            format!(
+                "{}{}",
+                message,
+                " ".repeat((stdscr().get_max_x() as usize) - message.len())
+            ).as_str()
+        );
+    }
+    (moves, hist)
+}
+
+fn clear_screen(from: i32) {
+    for i in from..stdscr().get_max_y() {
+        string(i, 0, " ".repeat(stdscr().get_max_x() as usize).as_str());
     }
 }
 
