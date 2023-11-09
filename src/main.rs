@@ -8,18 +8,25 @@ use std::thread;
 mod zip_func;
 use crosscurses::*;
 use std::time::{ Duration, Instant };
+use lazy_static::lazy_static;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     #[arg(short, long)]
     url: String,
-    #[arg(short, long, default_value_t)]
+    #[arg(short, long, default_value_t = format!("en").to_string())]
     lang: String,
-    #[arg(short, long, default_value_t)]
+    #[arg(short, long, default_value_t = format!("0").to_string())]
     offset: String,
-    #[arg(short, long, default_value_t)]
+    #[arg(short, long, default_value_t = format!("0").to_string())]
     database_offset: String,
+    #[arg(short, long, default_value_t = format!("*").to_string())]
+    volume: String,
+    #[arg(short, long, default_value_t = format!("*").to_string())]
+    chapter: String,
+    #[arg(short, long, default_value_t = format!("40").to_string())]
+    pack: String,
     #[arg(short, long)]
     force: bool,
 }
@@ -34,102 +41,82 @@ fn print_version() {
     thread::sleep(Duration::from_millis(1000));
     string(stdscr().get_max_y() - 1, 0, " ".repeat(stdscr().get_max_x() as usize).as_str());
 }
-
+lazy_static! {
+    static ref ARGS: Args = Args::parse();
+}
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = initscr();
     curs_set(2);
     start_color();
-    let args = Args::parse();
 
-    let language = match args.lang.as_str() {
-        "" => "en",
-        x => x,
-    };
-    let arg_offset = match args.offset.as_str() {
-        "" => "0",
-        x => x,
-    };
-    let mut arg_force = args.force as bool;
-    let arg_offset = arg_offset.parse().unwrap();
-
-    let arg_database_offset = match args.database_offset.as_str() {
-        "" => "0",
-        x => x,
-    };
-    let arg_database_offset: i32 = arg_database_offset.parse().unwrap();
-
-    let input = args.url;
+    let input = &ARGS.url;
 
     let re = regex::Regex::new(r"/title/([\w-]+)/").unwrap();
     tokio::spawn(async move { print_version() });
 
-    if let Some(captures) = re.captures(&input) {
-        if let Some(id) = captures.get(1) {
-            string(0, 0, format!("Extracted ID: {}", id.as_str()).as_str());
-            let id = id.as_str();
-            let manga_name_json = match get_manga_name(id).await {
-                Ok(name) => name,
-                Err(_) => process::exit(1),
-            };
-            match serde_json::from_str(&manga_name_json) {
-                Ok(json_value) =>
-                    match json_value {
-                        Value::Object(obj) => {
-                            if let Some(name_data) = obj.get("data") {
-                                if let Some(attr_data) = name_data.get("attributes") {
-                                    if let Some(title_data) = attr_data.get("title") {
-                                        if
-                                            let Some(manga_name) = title_data
-                                                .get("en")
-                                                .and_then(Value::as_str)
-                                        {
-                                            let going_offset = arg_database_offset;
-                                            for _ in 0..2 {
-                                                match get_manga(id, going_offset).await {
-                                                    Ok((json, _offset)) => {
-                                                        download_manga(
-                                                            json,
-                                                            language,
-                                                            manga_name,
-                                                            arg_offset,
-                                                            arg_force
-                                                        ).await;
-                                                    }
-                                                    Err(err) => println!("Error: {}", err),
-                                                }
-                                                arg_force = false;
-                                            }
-                                            string(
-                                                stdscr().get_max_y(),
-                                                0,
-                                                format!("Ending session: {} has been downloaded", manga_name).as_str()
-                                            );
-                                        } else {
-                                            println!("eng_title is not available");
-                                        }
-                                    } else {
-                                        println!("title is not available");
-                                    }
-                                } else {
-                                    println!("attributes is not available");
-                                }
-                            } else {
-                                println!("data is not available");
-                            }
+    if let Some(id) = re.captures(&input).and_then(|id| id.get(1)) {
+        string(0, 0, format!("Extracted ID: {}", id.as_str()).as_str());
+        let id = id.as_str();
+        let manga_name_json = match get_manga_name(id).await {
+            Ok(name) => name,
+            Err(_) => process::exit(1),
+        };
+        match serde_json::from_str(&manga_name_json) {
+            Ok(json_value) =>
+                match json_value {
+                    Value::Object(obj) => {
+                        if
+                            let Some(title_data) = obj
+                                .get("data")
+                                .and_then(|name_data| name_data.get("attributes"))
+                                .and_then(|attr_data| attr_data.get("title"))
+                        {
+                            resolve_manga_language(id, title_data).await;
+                        } else {
+                            println!("Some fields is not available");
                         }
-                        _ => todo!(),
                     }
-                Err(err) => println!("Error parsing JSON: {}", err),
-            };
-        }
-    } else {
-        println!("ID not found in the URL.");
+                    _ => todo!(),
+                }
+            Err(err) => println!("Error parsing JSON: {}", err),
+        };
     }
 
     Ok(())
 }
 
+async fn resolve_manga_language(id: &str, title_data: &Value) {
+    if let Some(manga_name) = title_data.get("en").and_then(Value::as_str) {
+        resolve_manga_verbose(id, manga_name).await;
+    } else {
+        println!("eng_title is not available");
+    }
+}
+
+async fn resolve_manga_verbose(id: &str, manga_name: &str) {
+    resolve_manga(id, manga_name).await;
+    string(
+        stdscr().get_max_y(),
+        0,
+        format!("Ending session: {} has been downloaded", manga_name).as_str()
+    );
+}
+
+async fn resolve_manga(id: &str, manga_name: &str) {
+    let arg_database_offset: i32 = ARGS.database_offset.as_str().parse().unwrap();
+    let mut arg_force = ARGS.force as bool;
+    let going_offset = arg_database_offset;
+    for _ in 0..2 {
+        match get_manga(id, going_offset).await {
+            Ok((json, _offset)) => {
+                download_manga(json, manga_name, arg_force).await;
+            }
+            Err(err) => println!("Error: {}", err),
+        }
+        arg_force = false;
+    }
+}
 async fn get_manga_name(id: &str) -> Result<String, reqwest::Error> {
     let base_url = "https://api.mangadex.org/manga/";
     let full_url = format!("{}{}", base_url, id);
@@ -183,13 +170,17 @@ fn sort(data: &Vec<Value>) -> Vec<Value> {
     return data_array;
 }
 
-async fn download_manga(
-    manga_json: String,
-    language: &str,
-    manga_name: &str,
-    arg_offset: i32,
-    arg_force: bool
-) {
+async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
+    let arg_volume = match ARGS.volume.as_str() {
+        "" => "*",
+        x => x,
+    };
+    let arg_chapter = match ARGS.chapter.as_str() {
+        "" => "*",
+        x => x,
+    };
+    let arg_offset: i32 = ARGS.offset.as_str().parse().unwrap();
+    let language = ARGS.lang.as_str();
     match serde_json::from_str(&manga_json) {
         Ok(json_value) =>
             match json_value {
@@ -222,13 +213,21 @@ async fn download_manga(
                                                     .get("pages")
                                                     .and_then(Value::as_u64)
                                             {
+                                                let mut con_chap = true;
                                                 if
                                                     let Some(chapter_num) = chapter_attr
                                                         .get("chapter")
                                                         .and_then(Value::as_str)
                                                 {
+                                                    if
+                                                        arg_chapter == "*" ||
+                                                        arg_chapter == chapter_num
+                                                    {
+                                                        con_chap = false;
+                                                    }
                                                     let title;
                                                     let vol;
+                                                    let mut con_vol = true;
                                                     if
                                                         let Some(title_temp) = chapter_attr
                                                             .get("title")
@@ -243,9 +242,16 @@ async fn download_manga(
                                                             .get("volume")
                                                             .and_then(Value::as_str)
                                                     {
+                                                        if
+                                                            arg_volume == "*" ||
+                                                            arg_volume == vol_temp
+                                                        {
+                                                            con_vol = false;
+                                                        }
                                                         vol = format!("Vol.{} ", &vol_temp);
                                                     } else {
                                                         vol = "".to_string();
+                                                        con_vol = false;
                                                     }
                                                     let vol = vol.as_str();
 
@@ -300,6 +306,34 @@ async fn download_manga(
                                                                         .replace('\'', "")
                                                                 )
                                                             ).as_str()
+                                                        );
+                                                        continue;
+                                                    }
+                                                    if con_vol {
+                                                        string(
+                                                            3,
+                                                            0,
+                                                            format!(
+                                                                "({}) Skipping because supplied volume doesn't match",
+                                                                item as i32
+                                                            ).as_str()
+                                                        );
+                                                        std::thread::sleep(
+                                                            Duration::from_millis(10)
+                                                        );
+                                                        continue;
+                                                    }
+                                                    if con_chap {
+                                                        string(
+                                                            3,
+                                                            0,
+                                                            format!(
+                                                                "({}) Skipping because supplied chapter doesn't match",
+                                                                item as i32
+                                                            ).as_str()
+                                                        );
+                                                        std::thread::sleep(
+                                                            Duration::from_millis(10)
                                                         );
                                                         continue;
                                                     }
@@ -359,7 +393,7 @@ async fn download_manga(
                                                             Ok(id) => {
                                                                 download_chapter(
                                                                     id,
-                                                                    manga_name,
+                                                                    &manga_name,
                                                                     title,
                                                                     vol,
                                                                     chapter_num,
@@ -512,78 +546,99 @@ async fn download_chapter(
                                         )
                                     ).await;
 
+                                    let folder_path = format!(
+                                        "{} - {}Ch.{} - {}",
+                                        manga_name,
+                                        vol,
+                                        chapter,
+                                        title
+                                    );
+                                    let _ = tokio::fs::create_dir_all(
+                                        format!(
+                                            "{}/",
+                                            folder_path
+                                                .replace('<', "")
+                                                .replace('>', "")
+                                                .replace(':', "")
+                                                .replace('|', "")
+                                                .replace('?', "")
+                                                .replace('*', "")
+                                                .replace('/', "")
+                                                .replace('\\', "")
+                                                .replace('"', "")
+                                                .replace('\'', "")
+                                        )
+                                    );
+
                                     let start =
                                         stdscr().get_max_x() / 3 - (images_length as i32) / 2;
 
-                                    let tasks = (0..images_length).map(|item| {
-                                        if let Some(image_tmp) = images.get(item) {
-                                            let image_temp = image_tmp.to_string();
+                                    let iter = ARGS.pack.parse().unwrap();
 
-                                            let folder_path = format!(
-                                                "{} - {}Ch.{} - {}",
-                                                manga_name,
-                                                vol,
-                                                chapter,
-                                                title
-                                            );
-                                            let _ = tokio::fs::create_dir_all(
-                                                format!(
-                                                    "{}/",
-                                                    folder_path
-                                                        .replace('<', "")
-                                                        .replace('>', "")
-                                                        .replace(':', "")
-                                                        .replace('|', "")
-                                                        .replace('?', "")
-                                                        .replace('*', "")
-                                                        .replace('/', "")
-                                                        .replace('\\', "")
-                                                        .replace('"', "")
-                                                        .replace('\'', "")
-                                                )
-                                            );
+                                    let loop_for = ((images_length as f32) / (iter as f32)).ceil();
 
-                                            let chapter_hash = chapter_hash.to_string();
-                                            let image = image_temp.trim_matches('"').to_string();
-                                            let manga_name = manga_name.to_string();
-                                            let title = title.to_string();
-                                            let vol = vol.to_string();
-                                            let chapter = chapter.to_string();
+                                    let mut images_length_temp = images_length;
 
-                                            tokio::spawn(async move {
-                                                download_image(
-                                                    &chapter_hash,
-                                                    &image,
-                                                    &manga_name,
-                                                    &title,
-                                                    &vol,
-                                                    &chapter,
-                                                    item,
-                                                    start
-                                                ).await;
-                                            })
+                                    for i in 0..loop_for as usize {
+                                        let end_task;
+                                        if images_length_temp > iter {
+                                            end_task = (i + 1) * iter;
                                         } else {
-                                            tokio::spawn(async move {
-                                                download_image(
-                                                    "",
-                                                    "",
-                                                    "",
-                                                    "",
-                                                    "",
-                                                    "",
-                                                    0,
-                                                    start
-                                                ).await;
-                                            })
+                                            end_task = images_length;
                                         }
-                                    });
+                                        let start_task = i * iter;
+                                        images_length_temp -= iter;
+                                        let tasks = (start_task..end_task).map(|item| {
+                                            if let Some(image_tmp) = images.get(item) {
+                                                let image_temp = image_tmp.to_string();
+                                                let chapter_hash = chapter_hash.to_string();
+                                                let manga_name = manga_name.to_string();
+                                                let title = title.to_string();
+                                                let vol = vol.to_string();
+                                                let chapter = chapter.to_string();
+                                                let image = image_temp
+                                                    .trim_matches('"')
+                                                    .to_string();
 
-                                    progress_bar_preparation(start, images_length, 6);
+                                                tokio::spawn(async move {
+                                                    download_image(
+                                                        &chapter_hash,
+                                                        &image,
+                                                        &manga_name,
+                                                        &title,
+                                                        &vol,
+                                                        &chapter,
+                                                        item,
+                                                        start,
+                                                        iter,
+                                                        i
+                                                    ).await;
+                                                })
+                                            } else {
+                                                tokio::spawn(async move {
+                                                    download_image(
+                                                        "",
+                                                        "",
+                                                        "",
+                                                        "",
+                                                        "",
+                                                        "",
+                                                        0,
+                                                        start,
+                                                        iter,
+                                                        i
+                                                    ).await;
+                                                })
+                                            }
+                                        });
 
-                                    let _: Vec<_> = futures::future
-                                        ::join_all(tasks).await
-                                        .into_iter()
-                                        .collect();
+                                        progress_bar_preparation(start, images_length, 6);
+
+                                        let _: Vec<_> = futures::future
+                                            ::join_all(tasks).await
+                                            .into_iter()
+                                            .collect();
+                                    }
                                 }
                             } else {
                                 println!("Missing data for chapter")
@@ -628,7 +683,9 @@ async fn download_image(
     vol: &str,
     chapter: &str,
     page: usize,
-    start: i32
+    start: i32,
+    iter: usize,
+    times: usize
 ) {
     let page = page + 1;
     let page_str = page.to_string() + " ".repeat(3 - page.to_string().len()).as_str();
@@ -674,7 +731,7 @@ async fn download_image(
 
     string(5 + 1, -1 + start + (page as i32), "|");
     string(5 + 1 + (page as i32), 0, "   Sleeping");
-    thread::sleep(Duration::from_millis((page * 50) as u64));
+    thread::sleep(Duration::from_millis(((page - iter * times) * 50) as u64));
     string(
         5 + 1 + (page as i32),
         0,
