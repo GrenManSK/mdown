@@ -82,6 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(err) => println!("Error parsing JSON: {}", err),
         };
     }
+    stdscr().getch();
 
     Ok(())
 }
@@ -91,14 +92,19 @@ async fn resolve_manga_verbose(id: &str, title_data: &Value) {
         .get("en")
         .and_then(Value::as_str)
         .unwrap_or_else(|| {
-            println!("enn_title doesn't exist");
+            println!("eng_title doesn't exist");
             process::exit(1);
         });
     resolve_manga(id, manga_name).await;
+    let message = format!("Ending session: {} has been downloaded", manga_name);
     string(
-        stdscr().get_max_y(),
+        stdscr().get_max_y() - 1,
         0,
-        format!("Ending session: {} has been downloaded", manga_name).as_str()
+        format!(
+            "{}{}",
+            message,
+            " ".repeat((stdscr().get_max_x() as usize) - message.len())
+        ).as_str()
     );
 }
 
@@ -106,15 +112,24 @@ async fn resolve_manga(id: &str, manga_name: &str) {
     let arg_database_offset: i32 = ARGS.database_offset.as_str().parse().unwrap();
     let mut arg_force = ARGS.force as bool;
     let going_offset = arg_database_offset;
-    for _ in 0..2 {
+    let end = 2;
+    let mut downloaded: Vec<String> = vec![];
+    for _ in 0..end {
         match get_manga(id, going_offset).await {
             Ok((json, _offset)) => {
-                download_manga(json, manga_name, arg_force).await;
+                let downloaded_temp = download_manga(json, manga_name, arg_force).await;
+                for i in 0..downloaded_temp.len() {
+                    downloaded.push(downloaded_temp[i].clone());
+                }
+                clear_screen(1);
             }
             Err(err) => println!("Error: {}", err),
         }
         arg_force = false;
-        clear_screen(1);
+    }
+    string(1, 0, "Downloaded files:");
+    for i in 0..downloaded.len() {
+        (_, downloaded) = resolve_move(i as i32, downloaded.clone(), 2, 1);
     }
 }
 async fn get_manga_name(id: &str) -> Result<String, reqwest::Error> {
@@ -170,7 +185,7 @@ fn sort(data: &Vec<Value>) -> Vec<Value> {
     return data_array;
 }
 
-async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
+async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -> Vec<String> {
     let arg_volume = match ARGS.volume.as_str() {
         "" => "*",
         x => x,
@@ -179,6 +194,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
         "" => "*",
         x => x,
     };
+    let mut downloaded: Vec<String> = vec![];
     let arg_offset: i32 = ARGS.offset.as_str().parse().unwrap();
     let language = ARGS.lang.as_str();
     match serde_json::from_str(&manga_json) {
@@ -295,7 +311,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
                             let al_dow =
                                 format!("  Skipping because file is already downloaded {}", message);
                             hist.push(al_dow);
-                            (moves, hist) = resolve_move(moves, hist.clone());
+                            (moves, hist) = resolve_move(moves, hist.clone(), 3, 0);
                             continue;
                         }
                         if con_vol {
@@ -304,7 +320,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
                                 item as i32
                             );
                             hist.push(message);
-                            (moves, hist) = resolve_move(moves, hist.clone());
+                            (moves, hist) = resolve_move(moves, hist.clone(), 3, 0);
                             continue;
                         }
                         if con_chap {
@@ -313,7 +329,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
                                 item as i32
                             );
                             hist.push(message);
-                            (moves, hist) = resolve_move(moves, hist.clone());
+                            (moves, hist) = resolve_move(moves, hist.clone(), 3, 0);
                             continue;
                         }
                         if lang == language && chapter_num != "This is test" {
@@ -323,7 +339,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
                                     item as i32
                                 );
                                 hist.push(message);
-                                (moves, hist) = resolve_move(moves, hist.clone());
+                                (moves, hist) = resolve_move(moves, hist.clone(), 3, 0);
                                 times += 1;
                                 continue;
                             }
@@ -408,12 +424,14 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
                                     format!("{}.cbz", folder_path).as_str()
                                 ).as_str()
                             );
+                            let file_name = format!("{}.cbz", folder_name);
                             let _ = zip_func::to_zip(
                                 folder_path.as_str(),
-                                format!("{}.cbz", folder_name).as_str()
+                                file_name.as_str()
                             ).await;
                             let _ = tokio::fs::remove_dir_all(folder_path).await;
                             clear_screen(3);
+                            downloaded.push(file_name);
                         } else {
                             string(
                                 3,
@@ -433,21 +451,22 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) {
             }
         Err(err) => println!("Error parsing JSON: {}", err),
     }
+    downloaded
 }
 
-fn resolve_move(mut moves: i32, mut hist: Vec<String>) -> (i32, Vec<String>) {
-    if moves + 3 >= stdscr().get_max_y() {
+fn resolve_move(mut moves: i32, mut hist: Vec<String>, start: i32, end: i32) -> (i32, Vec<String>) {
+    if moves + start >= stdscr().get_max_y() - end {
         hist.remove(0);
     } else {
         moves += 1;
     }
     for i in 0..moves {
-        if i == moves - 1 {
+        if (i as usize) == hist.len() {
             break;
         }
         let message = hist[i as usize].as_str();
         string(
-            3 + i,
+            start + i,
             0,
             format!(
                 "{}{}",
