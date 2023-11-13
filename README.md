@@ -16,6 +16,8 @@ mangadex manga downloader
 
 `--force` - will download manga even if it already exists
 
+`--title` - will name the manga
+
 `--volume` - will download manga which has supplied volume in it
 
 `--chapter` - will download manga which has supplied chapter in it

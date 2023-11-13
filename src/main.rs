@@ -22,6 +22,8 @@ struct Args {
     #[arg(short, long, default_value_t = format!("0").to_string())]
     database_offset: String,
     #[arg(short, long, default_value_t = format!("*").to_string())]
+    title: String,
+    #[arg(short, long, default_value_t = format!("*").to_string())]
     volume: String,
     #[arg(short, long, default_value_t = format!("*").to_string())]
     chapter: String,
@@ -69,7 +71,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let title_data = obj
                             .get("data")
                             .and_then(|name_data| name_data.get("attributes"))
-                            .and_then(|attr_data| attr_data.get("title"))
                             .unwrap_or_else(|| {
                                 println!("attributes or title doesn't exist");
                                 process::exit(1);
@@ -88,13 +89,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn resolve_manga_verbose(id: &str, title_data: &Value) {
-    let manga_name = title_data
-        .get("en")
-        .and_then(Value::as_str)
-        .unwrap_or_else(|| {
-            println!("eng_title doesn't exist");
-            process::exit(1);
-        });
+    let manga_name;
+    if ARGS.title == "*" {
+        manga_name = title_data
+            .get("title")
+            .and_then(|attr_data| attr_data.get("en"))
+            .and_then(Value::as_str)
+            .unwrap_or_else(|| {
+                let get = title_data
+                    .get("altTitles")
+                    .and_then(|val| val.as_array())
+                    .unwrap();
+                let mut return_title = "*";
+                for title_object in get {
+                    if let Some(lang_object) = title_object.as_object() {
+                        for (lang, title) in lang_object.iter() {
+                            if lang == "en" {
+                                return_title = title.as_str().unwrap();
+                                break;
+                            }
+                        }
+                    }
+                    break;
+                }
+                if return_title == "*" {
+                    return_title = title_data.get("ja-ro").and_then(Value::as_str).unwrap();
+                }
+                return_title
+            });
+    } else {
+        manga_name = ARGS.title.as_str();
+    }
     resolve_manga(id, manga_name).await;
     let message = format!("Ending session: {} has been downloaded", manga_name);
     string(
@@ -263,6 +288,10 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                             .get("title")
                             .and_then(Value::as_str)
                             .unwrap_or_else(|| { "" });
+                        let mut pr_title = "".to_string();
+                        if title != "" {
+                            pr_title = format!(" - {}", title);
+                        }
                         if let Some(vol_temp) = chapter_attr.get("volume").and_then(Value::as_str) {
                             if arg_volume == "*" || arg_volume == vol_temp {
                                 con_vol = false;
@@ -274,11 +303,11 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                         }
                         let vol = vol.as_str();
                         let folder_path = format!(
-                            "{} - {}Ch.{} - {}",
+                            "{} - {}Ch.{}{}",
                             manga_name,
                             vol,
                             chapter_num,
-                            title
+                            pr_title
                         );
                         if
                             tokio::fs
@@ -345,11 +374,11 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                             }
                             clear_screen(3);
                             let folder_name = &format!(
-                                "{} - {}Ch.{} - {}",
+                                "{} - {}Ch.{}{}",
                                 manga_name,
                                 vol,
                                 chapter_num,
-                                title
+                                pr_title
                             );
                             let folder_path = format!(
                                 "{}/",
@@ -365,16 +394,20 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                                     .replace('"', "")
                                     .replace('\'', "")
                             );
+                            let mut pr_title_full = "".to_string();
+                            if title != "" {
+                                pr_title_full = format!(";Title: {}", title);
+                            }
                             string(
                                 3,
                                 0,
                                 format!(
-                                    "  Metadata: Language: {};Pages: {};Vol: {};Chapter: {};Title: {}",
+                                    "  Metadata: Language: {};Pages: {};Vol: {};Chapter: {}{}",
                                     lang,
                                     pages,
                                     vol,
                                     chapter_num,
-                                    title
+                                    pr_title_full
                                 ).as_str()
                             );
                             match get_chapter(id).await {
@@ -492,6 +525,10 @@ async fn download_chapter(
     chapter: &str,
     folder_name: &str
 ) {
+    let mut pr_title = "".to_string();
+    if title != "" {
+        pr_title = format!(" - {}", title);
+    }
     string(5, 0, format!("  Downloading images in folder: {}/:", folder_name).as_str());
     match serde_json::from_str(&manga_json) {
         Ok(json_value) =>
@@ -503,11 +540,11 @@ async fn download_chapter(
                                 let images_length = images1.len();
                                 if let Some(images) = data_array.get("data") {
                                     let folder_path = format!(
-                                        "{} - {}Ch.{} - {}",
+                                        "{} - {}Ch.{}{}",
                                         manga_name,
                                         vol,
                                         chapter,
-                                        title
+                                        pr_title
                                     );
                                     let _ = tokio::fs::create_dir_all(
                                         format!(
@@ -527,11 +564,11 @@ async fn download_chapter(
                                     ).await;
 
                                     let folder_path = format!(
-                                        "{} - {}Ch.{} - {}",
+                                        "{} - {}Ch.{}{}",
                                         manga_name,
                                         vol,
                                         chapter,
-                                        title
+                                        pr_title
                                     );
                                     let _ = tokio::fs::create_dir_all(
                                         format!(
@@ -667,13 +704,17 @@ async fn download_image(
     iter: usize,
     times: usize
 ) {
+    let mut pr_title = "".to_string();
+    if name != "" {
+        pr_title = format!(" - {}", name);
+    }
     let page = page + 1;
     let page_str = page.to_string() + " ".repeat(3 - page.to_string().len()).as_str();
     let base_url = "https://uploads.mangadex.org/data/";
     let full_url = format!("{}{}/{}", base_url, c_hash, f_name);
 
-    let folder_name = format!("{} - {}Ch.{} - {}", manga_name, vol, chapter, name);
-    let file_name = format!("{} - {}Ch.{} - {} - {}.jpg", manga_name, vol, chapter, name, page);
+    let folder_name = format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title);
+    let file_name = format!("{} - {}Ch.{}{} - {}.jpg", manga_name, vol, chapter, pr_title, page);
     let file_name_brief = format!("{}Ch.{} - {}.jpg", vol, chapter, page);
     let folder_name = folder_name
         .replace('<', "")
