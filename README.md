@@ -18,6 +18,11 @@ mangadex manga downloader
 
 `--title` - will name the manga
 
+`--folder` - will put manga in folder specified
+
+- if folder name is **name** it will put in folder same as manga name
+- if folder name is **name** and title is specified it will make folder same as title
+
 `--volume` - will download manga which has supplied volume in it
 
 `--chapter` - will download manga which has supplied chapter in it

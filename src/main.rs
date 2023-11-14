@@ -1,5 +1,6 @@
 use clap::Parser;
 use serde_json::Value;
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::iter::Iterator;
@@ -23,13 +24,15 @@ struct Args {
     database_offset: String,
     #[arg(short, long, default_value_t = format!("*").to_string())]
     title: String,
+    #[arg(short, long, default_value_t = format!(".").to_string())]
+    folder: String,
     #[arg(short, long, default_value_t = format!("*").to_string())]
     volume: String,
     #[arg(short, long, default_value_t = format!("*").to_string())]
     chapter: String,
     #[arg(short, long, default_value_t = format!("40").to_string())]
     pack: String,
-    #[arg(short, long)]
+    #[arg(long)]
     force: bool,
 }
 fn string(y: i32, x: i32, value: &str) {
@@ -211,6 +214,13 @@ fn sort(data: &Vec<Value>) -> Vec<Value> {
 }
 
 async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -> Vec<String> {
+    let folder;
+    if ARGS.folder == "name" {
+        folder = manga_name.to_owned();
+    } else {
+        folder = ARGS.folder.as_str().to_string();
+    }
+    let _ = fs::create_dir(folder.as_str());
     let arg_volume = match ARGS.volume.as_str() {
         "" => "*",
         x => x,
@@ -313,7 +323,8 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                             tokio::fs
                                 ::metadata(
                                     format!(
-                                        "{}.cbz",
+                                        "{}\\{}.cbz",
+                                        folder.as_str(),
                                         format!(
                                             "{}",
                                             folder_path
@@ -457,7 +468,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                                     format!("{}.cbz", folder_path).as_str()
                                 ).as_str()
                             );
-                            let file_name = format!("{}.cbz", folder_name);
+                            let file_name = format!("{}\\{}.cbz", folder.as_str(), folder_name);
                             let _ = zip_func::to_zip(
                                 folder_path.as_str(),
                                 file_name.as_str()
