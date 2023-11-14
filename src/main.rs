@@ -402,7 +402,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                                 3,
                                 0,
                                 format!(
-                                    "  Metadata: Language: {};Pages: {};Vol: {};Chapter: {}{}",
+                                    "  Metadata: Language: {};Pages: {};{};Chapter: {}{}",
                                     lang,
                                     pages,
                                     vol,
