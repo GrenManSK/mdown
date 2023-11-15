@@ -6,7 +6,7 @@ mangadex manga downloader
 
 ## usage
 
-`--url [String]` - url of manga set
+`--url [String]` - url of manga
 
 `--lang [String]` - language of manga to download
 
