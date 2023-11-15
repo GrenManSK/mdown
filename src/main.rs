@@ -34,6 +34,8 @@ struct Args {
     pack: String,
     #[arg(long)]
     force: bool,
+    #[arg(short, long)]
+    saver: bool,
 }
 fn string(y: i32, x: i32, value: &str) {
     stdscr().mvaddnstr(y, x, value, stdscr().get_max_x() - x);
@@ -547,9 +549,15 @@ async fn download_chapter(
                 Value::Object(obj) => {
                     if let Some(data_array) = obj.get("chapter") {
                         if let Some(chapter_hash) = data_array.get("hash").and_then(Value::as_str) {
-                            if let Some(images1) = data_array.get("data").and_then(Value::as_array) {
+                            let saver;
+                            if ARGS.saver {
+                                saver = "dataSaver";
+                            } else {
+                                saver = "data";
+                            }
+                            if let Some(images1) = data_array.get(saver).and_then(Value::as_array) {
                                 let images_length = images1.len();
-                                if let Some(images) = data_array.get("data") {
+                                if let Some(images) = data_array.get(saver) {
                                     let folder_path = format!(
                                         "{} - {}Ch.{}{}",
                                         manga_name,
@@ -721,7 +729,12 @@ async fn download_image(
     }
     let page = page + 1;
     let page_str = page.to_string() + " ".repeat(3 - page.to_string().len()).as_str();
-    let base_url = "https://uploads.mangadex.org/data/";
+    let base_url;
+    if ARGS.saver {
+        base_url = "https://uploads.mangadex.org/data-saver/";
+    } else {
+        base_url = "https://uploads.mangadex.org/data/";
+    }
     let full_url = format!("{}{}/{}", base_url, c_hash, f_name);
 
     let folder_name = format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title);
