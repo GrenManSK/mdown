@@ -27,6 +27,6 @@ mangadex manga downloader
 
 `--chapter` - will download manga which has supplied chapter in it
 
-`--pack` - will download manga images by supplied number at once; it is highly recommended to use **MAX *50*** (default is *40*) because of lack of performance and non complete manga downloading, meaning chapter will not download correctly, meaning missing pages
+`--max-consecutive` - will download manga images by supplied number at once; it is highly recommended to use **MAX *50*** (default is *40*) because of lack of performance and non complete manga downloading, meaning chapter will not download correctly, meaning missing pages
 
 `--saver` - will download images of lower quality and lower download size; will save network resources and reduce download time

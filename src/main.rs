@@ -31,12 +31,13 @@ struct Args {
     #[arg(short, long, default_value_t = format!("*").to_string())]
     chapter: String,
     #[arg(short, long, default_value_t = format!("40").to_string())]
-    pack: String,
+    max_consecutive: String,
     #[arg(long)]
     force: bool,
     #[arg(short, long)]
     saver: bool,
 }
+
 fn string(y: i32, x: i32, value: &str) {
     stdscr().mvaddnstr(y, x, value, stdscr().get_max_x() - x);
     stdscr().refresh();
@@ -609,7 +610,7 @@ async fn download_chapter(
                                     let start =
                                         stdscr().get_max_x() / 3 - (images_length as i32) / 2;
 
-                                    let iter = ARGS.pack.parse().unwrap();
+                                    let iter = ARGS.max_consecutive.parse().unwrap();
 
                                     let loop_for = ((images_length as f32) / (iter as f32)).ceil();
 
