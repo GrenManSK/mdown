@@ -36,6 +36,8 @@ struct Args {
     force: bool,
     #[arg(short, long)]
     saver: bool,
+    #[arg(short, long)]
+    force_delete: bool,
 }
 
 fn string(y: i32, x: i32, value: &str) {
@@ -43,10 +45,15 @@ fn string(y: i32, x: i32, value: &str) {
     stdscr().refresh();
 }
 
-fn print_version() {
+async fn print_version(file: String) {
     let version = env!("CARGO_PKG_VERSION");
-    string(stdscr().get_max_y() - 1, 0, format!("Current version: {}", version).as_str());
-    thread::sleep(Duration::from_millis(5000));
+    for _ in 0..50 {
+        string(stdscr().get_max_y() - 1, 0, format!("Current version: {}", version).as_str());
+        if !tokio::fs::metadata(file.clone()).await.is_ok() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
     string(stdscr().get_max_y() - 1, 0, " ".repeat(stdscr().get_max_x() as usize).as_str());
 }
 lazy_static! {
@@ -54,14 +61,32 @@ lazy_static! {
 }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let input = &ARGS.url;
+    let file_path: String = format!("mdown_{}.lock", env!("CARGO_PKG_VERSION"));
+    let file_path_tm = file_path.to_string();
+    if ARGS.force_delete {
+        let _ = fs::remove_file(file_path);
+        process::exit(0);
+    }
+    if tokio::fs::metadata(file_path_tm.clone()).await.is_ok() {
+        eprintln!(
+            "Lock file has been found;\nSee README.md;\nCannot run multiple instances of mdown"
+        );
+        process::exit(100);
+    }
+    let _ = match File::create(file_path.clone()) {
+        Ok(file) => file,
+        Err(e) => {
+            panic!("Error creating the file: {}", e);
+        }
+    };
+    let re = regex::Regex::new(r"/title/([\w-]+)/").unwrap();
+
     let _ = initscr();
     curs_set(2);
     start_color();
-
-    let input = &ARGS.url;
-
-    let re = regex::Regex::new(r"/title/([\w-]+)/").unwrap();
-    tokio::spawn(async move { print_version() });
+    tokio::spawn(async move { print_version(file_path_tm).await });
+    let mut manga_name: String = "!".to_string();
 
     if let Some(id) = re.captures(&input).and_then(|id| id.get(1)) {
         string(0, 0, format!("Extracted ID: {}", id.as_str()).as_str());
@@ -82,19 +107,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 process::exit(1);
                             });
 
-                        resolve_manga_verbose(id, title_data).await;
+                        manga_name = resolve_manga_verbose(id, title_data).await;
                     }
                     _ => todo!(),
                 }
             Err(err) => println!("Error parsing JSON: {}", err),
         };
     }
+    let _ = fs::remove_file(file_path);
+
+    thread::sleep(Duration::from_millis(200));
+
+    let message: String;
+    if manga_name == "!" {
+        message =
+            format!("Ending session: {} has NOT been downloaded, because it was not found", manga_name);
+    } else {
+        message = format!("Ending session: {} has been downloaded", manga_name);
+    }
+    string(
+        stdscr().get_max_y() - 1,
+        0,
+        format!(
+            "{}{}",
+            message,
+            " ".repeat((stdscr().get_max_x() as usize) - message.len())
+        ).as_str()
+    );
     stdscr().getch();
 
     Ok(())
 }
 
-async fn resolve_manga_verbose(id: &str, title_data: &Value) {
+async fn resolve_manga_verbose(id: &str, title_data: &Value) -> String {
     let manga_name;
     if ARGS.title == "*" {
         manga_name = title_data
@@ -127,16 +172,8 @@ async fn resolve_manga_verbose(id: &str, title_data: &Value) {
         manga_name = ARGS.title.as_str();
     }
     resolve_manga(id, manga_name).await;
-    let message = format!("Ending session: {} has been downloaded", manga_name);
-    string(
-        stdscr().get_max_y() - 1,
-        0,
-        format!(
-            "{}{}",
-            message,
-            " ".repeat((stdscr().get_max_x() as usize) - message.len())
-        ).as_str()
-    );
+
+    manga_name.to_string()
 }
 
 async fn resolve_manga(id: &str, manga_name: &str) {
@@ -158,9 +195,11 @@ async fn resolve_manga(id: &str, manga_name: &str) {
         }
         arg_force = false;
     }
-    string(1, 0, "Downloaded files:");
-    for i in 0..downloaded.len() {
-        (_, downloaded) = resolve_move(i as i32, downloaded.clone(), 2, 1);
+    if downloaded.len() != 0 {
+        string(1, 0, "Downloaded files:");
+        for i in 0..downloaded.len() {
+            (_, downloaded) = resolve_move(i as i32, downloaded.clone(), 2, 1);
+        }
     }
 }
 async fn get_manga_name(id: &str) -> Result<String, reqwest::Error> {
@@ -798,6 +837,7 @@ async fn download_image(
     let interval = Duration::from_millis(250);
     let mut last_check_time = Instant::now();
     string(5 + 1, -1 + start + (page as i32), "\\");
+    let final_size = (total_size as f32) / (1024 as f32) / (1024 as f32);
 
     while let Some(chunk) = response.chunk().await.unwrap() {
         let _ = file.write_all(&chunk);
@@ -821,7 +861,7 @@ async fn download_image(
                 file_name_brief,
                 perc_string,
                 (downloaded as f32) / (1024 as f32) / (1024 as f32),
-                (total_size as f32) / (1024 as f32) / (1024 as f32),
+                final_size,
                 (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
             );
             string(
