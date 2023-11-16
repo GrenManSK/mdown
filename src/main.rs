@@ -668,12 +668,8 @@ async fn download_chapter(
 
 async fn wait_for_end(file_path: String, images_length: usize) {
     let full_path = format!("{}.lock", file_path);
+    let mut full_size = 0.0;
     while fs::metadata(full_path.clone()).is_ok() {
-        let mut file = unsafe { File::open(full_path.clone()).unwrap_unchecked() };
-        let mut content = String::new();
-        let _ = file.read_to_string(&mut content);
-        let content: f32 = content.parse().unwrap();
-        let content: f32 = (content as f32) / 1024.0 / 1024.0;
         let mut size = 0.0;
         for i in 1..images_length + 1 {
             let image_name = format!("{}_{}.lock", file_path, i);
@@ -687,7 +683,20 @@ async fn wait_for_end(file_path: String, images_length: usize) {
                 }
             }
         }
-        string(6, stdscr().get_max_x() - 30, format!("{:.2}mb/{:.2}mb", size, content).as_str());
+        for i in 1..images_length + 1 {
+            let image_name = format!("{}_{}_final.lock", file_path, i);
+            if fs::metadata(image_name.clone()).is_ok() {
+                let mut image_file = unsafe { File::open(image_name.clone()).unwrap_unchecked() };
+                let mut image_content = String::new();
+                let _ = image_file.read_to_string(&mut image_content);
+                if image_content != "" {
+                    let image_content: f64 = image_content.parse().unwrap();
+                    full_size += image_content / 1024.0 / 1024.0;
+                    let _ = fs::remove_file(image_name.clone());
+                }
+            }
+        }
+        string(6, stdscr().get_max_x() - 30, format!("{:.2}mb/{:.2}mb", size, full_size).as_str());
         thread::sleep(Duration::from_millis(10));
     }
     let _ = fs::remove_file(full_path.clone());
@@ -792,21 +801,13 @@ async fn download_image(
     while fs::metadata(format!("{}.lock", lock_file)).is_ok() {
         thread::sleep(Duration::from_millis(10));
     }
-    let _ = File::open(format!("{}.lock", lock_file));
-    let mut lock_file_inst = File::open(lock_file.clone()).unwrap();
-    let mut content = String::new();
-    let _ = lock_file_inst.read_to_string(&mut content);
-    let _ = fs::remove_file(format!("{}.lock", lock_file));
-    let mut content: f32 = content.parse().unwrap();
-    content += total_size;
-
     let mut lock_file_inst = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(lock_file)
+        .open(format!("{}_{}_final.lock", folder_name, page))
         .unwrap();
-    let _ = write!(lock_file_inst, "{:.2}", content);
+    let _ = write!(lock_file_inst, "{:.2}", total_size);
 
     while let Some(chunk) = response.chunk().await.unwrap() {
         let _ = file.write_all(&chunk);
