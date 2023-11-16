@@ -58,9 +58,11 @@ async fn print_version(file: String) {
     }
     string(stdscr().get_max_y() - 1, 0, " ".repeat(stdscr().get_max_x() as usize).as_str());
 }
+
 lazy_static! {
     static ref ARGS: Args = Args::parse();
 }
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input = &ARGS.url;
@@ -696,8 +698,11 @@ async fn wait_for_end(file_path: String, images_length: usize) {
                 }
             }
         }
-        string(6, stdscr().get_max_x() - 30, format!("{:.2}mb/{:.2}mb", size, full_size).as_str());
-        thread::sleep(Duration::from_millis(10));
+        string(
+            6,
+            stdscr().get_max_x() - 50,
+            format!("{:.2}% {:.2}mb/{:.2}mb", (100.0 / full_size) * size, size, full_size).as_str()
+        );
     }
     let _ = fs::remove_file(full_path.clone());
 
@@ -812,16 +817,17 @@ async fn download_image(
     while let Some(chunk) = response.chunk().await.unwrap() {
         let _ = file.write_all(&chunk);
         downloaded += chunk.len() as u64;
-
         let current_time = Instant::now();
         if current_time.duration_since(last_check_time) >= interval {
-            let mut lock_file = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .open(format!("{}_{}.lock", folder_name, page))
-                .unwrap();
-            let _ = lock_file.write(format!("{}", downloaded / 1024 / 1024).as_bytes());
+            if (downloaded as f32) != last_size {
+                let mut lock_file = OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open(format!("{}_{}.lock", folder_name, page))
+                    .unwrap();
+                let _ = lock_file.write(format!("{}", downloaded / 1024 / 1024).as_bytes());
+            }
             last_check_time = current_time;
             let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
             let perc_string;
@@ -900,7 +906,7 @@ async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), reqwest::Er
             1,
             0,
             format!(
-                "{} {} {}",
+                "{} {} {}   ",
                 times.to_string(),
                 "Fetching data with offset",
                 times_offset.to_string()
@@ -931,9 +937,8 @@ async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), reqwest::Er
                                     1,
                                     0,
                                     format!(
-                                        "{} {} {}",
+                                        "{} Data fetched with offset {}   ",
                                         times.to_string(),
-                                        "Data fetched with offset",
                                         offset.to_string()
                                     ).as_str()
                                 );
