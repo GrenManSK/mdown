@@ -51,7 +51,7 @@ async fn print_version(file: String) {
     let version = env!("CARGO_PKG_VERSION");
     for _ in 0..50 {
         string(stdscr().get_max_y() - 1, 0, format!("Current version: {}", version).as_str());
-        if !tokio::fs::metadata(file.clone()).await.is_ok() {
+        if !fs::metadata(file.clone()).is_ok() {
             break;
         }
         thread::sleep(Duration::from_millis(100));
@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = fs::remove_file(file_path);
         process::exit(0);
     }
-    if tokio::fs::metadata(file_path_tm.clone()).await.is_ok() {
+    if fs::metadata(file_path_tm.clone()).is_ok() {
         eprintln!(
             "Lock file has been found;\nSee README.md;\nCannot run multiple instances of mdown"
         );
@@ -366,14 +366,14 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                             pr_title
                         );
                         if
-                            tokio::fs
+                            fs
                                 ::metadata(
                                     format!(
                                         "{}\\{}.cbz",
                                         folder.as_str(),
                                         format!("{}", process_filename(folder_path.clone()))
                                     )
-                                ).await
+                                )
                                 .is_ok() &&
                             !arg_force
                         {
@@ -470,7 +470,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                                 folder_path.as_str(),
                                 file_name.as_str()
                             ).await;
-                            let _ = tokio::fs::remove_dir_all(folder_path).await;
+                            let _ = fs::remove_dir_all(folder_path);
                             clear_screen(3);
                             downloaded.push(file_name);
                         } else {
@@ -567,16 +567,14 @@ async fn download_chapter(
                                         lock_file.clone()
                                     ).unwrap();
                                     let _ = write!(lock_file_inst, "0");
-                                    let _ = tokio::fs::create_dir_all(
-                                        format!("{}/", folder_path)
-                                    ).await;
+                                    let _ = fs::create_dir_all(format!("{}/", folder_path));
 
                                     let lock_file_wait = folder_path.clone();
 
                                     tokio::spawn(async move {
                                         wait_for_end(lock_file_wait, images_length).await
                                     });
-                                    let _ = tokio::fs::create_dir_all(format!("{}/", folder_path));
+                                    let _ = fs::create_dir_all(format!("{}/", folder_path));
 
                                     let start =
                                         stdscr().get_max_x() / 3 - (images_length as i32) / 2;
@@ -671,6 +669,7 @@ async fn download_chapter(
 async fn wait_for_end(file_path: String, images_length: usize) {
     let full_path = format!("{}.lock", file_path);
     let mut full_size = 0.0;
+    let start = Instant::now();
     while fs::metadata(full_path.clone()).is_ok() {
         let mut size = 0.0;
         for i in 1..images_length + 1 {
@@ -698,10 +697,23 @@ async fn wait_for_end(file_path: String, images_length: usize) {
                 }
             }
         }
+        let percent;
+        if full_size == 0.0 {
+            percent = 0.0;
+        } else {
+            percent = (100.0 / full_size) * size;
+        }
         string(
             6,
-            stdscr().get_max_x() - 50,
-            format!("{:.2}% {:.2}mb/{:.2}mb", (100.0 / full_size) * size, size, full_size).as_str()
+            stdscr().get_max_x() - 60,
+            format!(
+                "{:.2}% {:.2}mb/{:.2}mb [{:.2}mb remaining] [{:.2}s]",
+                percent,
+                size,
+                full_size,
+                full_size - size,
+                (Instant::now() - start).as_secs_f64()
+            ).as_str()
         );
     }
     let _ = fs::remove_file(full_path.clone());
