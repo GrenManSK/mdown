@@ -35,4 +35,4 @@ mangadex manga downloader
 
 ---
 
-- If you get message that about lock file is present adn you believe you don't have already program started use `--force-delete` option to force it to delete lock file
+- If you get message that about lock file is present and you believe you don't have already program started use `--force-delete` option to force it to delete lock file
