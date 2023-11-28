@@ -50,13 +50,13 @@ fn string(y: i32, x: i32, value: &str) {
 async fn print_version(file: String) {
     let version = env!("CARGO_PKG_VERSION");
     for _ in 0..50 {
-        string(stdscr().get_max_y() - 1, 0, format!("Current version: {}", version).as_str());
+        string(stdscr().get_max_y() - 1, 0, &format!("Current version: {}", version));
         if !fs::metadata(file.clone()).is_ok() {
             break;
         }
         sleep(Duration::from_millis(100));
     }
-    string(stdscr().get_max_y() - 1, 0, " ".repeat(stdscr().get_max_x() as usize).as_str());
+    string(stdscr().get_max_y() - 1, 0, &" ".repeat(stdscr().get_max_x() as usize));
 }
 
 lazy_static! {
@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut manga_name: String = "!".to_string();
 
     if let Some(id) = re.captures(&input).and_then(|id| id.get(1)) {
-        string(0, 0, format!("Extracted ID: {}", id.as_str()).as_str());
+        string(0, 0, &format!("Extracted ID: {}", id.as_str()));
         let id = id.as_str();
         let manga_name_json = match get_manga_json(id).await {
             Ok(name) => name,
@@ -114,12 +114,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if ARGS.title == "*" {
                             manga_name_tmp = get_manga_name(title_data);
                         } else {
-                            manga_name_tmp = ARGS.title.as_str();
+                            manga_name_tmp = &ARGS.title;
                         }
                         manga_name = manga_name_tmp.to_owned();
                         let folder = get_folder_name(&manga_name);
 
-                        let _ = fs::create_dir(folder.as_str());
+                        let _ = fs::create_dir(&folder);
                         let desc = title_data
                             .get("description")
                             .and_then(|description| description.get("en"))
@@ -160,11 +160,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     string(
         stdscr().get_max_y() - 1,
         0,
-        format!(
-            "{}{}",
-            message,
-            " ".repeat((stdscr().get_max_x() as usize) - message.len())
-        ).as_str()
+        &format!("{}{}", message, " ".repeat((stdscr().get_max_x() as usize) - message.len()))
     );
     stdscr().getch();
 
@@ -305,7 +301,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
     };
     let mut downloaded: Vec<String> = vec![];
     let arg_offset: i32 = ARGS.offset.as_str().parse().unwrap();
-    let language = ARGS.lang.as_str();
+    let language = &ARGS.lang;
     match serde_json::from_str(&manga_json) {
         Ok(json_value) =>
             match json_value {
@@ -332,11 +328,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                         });
                         let value = &field_value.to_string();
                         let id = value.trim_matches('"');
-                        string(
-                            2,
-                            0,
-                            format!(" ({}) Found chapter with id: {}", item as i32, id).as_str()
-                        );
+                        string(2, 0, &format!(" ({}) Found chapter with id: {}", item as i32, id));
                         let chapter_attr = array_item.get("attributes").unwrap_or_else(|| {
                             eprintln!("attributes doesn't exist");
                             exit(1);
@@ -385,7 +377,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                             vol = "".to_string();
                             con_vol = false;
                         }
-                        let vol = vol.as_str();
+                        let vol = &vol;
                         let folder_path = format!(
                             "{} - {}Ch.{}{}",
                             manga_name,
@@ -398,7 +390,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                                 ::metadata(
                                     format!(
                                         "{}\\{}.cbz",
-                                        folder.as_str(),
+                                        &folder,
                                         format!("{}", process_filename(folder_path.clone()))
                                     )
                                 )
@@ -460,14 +452,14 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                             string(
                                 3,
                                 0,
-                                format!(
+                                &format!(
                                     "  Metadata: Language: {};Pages: {};{};Chapter: {}{}",
                                     lang,
                                     pages,
                                     vol,
                                     chapter_num,
                                     pr_title_full
-                                ).as_str()
+                                )
                             );
                             match get_chapter(id).await {
                                 Ok(id) => {
@@ -488,16 +480,13 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                             string(
                                 7,
                                 0,
-                                format!(
+                                &format!(
                                     "  Converting images to cbz files: {}",
-                                    format!("{}.cbz", folder_path).as_str()
-                                ).as_str()
+                                    &format!("{}.cbz", folder_path)
+                                )
                             );
-                            let file_name = format!("{}\\{}.cbz", folder.as_str(), folder_name);
-                            let _ = zip_func::to_zip(
-                                folder_path.as_str(),
-                                file_name.as_str()
-                            ).await;
+                            let file_name = format!("{}\\{}.cbz", &folder, folder_name);
+                            let _ = zip_func::to_zip(&folder_path, &file_name).await;
                             let _ = fs::remove_dir_all(folder_path);
                             clear_screen(3);
                             downloaded.push(file_name);
@@ -505,11 +494,11 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                             string(
                                 3,
                                 0,
-                                format!(
+                                &format!(
                                     "  Skipping because of wrong language; found '{}', target '{}' ...",
                                     lang,
                                     language
-                                ).as_str()
+                                )
                             );
                         }
                     }
@@ -533,15 +522,11 @@ fn resolve_move(mut moves: i32, mut hist: Vec<String>, start: i32, end: i32) -> 
         if (i as usize) == hist.len() {
             break;
         }
-        let message = hist[i as usize].as_str();
+        let message = &hist[i as usize];
         string(
             start + i,
             0,
-            format!(
-                "{}{}",
-                message,
-                " ".repeat((stdscr().get_max_x() as usize) - message.len())
-            ).as_str()
+            &format!("{}{}", message, " ".repeat((stdscr().get_max_x() as usize) - message.len()))
         );
     }
     (moves, hist)
@@ -549,7 +534,7 @@ fn resolve_move(mut moves: i32, mut hist: Vec<String>, start: i32, end: i32) -> 
 
 fn clear_screen(from: i32) {
     for i in from..stdscr().get_max_y() {
-        string(i, 0, " ".repeat(stdscr().get_max_x() as usize).as_str());
+        string(i, 0, &" ".repeat(stdscr().get_max_x() as usize));
     }
 }
 
@@ -565,7 +550,7 @@ async fn download_chapter(
     if title != "" {
         pr_title = format!(" - {}", title);
     }
-    string(5, 0, format!("  Downloading images in folder: {}/:", folder_name).as_str());
+    string(5, 0, &format!("  Downloading images in folder: {}/:", folder_name));
     match serde_json::from_str(&manga_json) {
         Ok(json_value) =>
             match json_value {
@@ -734,14 +719,14 @@ async fn wait_for_end(file_path: String, images_length: usize) {
         string(
             6,
             stdscr().get_max_x() - 60,
-            format!(
+            &format!(
                 "{:.2}% {:.2}mb/{:.2}mb [{:.2}mb remaining] [{:.2}s]",
                 percent,
                 size,
                 full_size,
                 full_size - size,
                 (Instant::now() - start).as_secs_f64()
-            ).as_str()
+            )
         );
     }
     let _ = fs::remove_file(full_path.clone());
@@ -755,19 +740,16 @@ async fn wait_for_end(file_path: String, images_length: usize) {
 }
 
 fn progress_bar_preparation(start: i32, images_length: usize, line: i32) {
-    string(line, 0, format!("{}|", "-".repeat((start as usize) - 1).as_str()).as_str());
+    string(line, 0, &format!("{}|", &"-".repeat((start as usize) - 1)));
     string(
         line,
         start + (images_length as i32),
-        format!(
+        &format!(
             "|{}",
-            "-"
-                .repeat(
-                    (stdscr().get_max_x() as usize) -
-                        ((start + (images_length as i32) + 1) as usize)
-                )
-                .as_str()
-        ).as_str()
+            &"-".repeat(
+                (stdscr().get_max_x() as usize) - ((start + (images_length as i32) + 1) as usize)
+            )
+        )
     );
 }
 
@@ -802,7 +784,7 @@ async fn download_image(
         pr_title = format!(" - {}", name);
     }
     let page = page + 1;
-    let page_str = page.to_string() + " ".repeat(3 - page.to_string().len()).as_str();
+    let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
     let base_url;
     if ARGS.saver {
         base_url = "https://uploads.mangadex.org/data-saver/";
@@ -823,11 +805,7 @@ async fn download_image(
     string(5 + 1, -1 + start + (page as i32), "|");
     string(5 + 1 + (page as i32), 0, "   Sleeping");
     sleep(Duration::from_millis(((page - iter * times) * 50) as u64));
-    string(
-        5 + 1 + (page as i32),
-        0,
-        format!("   {} Downloading {}", page_str, file_name_brief).as_str()
-    );
+    string(5 + 1 + (page as i32), 0, &format!("   {} Downloading {}", page_str, file_name_brief));
     string(5 + 1, -1 + start + (page as i32), "/");
     let full_path = format!("{}/{}", folder_name, file_name);
 
@@ -890,7 +868,6 @@ async fn download_image(
             string(
                 5 + 1 + (page as i32),
                 0,
-                format!(
                     "{} {}",
                     message,
                     "#".repeat(
@@ -898,7 +875,7 @@ async fn download_image(
                             (total_size as f32)) *
                             (downloaded as f32)) as usize
                     )
-                ).as_str()
+                )
             );
             last_size = downloaded as f32;
         }
@@ -916,14 +893,14 @@ async fn download_image(
     string(
         5 + 1 + (page as i32),
         0,
-        format!(
+        &format!(
             "{} {}",
             message,
             "#".repeat(
                 ((((stdscr().get_max_x() - (message.len() as i32)) as f32) / (total_size as f32)) *
                     (downloaded as f32)) as usize
             )
-        ).as_str()
+        )
     );
     string(5 + 1, -1 + start + (page as i32), "#");
     let mut lock_file = OpenOptions::new()
@@ -945,12 +922,12 @@ async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), reqwest::Er
         string(
             1,
             0,
-            format!(
+            &format!(
                 "{} {} {}   ",
                 times.to_string(),
                 "Fetching data with offset",
                 times_offset.to_string()
-            ).as_str()
+            )
         );
         let base_url = "https://api.mangadex.org/manga/";
         let full_url = format!("{}{}/feed?limit=500&offset={}", base_url, id, times_offset);
@@ -976,11 +953,11 @@ async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), reqwest::Er
                                 string(
                                     1,
                                     0,
-                                    format!(
+                                    &format!(
                                         "{} Data fetched with offset {}   ",
                                         times.to_string(),
                                         offset.to_string()
-                                    ).as_str()
+                                    )
                                 );
                                 offset_temp = data_array.len();
                                 if offset_temp >= 500 {
@@ -1080,14 +1057,11 @@ async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
             string(
                 5,
                 0,
-                format!(
-                    "Error: {}",
-                    format!(
-                        "Failed to fetch data from the API. Status code: {:?} {}",
-                        response.status(),
-                        response.text().await?
-                    )
-                ).as_str()
+                &format!(
+                    "Error: Failed to fetch data from the API. Status code: {:?} {}",
+                    response.status(),
+                    response.text().await.unwrap()
+                )
             );
             string(6, 0, "Sleeping for 60 seconds ...");
             progress_bar_preparation(stdscr().get_max_x() - 30, 60, 7);
