@@ -1,17 +1,17 @@
 use clap::Parser;
 use serde_json::Value;
-use std::fs;
-use std::fs::File;
-use std::io::Read;
-use std::io::Write;
-use std::iter::Iterator;
-use std::process;
-use std::thread;
-mod zip_func;
+use std::{
+    time::{ Duration, Instant },
+    fs::{ File, OpenOptions },
+    fs,
+    process::exit,
+    thread::sleep,
+    io::{ Read, Write },
+};
 use crosscurses::*;
-use std::time::{ Duration, Instant };
 use lazy_static::lazy_static;
-use std::fs::OpenOptions;
+
+mod zip_func;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -54,7 +54,7 @@ async fn print_version(file: String) {
         if !fs::metadata(file.clone()).is_ok() {
             break;
         }
-        thread::sleep(Duration::from_millis(100));
+        sleep(Duration::from_millis(100));
     }
     string(stdscr().get_max_y() - 1, 0, " ".repeat(stdscr().get_max_x() as usize).as_str());
 }
@@ -70,13 +70,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_path_tm = file_path.to_string();
     if ARGS.force_delete {
         let _ = fs::remove_file(file_path);
-        process::exit(0);
+        exit(0);
     }
     if fs::metadata(file_path_tm.clone()).is_ok() {
         eprintln!(
             "Lock file has been found;\nSee README.md;\nCannot run multiple instances of mdown"
         );
-        process::exit(100);
+        exit(100);
     }
     let _ = match File::create(file_path.clone()) {
         Ok(file) => file,
@@ -95,9 +95,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(id) = re.captures(&input).and_then(|id| id.get(1)) {
         string(0, 0, format!("Extracted ID: {}", id.as_str()).as_str());
         let id = id.as_str();
-        let manga_name_json = match get_manga_name(id).await {
+        let manga_name_json = match get_manga_json(id).await {
             Ok(name) => name,
-            Err(_) => process::exit(1),
+            Err(_) => exit(1),
         };
         match serde_json::from_str(&manga_name_json) {
             Ok(json_value) =>
@@ -108,10 +108,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             .and_then(|name_data| name_data.get("attributes"))
                             .unwrap_or_else(|| {
                                 eprintln!("attributes or title doesn't exist");
-                                process::exit(1);
+                                exit(1);
                             });
+                        let manga_name_tmp;
+                        if ARGS.title == "*" {
+                            manga_name_tmp = get_manga_name(title_data);
+                        } else {
+                            manga_name_tmp = ARGS.title.as_str();
+                        }
+                        manga_name = manga_name_tmp.to_owned();
+                        let folder = get_folder_name(&manga_name);
 
-                        manga_name = resolve_manga_verbose(id, title_data).await;
+                        let _ = fs::create_dir(folder.as_str());
+                        let desc = title_data
+                            .get("description")
+                            .and_then(|description| description.get("en"))
+                            .and_then(Value::as_str)
+                            .unwrap();
+                        let mut desc_file = OpenOptions::new()
+                            .read(true)
+                            .write(true)
+                            .create(true)
+                            .open(
+                                format!(
+                                    "{}\\{}_description.txt",
+                                    folder,
+                                    get_manga_name(title_data)
+                                )
+                            )
+                            .unwrap();
+                        let _ = write!(desc_file, "{}", desc);
+
+                        resolve_manga(id, manga_name_tmp).await;
                     }
                     _ => todo!(),
                 }
@@ -120,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let _ = fs::remove_file(file_path);
 
-    thread::sleep(Duration::from_millis(200));
+    sleep(Duration::from_millis(200));
 
     let message: String;
     if manga_name == "!" {
@@ -143,41 +171,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn resolve_manga_verbose(id: &str, title_data: &Value) -> String {
-    let manga_name;
-    if ARGS.title == "*" {
-        manga_name = title_data
-            .get("title")
-            .and_then(|attr_data| attr_data.get("en"))
-            .and_then(Value::as_str)
-            .unwrap_or_else(|| {
-                let get = title_data
-                    .get("altTitles")
-                    .and_then(|val| val.as_array())
-                    .unwrap();
-                let mut return_title = "*";
-                for title_object in get {
-                    if let Some(lang_object) = title_object.as_object() {
-                        for (lang, title) in lang_object.iter() {
-                            if lang == "en" {
-                                return_title = title.as_str().unwrap();
-                                break;
-                            }
+fn get_folder_name(manga_name: &String) -> String {
+    if ARGS.folder == "name" {
+        return manga_name.to_owned();
+    } else {
+        return ARGS.folder.as_str().to_string();
+    }
+}
+
+fn get_manga_name(title_data: &Value) -> &str {
+    title_data
+        .get("title")
+        .and_then(|attr_data| attr_data.get("en"))
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| {
+            let get = title_data
+                .get("altTitles")
+                .and_then(|val| val.as_array())
+                .unwrap();
+            let mut return_title = "*";
+            for title_object in get {
+                if let Some(lang_object) = title_object.as_object() {
+                    for (lang, title) in lang_object.iter() {
+                        if lang == "en" {
+                            return_title = title.as_str().unwrap();
+                            break;
                         }
                     }
-                    break;
                 }
-                if return_title == "*" {
-                    return_title = title_data.get("ja-ro").and_then(Value::as_str).unwrap();
-                }
-                return_title
-            });
-    } else {
-        manga_name = ARGS.title.as_str();
-    }
-    resolve_manga(id, manga_name).await;
-
-    manga_name.to_string()
+                break;
+            }
+            if return_title == "*" {
+                return_title = title_data.get("ja-ro").and_then(Value::as_str).unwrap();
+            }
+            return_title
+        })
 }
 
 async fn resolve_manga(id: &str, manga_name: &str) {
@@ -206,7 +234,8 @@ async fn resolve_manga(id: &str, manga_name: &str) {
         }
     }
 }
-async fn get_manga_name(id: &str) -> Result<String, reqwest::Error> {
+
+async fn get_manga_json(id: &str) -> Result<String, reqwest::Error> {
     let base_url = "https://api.mangadex.org/manga/";
     let full_url = format!("{}{}", base_url, id);
 
@@ -228,7 +257,7 @@ async fn get_manga_name(id: &str) -> Result<String, reqwest::Error> {
             "Error: {}",
             format!("Failed to fetch data from the API. Status code: {:?}", response.status())
         );
-        process::exit(1);
+        exit(1);
     }
 }
 
@@ -266,7 +295,6 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
     } else {
         folder = ARGS.folder.as_str().to_string();
     }
-    let _ = fs::create_dir(folder.as_str());
     let arg_volume = match ARGS.volume.as_str() {
         "" => "*",
         x => x,
@@ -287,7 +315,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                         .and_then(Value::as_array)
                         .unwrap_or_else(|| {
                             eprintln!("data doesn't exist");
-                            process::exit(1);
+                            exit(1);
                         });
                     let data_array = sort(data_array);
                     let mut times = 0;
@@ -296,11 +324,11 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                     for item in 0..data_array.len() {
                         let array_item = data_array.get(item).unwrap_or_else(|| {
                             eprintln!("{} doesn't exist", item);
-                            process::exit(1);
+                            exit(1);
                         });
                         let field_value = array_item.get("id").unwrap_or_else(|| {
                             eprintln!("id doesn't exist");
-                            process::exit(1);
+                            exit(1);
                         });
                         let value = &field_value.to_string();
                         let id = value.trim_matches('"');
@@ -311,21 +339,21 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                         );
                         let chapter_attr = array_item.get("attributes").unwrap_or_else(|| {
                             eprintln!("attributes doesn't exist");
-                            process::exit(1);
+                            exit(1);
                         });
                         let lang = chapter_attr
                             .get("translatedLanguage")
                             .and_then(Value::as_str)
                             .unwrap_or_else(|| {
                                 eprintln!("translatedLanguage doesn't exist");
-                                process::exit(1);
+                                exit(1);
                             });
                         let pages = chapter_attr
                             .get("pages")
                             .and_then(Value::as_u64)
                             .unwrap_or_else(|| {
                                 eprintln!("pages doesn't exist");
-                                process::exit(1);
+                                exit(1);
                             });
                         let mut con_chap = true;
                         let chapter_num = chapter_attr
@@ -333,7 +361,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                             .and_then(Value::as_str)
                             .unwrap_or_else(|| {
                                 eprintln!("chapter doesn't exist");
-                                process::exit(1);
+                                exit(1);
                             });
                         if arg_chapter == "*" || arg_chapter == chapter_num {
                             con_chap = false;
@@ -794,7 +822,7 @@ async fn download_image(
 
     string(5 + 1, -1 + start + (page as i32), "|");
     string(5 + 1 + (page as i32), 0, "   Sleeping");
-    thread::sleep(Duration::from_millis(((page - iter * times) * 50) as u64));
+    sleep(Duration::from_millis(((page - iter * times) * 50) as u64));
     string(
         5 + 1 + (page as i32),
         0,
@@ -816,7 +844,7 @@ async fn download_image(
     let final_size = (total_size as f32) / (1024 as f32) / (1024 as f32);
 
     while fs::metadata(format!("{}.lock", lock_file)).is_ok() {
-        thread::sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(10));
     }
     let mut lock_file_inst = OpenOptions::new()
         .read(true)
@@ -1022,7 +1050,7 @@ async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), reqwest::Er
                 "Error: {}",
                 format!("Failed to fetch data from the API. Status code: {:?}", response.status())
             );
-            process::exit(1);
+            exit(1);
         }
     }
 }
@@ -1064,7 +1092,7 @@ async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
             string(6, 0, "Sleeping for 60 seconds ...");
             progress_bar_preparation(stdscr().get_max_x() - 30, 60, 7);
             for i in 0..60 {
-                thread::sleep(Duration::from_millis(1000));
+                sleep(Duration::from_millis(1000));
                 string(7, stdscr().get_max_x() - 29 + i, "#");
             }
         }

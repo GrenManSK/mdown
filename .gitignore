@@ -3,3 +3,5 @@
 .history/
 *.cbz
 release.py
+*_description.txt
+*.lock
