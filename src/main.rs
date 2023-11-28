@@ -2,8 +2,7 @@ use clap::Parser;
 use serde_json::Value;
 use std::{
     time::{ Duration, Instant },
-    fs::{ File, OpenOptions },
-    fs,
+    fs::{ self, File, OpenOptions },
     process::exit,
     thread::sleep,
     io::{ Read, Write },
@@ -119,6 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         manga_name = manga_name_tmp.to_owned();
                         let folder = get_folder_name(&manga_name);
 
+                        let was_rewritten = fs::metadata(folder.clone()).is_ok();
                         let _ = fs::create_dir(&folder);
                         let desc = title_data
                             .get("description")
@@ -139,7 +139,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             .unwrap();
                         let _ = write!(desc_file, "{}", desc);
 
-                        resolve_manga(id, manga_name_tmp).await;
+                        let folder = get_folder_name(&manga_name);
+                        let cover = obj
+                            .get("data")
+                            .and_then(|name_data| name_data.get("relationships"))
+                            .and_then(Value::as_array)
+                            .and_then(|data| {
+                                let mut cover = "";
+                                for el in data {
+                                    if el.get("type").unwrap() == "cover_art" {
+                                        cover = el
+                                            .get("attributes")
+                                            .and_then(|dat| dat.get("fileName"))
+                                            .and_then(Value::as_str)
+                                            .unwrap();
+                                    }
+                                }
+                                Option::Some(cover)
+                            })
+                            .unwrap();
+                        download_cover(id, cover, &folder).await;
+
+                        resolve_manga(id, manga_name_tmp, was_rewritten).await;
                     }
                     _ => todo!(),
                 }
@@ -167,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn get_folder_name(manga_name: &String) -> String {
+fn get_folder_name(manga_name: &str) -> String {
     if ARGS.folder == "name" {
         return manga_name.to_owned();
     } else {
@@ -204,7 +225,7 @@ fn get_manga_name(title_data: &Value) -> &str {
         })
 }
 
-async fn resolve_manga(id: &str, manga_name: &str) {
+async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) {
     let arg_database_offset: i32 = ARGS.database_offset.as_str().parse().unwrap();
     let mut arg_force = ARGS.force as bool;
     let going_offset = arg_database_offset;
@@ -228,12 +249,16 @@ async fn resolve_manga(id: &str, manga_name: &str) {
         for i in 0..downloaded.len() {
             (_, downloaded) = resolve_move(i as i32, downloaded.clone(), 2, 1);
         }
+    } else {
+        if !was_rewritten {
+            let _ = fs::remove_dir_all(get_folder_name(manga_name));
+        }
     }
 }
 
 async fn get_manga_json(id: &str) -> Result<String, reqwest::Error> {
     let base_url = "https://api.mangadex.org/manga/";
-    let full_url = format!("{}{}", base_url, id);
+    let full_url = format!("{}{}?includes[]=cover_art", base_url, id);
 
     let client = reqwest::Client
         ::builder()
@@ -285,12 +310,7 @@ fn sort(data: &Vec<Value>) -> Vec<Value> {
 }
 
 async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -> Vec<String> {
-    let folder;
-    if ARGS.folder == "name" {
-        folder = manga_name.to_owned();
-    } else {
-        folder = ARGS.folder.as_str().to_string();
-    }
+    let folder = get_folder_name(manga_name);
     let arg_volume = match ARGS.volume.as_str() {
         "" => "*",
         x => x,
@@ -911,6 +931,58 @@ async fn download_image(
         .open(format!("{}_{}.lock", folder_name, page))
         .unwrap();
     let _ = lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes());
+}
+
+async fn download_cover(c_hash: &str, cover_hash: &str, folder: &str) {
+    string(1, 0, "Downloading cover_art");
+    let full_url = format!("https://uploads.mangadex.org\\covers\\{}\\{}", c_hash, cover_hash);
+    let mut response = reqwest::get(full_url.clone()).await.unwrap();
+    let total_size: f32 = response.content_length().unwrap_or(0) as f32;
+    let full_path = format!("{}\\_cover.png", folder);
+    let mut file = File::create(full_path).unwrap();
+    let mut downloaded = 0;
+    let mut last_size = 0.0;
+    let final_size = (total_size as f32) / (1024 as f32) / (1024 as f32);
+    let interval = Duration::from_millis(250);
+    let mut last_check_time = Instant::now();
+    while let Some(chunk) = response.chunk().await.unwrap() {
+        let _ = file.write_all(&chunk);
+        downloaded += chunk.len() as u64;
+        let current_time = Instant::now();
+        if current_time.duration_since(last_check_time) >= interval {
+            last_check_time = current_time;
+            let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
+            let perc_string;
+            if percentage < 10 {
+                perc_string = format!("  {}", percentage);
+            } else if percentage < 100 {
+                perc_string = format!(" {}", percentage);
+            } else {
+                perc_string = format!("{}", percentage);
+            }
+            let message = format!(
+                "Downloading cover_art {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]",
+                perc_string,
+                (downloaded as f32) / (1024 as f32) / (1024 as f32),
+                final_size,
+                (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
+            );
+            string(
+                1,
+                0,
+                &format!(
+                    "{} {}",
+                    message,
+                    "#".repeat(
+                        ((((stdscr().get_max_x() - (message.len() as i32)) as f32) /
+                            (total_size as f32)) *
+                            (downloaded as f32)) as usize
+                    )
+                )
+            );
+            last_size = downloaded as f32;
+        }
+    }
 }
 
 async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), reqwest::Error> {
