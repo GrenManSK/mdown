@@ -868,6 +868,7 @@ async fn download_image(
             string(
                 5 + 1 + (page as i32),
                 0,
+                &format!(
                     "{} {}",
                     message,
                     "#".repeat(
