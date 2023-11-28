@@ -1,6 +1,6 @@
 # mdown
 
-mangadex manga downloader
+> mangadex manga downloader
 
 ---
 
