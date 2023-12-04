@@ -1,15 +1,9 @@
 use crosscurses::stdscr;
-use std::fs::File;
-use std::io::Read;
-use std::io::Seek;
-use std::io::Write;
-use std::path::Path;
+use std::{ fs::File, io::{ Read, Write, Seek }, path::Path };
 use walkdir::{ DirEntry, WalkDir };
-use zip::result::ZipError;
-use zip::write::FileOptions;
+use zip::{ result::ZipError, write::FileOptions };
 
-use crate::progress_bar_preparation;
-use crate::string;
+use crate::{ string, utils::progress_bar_preparation };
 
 fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
