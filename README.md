@@ -2,6 +2,8 @@
 
 > mangadex manga downloader
 
+See [site](https://mangadex.org/) for finding manga
+
 ---
 
 ## usage

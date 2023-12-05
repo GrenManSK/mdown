@@ -1,11 +1,16 @@
 use serde_json::{ Value, Map };
-use std::{ fs::{ self, OpenOptions }, process::exit, io::Write };
+use std::{ fs::{ self, OpenOptions }, process::exit, io::Write, sync::Mutex };
 use crosscurses::*;
+use lazy_static::lazy_static;
 
 use crate::{ ARGS, download_manga, string, getter::get_manga };
 use crate::download;
 use crate::utils::clear_screen;
-use crate::getter::{ get_manga_name, get_folder_name };
+use crate::getter::{ get_manga_name, get_folder_name, get_scanlation_group };
+
+lazy_static! {
+    static ref SCANLATION_GROUPS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+}
 
 pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
     let title_data = obj
@@ -63,6 +68,72 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
     resolve_manga(id, manga_name_tmp, was_rewritten).await;
 
     manga_name
+}
+
+pub(crate) async fn resolve_group(array_item: &Value, manga_name: &str) {
+    let scanlation_group = array_item.get("relationships").and_then(Value::as_array).unwrap();
+    let scanlation_group_id = get_scanlation_group(scanlation_group).unwrap_or_default();
+    if scanlation_group_id.is_empty() {
+        return;
+    }
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(format!("{}\\_scanlation_groups.txt", get_folder_name(manga_name)))
+        .unwrap();
+    let (name, website) = resolve_group_metadata(scanlation_group_id).await.unwrap();
+    if name != "Unknown" && !SCANLATION_GROUPS.lock().unwrap().contains(&name) {
+        SCANLATION_GROUPS.lock().unwrap().push(name.clone());
+
+        let _ = file.write_all(format!("{} - {}\n", name, website).as_bytes());
+    }
+}
+
+pub(crate) async fn resolve_group_metadata(id: &str) -> Option<(String, String)> {
+    let base_url = "https://api.mangadex.org/group/";
+    let full_url = format!("{}\\{}", base_url, id);
+
+    let client = reqwest::Client
+        ::builder()
+        .user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0"
+        )
+        .build()
+        .unwrap();
+
+    let response = client.get(&full_url).send().await.unwrap();
+
+    if response.status().is_success() {
+        let json = response.text().await.unwrap();
+
+        match serde_json::from_str(&json) {
+            Ok(json_value) =>
+                match json_value {
+                    Value::Object(obj) => {
+                        let attr = obj.get("data").unwrap().get("attributes").unwrap();
+                        let name = attr.get("name").and_then(Value::as_str).unwrap().to_owned();
+                        let website = attr
+                            .get("website")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned();
+                        return Some((name, website));
+                    }
+                    _ => todo!(),
+                }
+            Err(err) => {
+                eprintln!("Error parsing JSON: {}", err);
+                return None;
+            }
+        };
+    } else {
+        eprintln!(
+            "Error: {}",
+            format!("Failed to fetch data from the API. Status code: {:?}", response.status())
+        );
+        exit(1);
+    }
 }
 
 async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) {

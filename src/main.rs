@@ -213,6 +213,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
                                 }
                                 Err(err) => eprintln!("Error: {}", err),
                             }
+                            resolute::resolve_group(array_item, manga_name).await;
                             utils::clear_screen(7);
                             string(
                                 7,
@@ -302,10 +303,9 @@ async fn download_chapter(
                                         let start_task = i * iter;
                                         images_length_temp -= iter;
                                         let tasks = (start_task..end_task).map(|item| {
-                                            let image_temp = getter::get_attr_as_same_as_index(
-                                                images,
-                                                item
-                                            ).to_string();
+                                            let image_temp = getter
+                                                ::get_attr_as_same_as_index(images, item)
+                                                .to_string();
                                             let chapter_hash = chapter_hash.to_string();
                                             let manga_name = manga_name.to_string();
                                             let title = title.to_string();

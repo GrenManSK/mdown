@@ -108,6 +108,16 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
     }
 }
 
+pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
+    for relation in json {
+        let relation_type = relation.get("type").unwrap();
+        if relation_type == "scanlation_group" {
+            return relation.get("id").and_then(Value::as_str);
+        }
+    }
+    None
+}
+
 pub(crate) async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), reqwest::Error> {
     let mut times = 0;
     let mut json: String;

@@ -172,12 +172,14 @@ pub(crate) struct FileName {
 impl FileName {
     pub(crate) fn get_folder_name(&self) -> String {
         if self.title != "" {
-            return format!(
-                "{} - {}Ch.{} - {}",
-                self.manga_name,
-                self.vol,
-                self.chapter_num,
-                self.title
+            return process_filename(
+                format!(
+                    "{} - {}Ch.{} - {}",
+                    self.manga_name,
+                    self.vol,
+                    self.chapter_num,
+                    self.title
+                )
             );
         } else {
             return format!("{} - {}Ch.{}", self.manga_name, self.vol, self.chapter_num);
