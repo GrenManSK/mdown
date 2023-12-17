@@ -1,6 +1,6 @@
 use clap::Parser;
 use serde_json::Value;
-use std::{ time::Duration, fs::{ self, File }, process::exit, thread::sleep, io::Write };
+use std::{ fs::{ self, File }, process::exit, io::Write };
 use crosscurses::*;
 use lazy_static::lazy_static;
 
@@ -10,26 +10,28 @@ mod resolute;
 mod getter;
 mod utils;
 
+static mut IS_END: bool = false;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = String::from("None"))]
     url: String,
-    #[arg(short, long, default_value_t = format!("en").to_string())]
+    #[arg(short, long, default_value_t = String::from("en"))]
     lang: String,
-    #[arg(short, long, default_value_t = format!("0").to_string())]
+    #[arg(short, long, default_value_t = String::from("0"))]
     offset: String,
-    #[arg(short, long, default_value_t = format!("0").to_string())]
+    #[arg(short, long, default_value_t = String::from("0"))]
     database_offset: String,
-    #[arg(short, long, default_value_t = format!("*").to_string())]
+    #[arg(short, long, default_value_t = String::from("*"))]
     title: String,
-    #[arg(short, long, default_value_t = format!(".").to_string())]
+    #[arg(short, long, default_value_t = String::from("."))]
     folder: String,
-    #[arg(short, long, default_value_t = format!("*").to_string())]
+    #[arg(short, long, default_value_t = String::from("*"))]
     volume: String,
-    #[arg(short, long, default_value_t = format!("*").to_string())]
+    #[arg(short, long, default_value_t = String::from("*"))]
     chapter: String,
-    #[arg(short, long, default_value_t = format!("40").to_string())]
+    #[arg(short, long, default_value_t = String::from("40"))]
     max_consecutive: String,
     #[arg(long)]
     force: bool,
@@ -40,61 +42,54 @@ struct Args {
 }
 
 fn string(y: i32, x: i32, value: &str) {
-    stdscr().mvaddnstr(y, x, value, stdscr().get_max_x() - x);
+    stdscr().mvaddnstr(y, x, value, MAXPOINTS.max_x - x);
     stdscr().refresh();
+}
+pub(crate) struct MaxPoints {
+    max_x: i32,
+    max_y: i32,
 }
 
 lazy_static! {
-    static ref ARGS: Args = Args::parse();
+    pub(crate) static ref ARGS: Args = Args::parse();
+    pub(crate) static ref MAXPOINTS: MaxPoints = MaxPoints {
+        max_x: stdscr().get_max_x(),
+        max_y: stdscr().get_max_y(),
+    };
 }
-
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let input = &ARGS.url;
-    let (file_path, file_path_tm) = utils::start();
-
+async fn main() {
+    let (file_path, file_path_tm, file_path_temp) = utils::resolve_start();
     tokio::spawn(async move { utils::print_version(file_path_tm).await });
+    tokio::spawn(async move { utils::ctrl_handler(file_path_temp).await });
 
-    let mut manga_name: String = "!".to_string();
-
-    let re = regex::Regex::new(r"/title/([\w-]+)/").unwrap();
-    if let Some(id) = re.captures(&input).and_then(|id| id.get(1)) {
-        string(0, 0, &format!("Extracted ID: {}", id.as_str()));
-        let id = id.as_str();
-        let manga_name_json = getter::get_manga_json(id).await.unwrap();
-        match serde_json::from_str(&manga_name_json) {
-            Ok(json_value) =>
-                match json_value {
-                    Value::Object(obj) => {
-                        manga_name = resolute::resolve(obj, id).await;
-                    }
-                    _ => todo!(),
+    let mut manga_name: String = String::from("!");
+    let mut status_code = reqwest::StatusCode::from_u16(200).unwrap();
+    if let Some(id) = utils::resolve_regex(&ARGS.url) {
+        let id: &str = id.as_str();
+        string(0, 0, &format!("Extracted ID: {}", id));
+        match getter::get_manga_json(id).await {
+            Ok(manga_name_json) => {
+                let json_value = serde_json::from_str(&manga_name_json).unwrap();
+                if let Value::Object(obj) = json_value {
+                    manga_name = resolute::resolve(obj, id).await;
+                } else {
+                    eprintln!("Unexpected JSON value");
+                    return;
                 }
-            Err(err) => eprintln!("Error parsing JSON: {}", err),
-        };
+            }
+            Err(code) => {
+                status_code = code;
+            }
+        }
     }
-    let _ = fs::remove_file(file_path);
 
-    sleep(Duration::from_millis(200));
+    utils::resolve_end(file_path, manga_name, status_code);
 
-    let message: String;
-    if manga_name == "!" {
-        message =
-            format!("Ending session: {} has NOT been downloaded, because it was not found", manga_name);
-    } else {
-        message = format!("Ending session: {} has been downloaded", manga_name);
-    }
-    string(
-        stdscr().get_max_y() - 1,
-        0,
-        &format!("{}{}", message, " ".repeat((stdscr().get_max_x() as usize) - message.len()))
-    );
-    stdscr().getch();
-
-    Ok(())
+    // Final key input is in utils::ctrl_handler
 }
 
-async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -> Vec<String> {
+pub(crate) async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -> Vec<String> {
     let folder = getter::get_folder_name(manga_name);
     let arg_volume = getter::get_arg(ARGS.volume.to_string());
     let arg_chapter = getter::get_arg(ARGS.chapter.to_string());
@@ -247,7 +242,7 @@ async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -
     downloaded
 }
 
-async fn download_chapter(
+pub(crate) async fn download_chapter(
     manga_json: String,
     manga_name: &str,
     title: &str,
@@ -284,8 +279,7 @@ async fn download_chapter(
                                     });
                                     let _ = fs::create_dir_all(filename.get_folder_w_end());
 
-                                    let start =
-                                        stdscr().get_max_x() / 3 - (images_length as i32) / 2;
+                                    let start = MAXPOINTS.max_x / 3 - (images_length as i32) / 2;
 
                                     let iter = ARGS.max_consecutive.parse().unwrap();
 
@@ -335,6 +329,9 @@ async fn download_chapter(
                                             ::join_all(tasks).await
                                             .into_iter()
                                             .collect();
+                                        if (unsafe { IS_END }) || false {
+                                            return;
+                                        }
                                     }
 
                                     let _ = fs::remove_file(lock_file.clone());

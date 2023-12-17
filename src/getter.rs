@@ -1,61 +1,74 @@
 use serde_json::Value;
 use std::{ thread::sleep, time::Duration, process::exit };
-use crosscurses::*;
 
-use crate::{ ARGS, string, utils::progress_bar_preparation, getter };
+use crate::{
+    ARGS,
+    string,
+    utils::progress_bar_preparation,
+    getter,
+    MAXPOINTS,
+    download::get_response_client,
+};
 
 pub(crate) fn get_folder_name(manga_name: &str) -> String {
-    if ARGS.folder == "name" {
-        return manga_name.to_owned();
-    } else {
-        return ARGS.folder.as_str().to_string();
-    }
+    if ARGS.folder == "name" { manga_name.to_owned() } else { ARGS.folder.as_str().to_string() }
 }
 
-pub(crate) fn get_manga_name(title_data: &Value) -> &str {
+pub(crate) fn get_manga_name(title_data: &Value) -> String {
     title_data
         .get("title")
         .and_then(|attr_data| attr_data.get("en"))
         .and_then(Value::as_str)
         .unwrap_or_else(|| {
-            let get = title_data
-                .get("altTitles")
-                .and_then(|val| val.as_array())
-                .unwrap();
-            let mut return_title = "*";
-            for title_object in get {
-                if let Some(lang_object) = title_object.as_object() {
-                    for (lang, title) in lang_object.iter() {
-                        if lang == "en" {
-                            return_title = title.as_str().unwrap();
-                            break;
+            let get = title_data.get("altTitles").and_then(|val| val.as_array());
+            if get.is_some() {
+                let mut return_title = "*";
+                for title_object in get.unwrap() {
+                    if let Some(lang_object) = title_object.as_object() {
+                        for (lang, title) in lang_object.iter() {
+                            if lang == "en" {
+                                return_title = title.as_str().unwrap();
+                                break;
+                            }
                         }
                     }
+                    break;
                 }
-                break;
+                if return_title == "*" {
+                    let and_then = title_data
+                        .get("title")
+                        .and_then(|attr_data| attr_data.get("ja-ro"))
+                        .and_then(Value::as_str);
+                    if and_then.is_some() {
+                        and_then.unwrap()
+                    } else {
+                        "Unrecognized title"
+                    }
+                } else {
+                    return_title
+                }
+            } else {
+                let and_then = title_data
+                    .get("title")
+                    .and_then(|attr_data| attr_data.get("ja-ro"))
+                    .and_then(Value::as_str);
+                if and_then.is_some() {
+                    and_then.unwrap()
+                } else {
+                    "Unrecognized title"
+                }
             }
-            if return_title == "*" {
-                return_title = title_data.get("ja-ro").and_then(Value::as_str).unwrap();
-            }
-            return_title
         })
+        .to_string()
 }
 
-pub(crate) async fn get_manga_json(id: &str) -> Result<String, reqwest::Error> {
-    let base_url = "https://api.mangadex.org/manga/";
-    let full_url = format!("{}{}?includes[]=cover_art", base_url, id);
+pub(crate) async fn get_manga_json(id: &str) -> Result<String, reqwest::StatusCode> {
+    let full_url = format!("https://api.mangadex.org/manga/{}?includes[]=cover_art", id);
 
-    let client = reqwest::Client
-        ::builder()
-        .user_agent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0"
-        )
-        .build()?;
-
-    let response = client.get(&full_url).send().await?;
+    let response = get_response_client(full_url).await.unwrap();
 
     if response.status().is_success() {
-        let json = response.text().await?;
+        let json = response.text().await.unwrap();
 
         Ok(json)
     } else {
@@ -63,7 +76,7 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, reqwest::Error> {
             "Error: {}",
             format!("Failed to fetch data from the API. Status code: {:?}", response.status())
         );
-        exit(1);
+        Err(response.status())
     }
 }
 
@@ -74,14 +87,7 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
         let base_url = "https://api.mangadex.org/at-home/server/";
         let full_url = format!("{}{}", base_url, id);
 
-        let client = reqwest::Client
-            ::builder()
-            .user_agent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0"
-            )
-            .build()?;
-
-        let response = client.get(&full_url).send().await?;
+        let response = get_response_client(full_url).await.unwrap();
 
         if response.status().is_success() {
             let json = response.text().await?;
@@ -99,10 +105,10 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
                 )
             );
             string(6, 0, "Sleeping for 60 seconds ...");
-            progress_bar_preparation(stdscr().get_max_x() - 30, 60, 7);
+            progress_bar_preparation(MAXPOINTS.max_x - 30, 60, 7);
             for i in 0..60 {
                 sleep(Duration::from_millis(1000));
-                string(7, stdscr().get_max_x() - 29 + i, "#");
+                string(7, MAXPOINTS.max_x - 29 + i, "#");
             }
         }
     }
@@ -110,8 +116,11 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
 
 pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
     for relation in json {
-        let relation_type = relation.get("type").unwrap();
-        if relation_type == "scanlation_group" {
+        let relation_type = relation.get("type");
+        if relation_type.is_none() {
+            return None;
+        }
+        if relation_type.unwrap() == "scanlation_group" {
             return relation.get("id").and_then(Value::as_str);
         }
     }
@@ -135,16 +144,14 @@ pub(crate) async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), 
                 times_offset.to_string()
             )
         );
-        let base_url = "https://api.mangadex.org/manga/";
-        let full_url = format!("{}{}/feed?limit=500&offset={}", base_url, id, times_offset);
+        let full_url = format!(
+            "https://api.mangadex.org/manga/{}/feed?limit=500&offset={}",
+            id,
+            times_offset
+        );
 
-        let client = reqwest::Client
-            ::builder()
-            .user_agent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0"
-            )
-            .build()?;
-        let response = client.get(&full_url).send().await?;
+        let response = get_response_client(full_url).await.unwrap();
+
         if response.status().is_success() {
             json = response.text().await?;
             if times == 0 {
@@ -288,9 +295,385 @@ pub(crate) fn get_arg(arg: String) -> String {
 }
 
 pub(crate) fn get_saver() -> String {
-    if ARGS.saver {
-        return String::from("dataSaver");
-    } else {
-        return String::from("data");
-    }
+    if ARGS.saver { String::from("dataSaver") } else { String::from("data") }
+}
+
+// returns english title if exists in title_data
+#[test]
+fn test_get_manga_name_returns_english_title_if_exists() {
+    let title_data =
+        serde_json::json!({
+                "title": {
+                    "en": "English Title"
+                }
+            });
+
+    let result = get_manga_name(&title_data);
+
+    assert_eq!(result, "English Title");
+}
+
+// returns english title if exists in alt_titles with english language
+#[test]
+fn test_get_manga_name_returns_english_title_if_exists_in_alt_titles() {
+    let title_data =
+        serde_json::json!({
+                "altTitles": [
+                    {
+                        "en": "English Title"
+                    }
+                ]
+            });
+
+    let result = get_manga_name(&title_data);
+
+    assert_eq!(result, "English Title");
+}
+
+// returns japanese romanized title if english title not found
+#[test]
+fn test_get_manga_name_returns_japanese_romanized_title_if_english_title_not_found() {
+    let title_data =
+        serde_json::json!({
+                "title": {
+                    "ja-ro": "Japanese Romanized Title"
+                }
+            });
+
+    let result = get_manga_name(&title_data);
+
+    assert_eq!(result, "Japanese Romanized Title");
+}
+
+// returns first english title found in alt_titles with multiple languages
+#[test]
+fn test_get_manga_name_returns_first_english_title_found_in_alt_titles() {
+    let title_data =
+        serde_json::json!({
+                "altTitles": [
+                    {
+                        "en": "English Title"
+                    },
+                    {
+                        "fr": "French Title"
+                    }
+                ]
+            });
+
+    let result = get_manga_name(&title_data);
+
+    assert_eq!(result, "English Title");
+}
+
+// returns empty string if title in alt_titles but no english language available
+#[test]
+fn test_get_manga_name_returns_empty_string_if_title_in_alt_titles_but_no_english_language_available() {
+    let title_data =
+        serde_json::json!({
+                "altTitles": [
+                    {
+                        "fr": "French Title"
+                    }
+                ]
+            });
+
+    let result = get_manga_name(&title_data);
+
+    assert_eq!(result, "Unrecognized title");
+}
+
+// returns empty string if title in alt_titles but no language available
+#[test]
+fn test_get_manga_name_returns_empty_string_if_title_in_alt_titles_but_no_language_available() {
+    let title_data =
+        serde_json::json!({
+                "altTitles": [
+                    {}
+                ]
+            });
+
+    let result = get_manga_name(&title_data);
+
+    assert_eq!(result, "Unrecognized title");
+}
+
+// Returns a tuple with five elements when given a valid Value object.
+#[test]
+fn test_get_metadata_should_return_tuple_with_five_elements() {
+    // Arrange
+    let array_item = Value::from(
+        serde_json::json!({
+            "attributes": {
+                "translatedLanguage": "English",
+                "pages": 10,
+                "chapter": "Chapter 1",
+                "title": "Title"
+            }
+        })
+    );
+
+    // Act
+    let result = get_metadata(&array_item);
+
+    // Assert
+    assert_eq!(result.1, "English");
+    assert_eq!(result.2, 10);
+    assert_eq!(result.3, "Chapter 1");
+    assert_eq!(result.4, "Title");
+}
+
+// Returns an empty string for the language when the 'translatedLanguage' attribute is missing.
+#[test]
+fn test_get_metadata_should_return_empty_string_for_language_when_translated_language_attribute_is_missing() {
+    // Arrange
+    let array_item = Value::from(
+        serde_json::json!({
+            "attributes": {
+                "pages": 10,
+                "chapter": "Chapter 1",
+                "title": "Title"
+            }
+        })
+    );
+
+    // Act
+    let result = get_metadata(&array_item);
+
+    // Assert
+    assert_eq!(result.1, "");
+}
+
+// Returns 0 for the number of pages when the 'pages' attribute is missing.
+#[test]
+fn test_get_metadata_should_return_zero_for_number_of_pages_when_pages_attribute_is_missing() {
+    // Arrange
+    let array_item = Value::from(
+        serde_json::json!({
+            "attributes": {
+                "translatedLanguage": "English",
+                "chapter": "Chapter 1",
+                "title": "Title"
+            }
+        })
+    );
+
+    // Act
+    let result = get_metadata(&array_item);
+
+    // Assert
+    assert_eq!(result.2, 0);
+}
+
+// Returns an empty string for the chapter number when the 'chapter' attribute is missing.
+#[test]
+fn test_get_metadata_should_return_empty_string_for_chapter_number_when_chapter_attribute_is_missing() {
+    // Arrange
+    let array_item = Value::from(
+        serde_json::json!({
+            "attributes": {
+                "translatedLanguage": "English",
+                "pages": 10,
+                "title": "Title"
+            }
+        })
+    );
+
+    // Act
+    let result = get_metadata(&array_item);
+
+    // Assert
+    assert_eq!(result.3, "");
+}
+
+// returns the value of the attribute as a string if it exists in the given JSON object
+#[test]
+fn test_get_attr_as_str_returns_value_if_attribute_exists() {
+    let json = serde_json::json!({
+            "attr": "value"
+        });
+    let result = get_attr_as_str(&json, "attr");
+    assert_eq!(result, "value");
+}
+
+// returns an empty string if the attribute exists in the given JSON object but its value is not a string
+#[test]
+fn test_get_attr_as_str_returns_empty_string_if_attribute_value_string() {
+    let json = serde_json::json!({
+            "attr": 123
+        });
+    let result = get_attr_as_str(&json, "attr");
+    assert_eq!(result, "");
+}
+
+// Returns the u64 value of the given attribute if it exists in the given JSON object
+#[test]
+fn test_get_attr_as_u64_returns_u64_value_if_attribute_exists() {
+    let json = serde_json::json!({
+            "attr": 10
+        });
+    let obj = &json;
+    let attr = "attr";
+
+    let result = get_attr_as_u64(obj, attr);
+
+    assert_eq!(result, 10);
+}
+
+// Returns 0 if the given JSON object is null
+#[test]
+fn test_get_attr_as_u64_returns_0_if_json_object_null() {
+    let obj = serde_json::Value::Null;
+    let attr = "attr";
+
+    let result = get_attr_as_u64(&obj, attr);
+
+    assert_eq!(result, 0);
+}
+
+// Returns 0 if the given attribute is null
+#[test]
+fn test_get_attr_as_u64_returns_0_if_attribute_null() {
+    let json = serde_json::json!({
+            "attr": serde_json::Value::Null
+        });
+    let obj = &json;
+    let attr = "attr";
+
+    let result = get_attr_as_u64(obj, attr);
+
+    assert_eq!(result, 0);
+}
+
+// Returns the value at the specified index in the given JSON array.
+#[test]
+fn test_get_attr_as_same_as_index_returns_value_at_specified_index() {
+    let data_array = serde_json::json!([1, 2, 3, 4, 5]);
+
+    let result = get_attr_as_same_as_index(&data_array, 2);
+
+    assert_eq!(result, &serde_json::json!(3));
+}
+
+// Returns the first value if the index is 0.
+#[test]
+fn test_get_attr_as_same_as_index_returns_first_value_if_index_is_zero() {
+    let data_array = serde_json::json!([1, 2, 3, 4, 5]);
+
+    let result = get_attr_as_same_as_index(&data_array, 0);
+
+    assert_eq!(result, &serde_json::json!(1));
+}
+
+// Returns the last value if the index is the last index of the array.
+#[test]
+fn test_get_attr_as_same_as_index_returns_last_value_if_index_is_last_index() {
+    let data_array = serde_json::json!([1, 2, 3, 4, 5]);
+
+    let result = get_attr_as_same_as_index(&data_array, 4);
+
+    assert_eq!(result, &serde_json::json!(5));
+}
+
+// Returns the scanlation group ID if it exists in the JSON array
+#[test]
+fn test_get_scanlation_group_returns_scanlation_group_id_if_exists() {
+    let json = vec![
+        serde_json::json!({
+                "type": "scanlation_group",
+                "id": "group1"
+            }),
+        serde_json::json!({
+                "type": "other",
+                "id": "group2"
+            })
+    ];
+
+    let result = get_scanlation_group(&json);
+
+    assert_eq!(result, Some("group1"));
+}
+
+// Returns None if no scanlation group ID exists in the JSON array
+#[test]
+fn test_get_scanlation_group_returns_none_if_no_scanlation_group_id_exists() {
+    let json = vec![
+        serde_json::json!({
+                "type": "other",
+                "id": "group1"
+            }),
+        serde_json::json!({
+                "type": "other",
+                "id": "group2"
+            })
+    ];
+
+    let result = get_scanlation_group(&json);
+
+    assert_eq!(result, None);
+}
+
+// Returns None if the input JSON array is empty
+#[test]
+fn test_get_scanlation_group_returns_none_if_input_json_array_is_empty() {
+    let json: Vec<serde_json::Value> = vec![];
+
+    let result = get_scanlation_group(&json);
+
+    assert_eq!(result, None);
+}
+
+// Returns None if the input JSON array does not contain any relation objects
+#[test]
+fn test_get_scanlation_group_returns_none_if_input_json_array_does_not_contain_relation_objects() {
+    let json = vec![
+        serde_json::json!({
+                "type": "other",
+                "id": "group1"
+            }),
+        serde_json::json!({
+                "type": "other",
+                "id": "group2"
+            })
+    ];
+
+    let result = get_scanlation_group(&json);
+
+    assert_eq!(result, None);
+}
+
+// Returns None if the relation object does not contain a 'type' field
+#[test]
+fn test_get_scanlation_group_returns_none_if_relation_object_does_not_contain_type_field() {
+    let json = vec![
+        serde_json::json!({
+                "id": "group1"
+            }),
+        serde_json::json!({
+                "type": "other",
+                "id": "group2"
+            })
+    ];
+
+    let result = get_scanlation_group(&json);
+
+    assert_eq!(result, None);
+}
+
+// Returns None if the 'type' field of the relation object is not 'scanlation_group'
+#[test]
+fn test_get_scanlation_group_returns_none_if_type_field_is_not_scanlation_group() {
+    let json = vec![
+        serde_json::json!({
+                "type": "other",
+                "id": "group1"
+            }),
+        serde_json::json!({
+                "type": "other",
+                "id": "group2"
+            })
+    ];
+
+    let result = get_scanlation_group(&json);
+
+    assert_eq!(result, None);
 }

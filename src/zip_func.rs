@@ -1,9 +1,8 @@
-use crosscurses::stdscr;
 use std::{ fs::File, io::{ Read, Write, Seek }, path::Path };
 use walkdir::{ DirEntry, WalkDir };
 use zip::{ result::ZipError, write::FileOptions };
 
-use crate::{ string, utils::progress_bar_preparation };
+use crate::{ string, utils::progress_bar_preparation, MAXPOINTS };
 
 fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
@@ -17,7 +16,7 @@ fn zip_dir<T>(
     let it_temp = &mut walkdir.into_iter().filter_map(|e| e.ok());
     let dir_entries_vec: Vec<DirEntry> = it_temp.collect();
     let total_items = dir_entries_vec.len();
-    let start = stdscr().get_max_x() / 3 - ((total_items / 2) as i32);
+    let start = MAXPOINTS.max_x / 3 - ((total_items / 2) as i32);
     progress_bar_preparation(start, total_items, 8);
     let mut zip = zip::ZipWriter::new(writer);
     let options = FileOptions::default().compression_method(method).unix_permissions(0o755);

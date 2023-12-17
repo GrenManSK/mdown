@@ -1,35 +1,46 @@
 use std::{ time::{ Duration, Instant }, fs::{ self, File, OpenOptions }, thread::sleep, io::Write };
-use crosscurses::*;
 
-use crate::{ string, ARGS };
-use crate::utils::process_filename;
+use crate::{ string, ARGS, MAXPOINTS, utils::process_filename, IS_END };
 
-async fn get_cover_response(c_hash: &str, cover_hash: &str) -> reqwest::Response {
+pub(crate) async fn get_response(c_hash: &str, cover_hash: &str, mode: &str) -> reqwest::Response {
     reqwest
-        ::get(format!("https://uploads.mangadex.org\\covers\\{}\\{}", c_hash, cover_hash)).await
+        ::get(format!("https://uploads.mangadex.org\\{}\\{}\\{}", mode, c_hash, cover_hash)).await
         .unwrap()
 }
-
-fn get_size(response: &reqwest::Response) -> (f32, f32) {
-    let total_size: f32 = response.content_length().unwrap_or(0) as f32;
+pub(crate) fn get_size(response: &reqwest::Response) -> (u64, f32) {
+    let total_size: u64 = response.content_length().unwrap_or(0);
     (total_size, (total_size as f32) / (1024 as f32) / (1024 as f32))
 }
 
-fn get_perc(percentage: i64) -> String {
+pub(crate) fn get_perc(percentage: i64) -> String {
     format!("{:>3}", percentage)
+}
+
+pub(crate) async fn get_response_client(
+    full_url: String
+) -> Result<reqwest::Response, reqwest::Error> {
+    let client = reqwest::Client
+        ::builder()
+        .user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0"
+        )
+        .build()
+        .unwrap();
+
+    client.get(&full_url).send().await
 }
 
 pub(crate) async fn download_cover(c_hash: &str, cover_hash: &str, folder: &str) {
     string(1, 0, "Downloading cover_art");
 
-    let mut response = get_cover_response(c_hash, cover_hash).await;
-    let (total_size, final_size) = get_size(&response);
+    let mut response = get_response(c_hash, cover_hash, "covers").await;
+    let (total_size, _) = get_size(&response);
 
     let mut file = File::create(format!("{}\\_cover.png", folder)).unwrap();
 
     let interval = Duration::from_millis(250);
     let mut last_check_time = Instant::now();
-    let (mut downloaded, mut last_size) = (0, 0.0);
+    let mut downloaded = 0;
 
     while let Some(chunk) = response.chunk().await.unwrap() {
         let _ = file.write_all(&chunk);
@@ -39,13 +50,7 @@ pub(crate) async fn download_cover(c_hash: &str, cover_hash: &str, folder: &str)
             last_check_time = current_time;
             let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
             let perc_string = get_perc(percentage);
-            let message = format!(
-                "Downloading cover_art {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]",
-                perc_string,
-                (downloaded as f32) / (1024 as f32) / (1024 as f32),
-                final_size,
-                (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
-            );
+            let message = format!("Downloading cover art {}%", perc_string);
             string(
                 1,
                 0,
@@ -53,17 +58,15 @@ pub(crate) async fn download_cover(c_hash: &str, cover_hash: &str, folder: &str)
                     "{} {}",
                     message,
                     "#".repeat(
-                        ((((stdscr().get_max_x() - (message.len() as i32)) as f32) /
+                        ((((MAXPOINTS.max_x - (message.len() as i32)) as f32) /
                             (total_size as f32)) *
                             (downloaded as f32)) as usize
                     )
                 )
             );
-            last_size = downloaded as f32;
         }
     }
 }
-
 
 pub(crate) async fn download_image(
     c_hash: &str,
@@ -83,13 +86,6 @@ pub(crate) async fn download_image(
     }
     let page = page + 1;
     let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
-    let base_url;
-    if ARGS.saver {
-        base_url = "https://uploads.mangadex.org/data-saver/";
-    } else {
-        base_url = "https://uploads.mangadex.org/data/";
-    }
-    let full_url = format!("{}{}/{}", base_url, c_hash, f_name);
     let folder_name = process_filename(
         format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title)
     );
@@ -107,7 +103,12 @@ pub(crate) async fn download_image(
     string(5 + 1, -1 + start + (page as i32), "/");
     let full_path = format!("{}/{}", folder_name, file_name);
 
-    let mut response = reqwest::get(full_url.clone()).await.unwrap();
+    let mut response;
+    if ARGS.saver {
+        response = get_response(c_hash, f_name, "data-saver").await;
+    } else {
+        response = get_response(c_hash, f_name, "data").await;
+    }
     let (total_size, final_size) = get_size(&response);
 
     string(5 + 1, -1 + start + (page as i32), "\\");
@@ -129,6 +130,9 @@ pub(crate) async fn download_image(
     let _ = write!(lock_file_inst, "{:.2}", total_size);
 
     while let Some(chunk) = response.chunk().await.unwrap() {
+        if (unsafe { IS_END }) || false {
+            return;
+        }
         let _ = file.write_all(&chunk);
         downloaded += chunk.len() as u64;
         let current_time = Instant::now();
@@ -161,7 +165,7 @@ pub(crate) async fn download_image(
                     "{} {}",
                     message,
                     "#".repeat(
-                        ((((stdscr().get_max_x() - (message.len() as i32)) as f32) /
+                        ((((MAXPOINTS.max_x - (message.len() as i32)) as f32) /
                             (total_size as f32)) *
                             (downloaded as f32)) as usize
                     )
@@ -187,7 +191,7 @@ pub(crate) async fn download_image(
             "{} {}",
             message,
             "#".repeat(
-                ((((stdscr().get_max_x() - (message.len() as i32)) as f32) / (total_size as f32)) *
+                ((((MAXPOINTS.max_x - (message.len() as i32)) as f32) / (total_size as f32)) *
                     (downloaded as f32)) as usize
             )
         )
@@ -200,4 +204,38 @@ pub(crate) async fn download_image(
         .open(format!("{}_{}.lock", folder_name, page))
         .unwrap();
     let _ = lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes());
+}
+
+// Returns a valid response object when given a valid URL
+#[tokio::test]
+async fn test_get_response_client_valid_url() {
+    let url = "https://example.com";
+    let response = get_response_client(url.to_string()).await;
+    assert!(response.is_ok());
+}
+
+// Returns an error when given an invalid URL
+#[tokio::test]
+async fn test_get_response_client_invalid_url() {
+    let url = "invalid_url";
+    let response = get_response_client(url.to_string()).await;
+    assert!(response.is_err());
+}
+
+// Returns an error when given an empty URL
+#[tokio::test]
+async fn test_get_response_client_empty_url() {
+    let url = "";
+    let response = get_response_client(url.to_string()).await;
+    assert!(response.is_err());
+}
+
+// Returns an error when the request times out
+#[tokio::test]
+async fn test_get_response_client_request_timeout() {
+    let url = "https://example.com";
+    // Set a very short timeout for testing purposes
+    let client = reqwest::Client::builder().timeout(Duration::from_millis(1)).build().unwrap();
+    let response = client.get(url).send().await;
+    assert!(response.is_err());
 }

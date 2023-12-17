@@ -1,12 +1,16 @@
 use serde_json::{ Value, Map };
 use std::{ fs::{ self, OpenOptions }, process::exit, io::Write, sync::Mutex };
-use crosscurses::*;
 use lazy_static::lazy_static;
 
-use crate::{ ARGS, download_manga, string, getter::get_manga };
-use crate::download;
-use crate::utils::clear_screen;
-use crate::getter::{ get_manga_name, get_folder_name, get_scanlation_group };
+use crate::{
+    ARGS,
+    MAXPOINTS,
+    download_manga,
+    string,
+    getter::{ get_manga, get_manga_name, get_folder_name, get_scanlation_group },
+    download,
+    utils::clear_screen,
+};
 
 lazy_static! {
     static ref SCANLATION_GROUPS: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -20,14 +24,49 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
             eprintln!("attributes or title doesn't exist");
             exit(1);
         });
-    let manga_name_tmp;
-    if ARGS.title == "*" {
-        manga_name_tmp = get_manga_name(title_data);
+
+    let manga_name = if ARGS.title == "*" {
+        get_manga_name(title_data)
     } else {
-        manga_name_tmp = &ARGS.title;
-    }
-    let manga_name = manga_name_tmp.to_owned();
+        ARGS.title.to_string()
+    };
     let folder = get_folder_name(&manga_name);
+
+    let orig_lang = title_data.get("originalLanguage").and_then(Value::as_str).unwrap();
+    let languages = title_data
+        .get("availableTranslatedLanguages")
+        .and_then(Value::as_array)
+        .unwrap();
+    let mut final_lang = vec![];
+    for lang in languages {
+        final_lang.push(lang.as_str().unwrap());
+    }
+    if ARGS.lang != orig_lang && !final_lang.contains(&ARGS.lang.as_str()) {
+        let languages = title_data
+            .get("availableTranslatedLanguages")
+            .and_then(Value::as_array)
+            .unwrap();
+        let mut final_lang = vec![];
+        for lang in languages {
+            final_lang.push(lang.as_str().unwrap());
+        }
+        let orig_lang = title_data.get("originalLanguage").and_then(Value::as_str).unwrap();
+        let mut langs = String::new();
+        for lang in languages {
+            langs.push_str(&format!("{} ", lang));
+        }
+        string(
+            1,
+            0,
+            &format!(
+                "Language is not available\nSelected language: {}\nAvailable languages: {}\nOriginal language: \"{}\"",
+                ARGS.lang,
+                langs,
+                orig_lang
+            )
+        );
+        return manga_name;
+    }
 
     let was_rewritten = fs::metadata(folder.clone()).is_ok();
     let _ = fs::create_dir(&folder);
@@ -65,7 +104,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
         .unwrap();
     download::download_cover(id, cover, &folder).await;
 
-    resolve_manga(id, manga_name_tmp, was_rewritten).await;
+    resolve_manga(id, &manga_name, was_rewritten).await;
 
     manga_name
 }
@@ -94,15 +133,7 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Option<(String, String)>
     let base_url = "https://api.mangadex.org/group/";
     let full_url = format!("{}\\{}", base_url, id);
 
-    let client = reqwest::Client
-        ::builder()
-        .user_agent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0"
-        )
-        .build()
-        .unwrap();
-
-    let response = client.get(&full_url).send().await.unwrap();
+    let response = download::get_response_client(full_url).await.unwrap();
 
     if response.status().is_success() {
         let json = response.text().await.unwrap();
@@ -137,9 +168,8 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Option<(String, String)>
 }
 
 async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) {
-    let arg_database_offset: i32 = ARGS.database_offset.as_str().parse().unwrap();
-    let mut arg_force = ARGS.force as bool;
-    let going_offset = arg_database_offset;
+    let going_offset: i32 = ARGS.database_offset.as_str().parse().unwrap();
+    let mut arg_force = ARGS.force;
     let end = 2;
     let mut downloaded: Vec<String> = vec![];
     for _ in 0..end {
@@ -173,7 +203,7 @@ pub(crate) fn resolve_move(
     start: i32,
     end: i32
 ) -> (i32, Vec<String>) {
-    if moves + start >= stdscr().get_max_y() - end {
+    if moves + start >= MAXPOINTS.max_y - end {
         hist.remove(0);
     } else {
         moves += 1;
@@ -186,7 +216,7 @@ pub(crate) fn resolve_move(
         string(
             start + i,
             0,
-            &format!("{}{}", message, " ".repeat((stdscr().get_max_x() as usize) - message.len()))
+            &format!("{}{}", message, " ".repeat((MAXPOINTS.max_x as usize) - message.len()))
         );
     }
     (moves, hist)
