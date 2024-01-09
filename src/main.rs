@@ -37,7 +37,7 @@ struct Args {
     force: bool,
     #[arg(short, long)]
     saver: bool,
-    #[arg(short, long)]
+    #[arg(long)]
     force_delete: bool,
     #[arg(long, default_value_t = String::from("./"))]
     cwd: String,
