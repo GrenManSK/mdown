@@ -1,6 +1,15 @@
 use std::{ time::{ Duration, Instant }, fs::{ self, File, OpenOptions }, thread::sleep, io::Write };
+use serde_json::{ self, Value };
 
-use crate::{ string, ARGS, MAXPOINTS, utils::process_filename, IS_END };
+use crate::{
+    string,
+    ARGS,
+    MAXPOINTS,
+    utils::{ process_filename, clear_screen },
+    IS_END,
+    getter,
+    resolute::CURRENT_PAGE,
+};
 
 pub(crate) async fn get_response(c_hash: &str, cover_hash: &str, mode: &str) -> reqwest::Response {
     reqwest
@@ -30,7 +39,16 @@ pub(crate) async fn get_response_client(
     client.get(&full_url).send().await
 }
 
-pub(crate) async fn download_cover(c_hash: &str, cover_hash: &str, folder: &str) {
+pub(crate) async fn download_cover(
+    c_hash: &str,
+    cover_hash: &str,
+    folder: &str,
+    handle_id: Option<String>
+) {
+    let handle_id = handle_id.unwrap_or_default();
+    if ARGS.web {
+        println!("[cover_downloader @{}]  Downloading cover", handle_id);
+    }
     string(1, 0, "Downloading cover_art");
 
     let mut response = get_response(c_hash, cover_hash, "covers").await;
@@ -64,8 +82,12 @@ pub(crate) async fn download_cover(c_hash: &str, cover_hash: &str, folder: &str)
                     )
                 )
             );
+            if ARGS.web {
+                println!("[cover_downloader @{}]  {}", handle_id, message);
+            }
         }
     }
+    clear_screen(1);
 }
 pub(crate) async fn download_stat(
     id: &str,
@@ -140,13 +162,17 @@ pub(crate) async fn download_image(
     page: usize,
     start: i32,
     iter: usize,
-    times: usize
+    times: usize,
+    handle_id: String
 ) {
     let mut pr_title = "".to_string();
     if name != "" {
         pr_title = format!(" - {}", name);
     }
     let page = page + 1;
+    if ARGS.web {
+        println!("[image_downloader @{}] Starting image download {}", handle_id, page);
+    }
     let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
     let folder_name = process_filename(
         format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title)
@@ -156,14 +182,14 @@ pub(crate) async fn download_image(
     );
     let file_name_brief = process_filename(format!("{}Ch.{} - {}.jpg", vol, chapter, page));
 
-    let lock_file = process_filename(format!("{}.lock", folder_name));
+    let lock_file = process_filename(format!(".cache\\{}.lock", folder_name));
 
     string(5 + 1, -1 + start + (page as i32), "|");
     string(5 + 1 + (page as i32), 0, "   Sleeping");
     sleep(Duration::from_millis(((page - iter * times) * 50) as u64));
     string(5 + 1 + (page as i32), 0, &format!("   {} Downloading {}", page_str, file_name_brief));
     string(5 + 1, -1 + start + (page as i32), "/");
-    let full_path = format!("{}/{}", folder_name, file_name);
+    let full_path = format!(".cache/{}/{}", folder_name, file_name);
 
     let mut response;
     if ARGS.saver {
@@ -180,14 +206,14 @@ pub(crate) async fn download_image(
     let interval = Duration::from_millis(250);
     let mut last_check_time = Instant::now();
 
-    while fs::metadata(format!("{}.lock", lock_file)).is_ok() {
+    while fs::metadata(format!(".cache\\{}.lock", lock_file)).is_ok() {
         sleep(Duration::from_millis(10));
     }
     let mut lock_file_inst = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(format!("{}_{}_final.lock", folder_name, page))
+        .open(format!(".cache\\{}_{}_final.lock", folder_name, page))
         .unwrap();
     let _ = write!(lock_file_inst, "{:.2}", total_size);
 
@@ -204,7 +230,7 @@ pub(crate) async fn download_image(
                     .read(true)
                     .write(true)
                     .create(true)
-                    .open(format!("{}_{}.lock", folder_name, page))
+                    .open(format!(".cache\\{}_{}.lock", folder_name, page))
                     .unwrap();
                 let _ = lock_file.write(format!("{}", downloaded / 1024 / 1024).as_bytes());
             }
@@ -220,6 +246,9 @@ pub(crate) async fn download_image(
                 final_size,
                 (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
             );
+            if ARGS.web {
+                println!("[image_downloader @{}] {}", handle_id, message.to_string());
+            }
             string(
                 5 + 1 + (page as i32),
                 0,
@@ -236,6 +265,8 @@ pub(crate) async fn download_image(
             last_size = downloaded as f32;
         }
     }
+
+    *CURRENT_PAGE.lock().unwrap() += 1;
 
     let message = format!(
         "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
@@ -263,9 +294,13 @@ pub(crate) async fn download_image(
         .read(true)
         .write(true)
         .create(true)
-        .open(format!("{}_{}.lock", folder_name, page))
+        .open(format!(".cache\\{}_{}.lock", folder_name, page))
         .unwrap();
     let _ = lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes());
+
+    if ARGS.web {
+        println!("[image_downloader @{}] Finished image download {}", handle_id, page);
+    }
 }
 
 // Returns a valid response object when given a valid URL

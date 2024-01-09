@@ -11,11 +11,19 @@ use std::{
 use serde_json::Value;
 use regex::Regex;
 
-use crate::{ string, ARGS, resolute::resolve_move, MAXPOINTS, IS_END };
+use crate::{
+    string,
+    ARGS,
+    resolute::{ resolve_move, CURRENT_PERCENT, CURRENT_SIZE, CURRENT_SIZE_MAX },
+    MAXPOINTS,
+    IS_END,
+};
 
 pub(crate) fn clear_screen(from: i32) {
-    for i in from..MAXPOINTS.max_y {
-        string(i, 0, &" ".repeat(MAXPOINTS.max_x as usize));
+    if !ARGS.web {
+        for i in from..MAXPOINTS.max_y {
+            string(i, 0, &" ".repeat(MAXPOINTS.max_x as usize));
+        }
     }
 }
 
@@ -33,13 +41,13 @@ pub(crate) fn process_filename(filename: String) -> String {
 }
 
 pub(crate) async fn wait_for_end(file_path: String, images_length: usize) {
-    let full_path = format!("{}.lock", file_path);
+    let full_path = format!(".cache\\{}.lock", file_path);
     let mut full_size = 0.0;
     let start = Instant::now();
     while fs::metadata(full_path.clone()).is_ok() {
         let mut size = 0.0;
         for i in 1..images_length + 1 {
-            let image_name = format!("{}_{}.lock", file_path, i);
+            let image_name = format!(".cache\\{}_{}.lock", file_path, i);
             if fs::metadata(image_name.clone()).is_ok() {
                 let mut image_file = unsafe { File::open(image_name.clone()).unwrap_unchecked() };
                 let mut image_content = String::new();
@@ -51,7 +59,7 @@ pub(crate) async fn wait_for_end(file_path: String, images_length: usize) {
             }
         }
         for i in 1..images_length + 1 {
-            let image_name = format!("{}_{}_final.lock", file_path, i);
+            let image_name = format!(".cache\\{}_{}_final.lock", file_path, i);
             if fs::metadata(image_name.clone()).is_ok() {
                 let mut image_file = unsafe { File::open(image_name.clone()).unwrap_unchecked() };
                 let mut image_content = String::new();
@@ -69,6 +77,9 @@ pub(crate) async fn wait_for_end(file_path: String, images_length: usize) {
         } else {
             percent = (100.0 / full_size) * size;
         }
+        *CURRENT_PERCENT.lock().unwrap() = percent;
+        *CURRENT_SIZE.lock().unwrap() = size;
+        *CURRENT_SIZE_MAX.lock().unwrap() = full_size;
         string(
             6,
             MAXPOINTS.max_x - 60,
@@ -85,7 +96,7 @@ pub(crate) async fn wait_for_end(file_path: String, images_length: usize) {
     let _ = fs::remove_file(full_path.clone());
 
     for i in 1..images_length + 1 {
-        let image_name = format!("{}_{}.lock", file_path, i);
+        let image_name = format!(".cache\\{}_{}.lock", file_path, i);
         if fs::metadata(image_name.clone()).is_ok() {
             let _ = fs::remove_file(image_name);
         }
@@ -93,17 +104,19 @@ pub(crate) async fn wait_for_end(file_path: String, images_length: usize) {
 }
 
 pub(crate) fn progress_bar_preparation(start: i32, images_length: usize, line: i32) {
-    string(line, 0, &format!("{}|", &"-".repeat((start as usize) - 1)));
-    string(
-        line,
-        start + (images_length as i32),
-        &format!(
-            "|{}",
-            &"-".repeat(
-                (MAXPOINTS.max_x as usize) - ((start + (images_length as i32) + 1) as usize)
+    if !ARGS.web {
+        string(line, 0, &format!("{}|", &"-".repeat((start as usize) - 1)));
+        string(
+            line,
+            start + (images_length as i32),
+            &format!(
+                "|{}",
+                &"-".repeat(
+                    (MAXPOINTS.max_x as usize) - ((start + (images_length as i32) + 1) as usize)
+                )
             )
-        )
-    );
+        );
+    }
 }
 
 pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
@@ -134,7 +147,8 @@ pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
 }
 
 pub(crate) fn resolve_start() -> (String, String, String) {
-    let file_path: String = format!("mdown_{}.lock", env!("CARGO_PKG_VERSION"));
+    let _ = fs::create_dir(".cache");
+    let file_path: String = format!(".cache\\mdown_{}.lock", env!("CARGO_PKG_VERSION"));
     if ARGS.force_delete {
         let _ = fs::remove_file(file_path);
         exit(0);
@@ -152,22 +166,35 @@ pub(crate) fn resolve_start() -> (String, String, String) {
         }
     }
 
-    let _ = initscr();
-    curs_set(2);
-    start_color();
     (file_path.clone(), file_path.clone(), file_path)
 }
 
 pub(crate) fn delete_matching_directories(pattern: &Regex) -> Result<String, u32> {
-    if Path::new(".").is_dir() {
-        if let Ok(entries) = fs::read_dir(".") {
+    if Path::new(".cache").is_dir() {
+        if let Ok(entries) = fs::read_dir(".cache") {
             let mut last_entry_path = String::new();
             for entry in entries {
                 if let Ok(entry) = entry {
                     let path = entry.path();
-                    if pattern.is_match(path.to_str().unwrap_or("")) && path.is_dir() {
+                    if
+                        pattern.is_match(
+                            path
+                                .clone()
+                                .to_str()
+                                .unwrap()
+                                .to_string()
+                                .replace(".cache\\", "")
+                                .as_str()
+                        ) &&
+                        path.is_dir()
+                    {
                         let _ = fs::remove_dir_all(&path);
-                        last_entry_path = path.to_str().unwrap_or("").to_string();
+
+                        last_entry_path = path
+                            .to_str()
+                            .unwrap_or("Unknown___")
+                            .to_string()
+                            .replace(".cache\\", "");
                     }
                 }
             }
@@ -178,8 +205,8 @@ pub(crate) fn delete_matching_directories(pattern: &Regex) -> Result<String, u32
 }
 
 pub(crate) async fn ctrl_handler(file: String) {
-    if fs::metadata("mdown_final_end.lock").is_ok() {
-        let _ = fs::remove_file("mdown_final_end.lock");
+    if fs::metadata(".cache\\mdown_final_end.lock").is_ok() {
+        let _ = fs::remove_file(".cache\\mdown_final_end.lock");
     }
     loop {
         if fs::metadata(file.clone()).is_err() {
@@ -192,8 +219,11 @@ pub(crate) async fn ctrl_handler(file: String) {
             break;
         }
     }
-    if fs::metadata("mdown_final_end.lock").is_ok() {
-        let _ = fs::remove_file("mdown_final_end.lock");
+    if fs::metadata(".cache\\mdown_final_end.lock").is_ok() {
+        let _ = fs::remove_file(".cache\\mdown_final_end.lock");
+        if is_directory_empty(".cache\\") {
+            let _ = fs::remove_dir_all(".cache");
+        }
         return;
     }
     clear_screen(0);
@@ -201,10 +231,10 @@ pub(crate) async fn ctrl_handler(file: String) {
     sleep(Duration::from_secs(1));
     let _ = fs::remove_file(file);
 
-    let pattern = Regex::new(r"Vol\.\d+ Ch\.\d+").expect("Invalid regex pattern");
+    let pattern = Regex::new(r"(.*?)( - (Vol\.\d+ )?Ch\.\d+|$)").expect("Invalid regex pattern");
     match delete_matching_directories(&pattern) {
         Ok(path) => {
-            let pattern = r#"\.\\(.*?)( - (Vol\.\d+ )?Ch\.\d+|$)"#;
+            let pattern = r"(.+?)(?: - )(?: - Vol\.\d+)?(?: - Ch\.\d+)?";
             let re = Regex::new(pattern).expect("Invalid regex pattern");
             if let Some(captures) = re.captures(&path) {
                 if let Some(result) = captures.get(1) {
@@ -217,24 +247,20 @@ pub(crate) async fn ctrl_handler(file: String) {
         }
     }
 
-    if let Ok(entries) = fs::read_dir(".") {
+    if let Ok(entries) = fs::read_dir(".cache") {
         for entry in entries {
             if let Ok(entry) = entry {
                 let path = entry.path();
 
                 if path.is_file() && path.extension().map_or(false, |ext| ext == "lock") {
-                    if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
-                        if file_name.ends_with("Cargo.lock") {
-                            continue;
-                        }
-                    }
-
                     let _ = fs::remove_file(&path);
                 }
             }
         }
     }
-
+    if is_directory_empty(".cache\\") {
+        let _ = fs::remove_dir_all(".cache");
+    }
     exit(0);
 }
 
@@ -251,7 +277,8 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
                     if
                         file_name.ends_with("_cover.png") ||
                         file_name.ends_with("_description.txt") ||
-                        file_name.ends_with("_scanlation_groups.txt")
+                        file_name.ends_with("_scanlation_groups.txt") ||
+                        file_name.ends_with("_statistics.md")
                     {
                     } else {
                         should_delete += 1;
@@ -288,7 +315,12 @@ pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match> {
 
 pub(crate) fn resolve_end(file_path: String, manga_name: String, status_code: reqwest::StatusCode) {
     let _ = fs::remove_file(file_path);
-    OpenOptions::new().read(true).write(true).create(true).open("mdown_final_end.lock").unwrap();
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(".cache\\mdown_final_end.lock")
+        .unwrap();
 
     sleep(Duration::from_millis(110));
     let message = if status_code.is_client_error() {
@@ -325,6 +357,26 @@ pub(crate) fn resolve_end(file_path: String, manga_name: String, status_code: re
     );
 }
 
+fn is_directory_empty(path: &str) -> bool {
+    if let Ok(entries) = std::fs::read_dir(path) {
+        let mut count = 0;
+
+        for entry in entries {
+            if let Ok(entry) = entry {
+                count += 1;
+                if let Some(entry_name) = entry.file_name().to_str() {
+                    if entry_name.ends_with("mdown_final_end.lock") {
+                        return true;
+                    }
+                }
+            }
+        }
+        count <= 1
+    } else {
+        false
+    }
+}
+
 pub(crate) struct FileName {
     pub(crate) manga_name: String,
     pub(crate) vol: String,
@@ -350,13 +402,21 @@ impl FileName {
         }
     }
     pub(crate) fn get_file_w_folder(&self) -> String {
-        format!("{}\\{}.cbz", self.folder, format!("{}", process_filename(self.get_folder_name())))
+        format!("{}/{}.cbz", self.folder, format!("{}", process_filename(self.get_folder_name())))
+    }
+    pub(crate) fn get_file_w_folder_w_cwd(&self) -> String {
+        format!(
+            "{}{}/{}.cbz",
+            ARGS.cwd,
+            self.folder,
+            format!("{}", process_filename(self.get_folder_name()))
+        )
     }
     pub(crate) fn get_folder_w_end(&self) -> String {
-        format!("{}\\", self.get_folder_name())
+        format!(".cache/{}/", self.get_folder_name())
     }
     pub(crate) fn get_lock(&self) -> String {
-        format!("{}.lock", self.get_folder_name())
+        format!(".cache\\{}.lock", self.get_folder_name())
     }
 }
 
@@ -374,14 +434,26 @@ pub(crate) fn skip(
     attr: String,
     item: usize,
     moves: i32,
-    mut hist: Vec<String>
+    mut hist: Vec<String>,
+    handle_id: String
 ) -> (i32, Vec<String>) {
     let al_dow = format!("({}) Skipping because file is already downloaded {}", item, attr);
+    if ARGS.web {
+        println!("[downloader @{}]   {}", handle_id, al_dow);
+    }
     hist.push(al_dow);
     resolve_move(moves, hist.clone(), 3, 0)
 }
-pub(crate) fn skip_offset(item: usize, moves: i32, mut hist: Vec<String>) -> (i32, Vec<String>) {
+pub(crate) fn skip_offset(
+    item: usize,
+    moves: i32,
+    mut hist: Vec<String>,
+    handle_id: String
+) -> (i32, Vec<String>) {
     let al_dow = format!("({}) Skipping because of offset", item);
+    if ARGS.web {
+        println!("[downloader @{}]   {}", handle_id, al_dow);
+    }
     hist.push(al_dow);
     resolve_move(moves, hist.clone(), 3, 0)
 }
@@ -437,7 +509,7 @@ fn test_resolve_regex_mangadex_url_with_query_parameters() {
 // Lock file already exists
 #[test]
 fn test_lock_file_already_exists() {
-    let file_path = format!("mdown_{}.lock", env!("CARGO_PKG_VERSION"));
+    let file_path = format!(".cache\\mdown_{}.lock", env!("CARGO_PKG_VERSION"));
     File::create(&file_path).unwrap();
     let result = std::panic::catch_unwind(|| {
         resolve_start();

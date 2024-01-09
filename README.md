@@ -39,9 +39,17 @@ See [site](https://mangadex.org/) for finding manga
 
 `--stat` - will add txt file which contains status information
 
+`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed at end of download process
+
+`--encode` - will print url in program readable format
+
+`--log` - will print progress requests when received, web flag need to be set for this to work
+
 ---
 
 - If you get message that about lock file is present and you believe you don't have already program started use `--force-delete` option to force it to delete lock file
 
 - Will download cover image and description even if it did NOT download any more chapters in currently downloaded files AND if it do NOT find any eligible manga chapters it will delete the original
   - e.g. whole manga was in Japanese and didn't find any English chapters which results in 0 downloads
+
+- Every non-final downloads and temporary files will be put in .cache folder which if empty will be deleted afterwards

@@ -3,8 +3,13 @@
 .history/
 *.cbz
 release.py
-*_description.txt
+_description.txt
 *.lock
 _cover.png
 _scanlation_groups.txt
 github_info.txt
+convert.html
+convert.py
+final.html
+_statistics.md
+.cache/

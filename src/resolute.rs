@@ -13,10 +13,22 @@ use crate::{
 };
 
 lazy_static! {
-    static ref SCANLATION_GROUPS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(crate) static ref SCANLATION_GROUPS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(crate) static ref DOWNLOADED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(crate) static ref MANGA_NAME: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref CURRENT_CHAPTER: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref CURRENT_PAGE: Mutex<u64> = Mutex::new(0);
+    pub(crate) static ref CURRENT_PAGE_MAX: Mutex<u64> = Mutex::new(0);
+    pub(crate) static ref CURRENT_PERCENT: Mutex<f64> = Mutex::new(0.0);
+    pub(crate) static ref CURRENT_SIZE: Mutex<f64> = Mutex::new(0.0);
+    pub(crate) static ref CURRENT_SIZE_MAX: Mutex<f64> = Mutex::new(0.0);
 }
 
-pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
+pub(crate) async fn resolve(
+    obj: Map<String, Value>,
+    id: &str,
+    handle_id: Option<String>
+) -> String {
     let title_data = obj
         .get("data")
         .and_then(|name_data| name_data.get("attributes"))
@@ -30,6 +42,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
     } else {
         ARGS.title.to_string()
     };
+    *MANGA_NAME.lock().unwrap() = manga_name.clone();
     let folder = get_folder_name(&manga_name);
 
     let orig_lang = title_data.get("originalLanguage").and_then(Value::as_str).unwrap();
@@ -83,7 +96,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
         .read(true)
         .write(true)
         .create(true)
-        .open(format!("{}\\{}_description.txt", folder, get_manga_name(title_data)))
+        .open(format!("{}\\_description.txt", folder))
         .unwrap();
     let _ = write!(desc_file, "{}", desc);
 
@@ -106,13 +119,17 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
             Option::Some(cover)
         })
         .unwrap();
-    download::download_cover(id, cover, &folder).await;
+    download::download_cover(id, cover, &folder, handle_id.clone()).await;
 
-    resolve_manga(id, &manga_name, was_rewritten).await;
     if ARGS.stat {
-        download::download_stat(id, &folder, &manga_name, None).await;
+        download::download_stat(id, &folder, &manga_name, handle_id.clone()).await;
     }
 
+    resolve_manga(id, &manga_name, was_rewritten, handle_id.clone()).await;
+
+    if ARGS.web {
+        println!("[downloader @{}] Downloaded manga\n", handle_id.unwrap_or_default());
+    }
     manga_name
 }
 
@@ -174,15 +191,20 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Option<(String, String)>
     }
 }
 
-async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) {
+async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool, handle_id: Option<String>) {
     let going_offset: i32 = ARGS.database_offset.as_str().parse().unwrap();
     let mut arg_force = ARGS.force;
     let end = 2;
     let mut downloaded: Vec<String> = vec![];
     for _ in 0..end {
-        match get_manga(id, going_offset).await {
+        match get_manga(id, going_offset, handle_id.clone()).await {
             Ok((json, _offset)) => {
-                let downloaded_temp = download_manga(json, manga_name, arg_force).await;
+                let downloaded_temp = download_manga(
+                    json,
+                    manga_name,
+                    arg_force,
+                    handle_id.clone()
+                ).await;
                 for i in 0..downloaded_temp.len() {
                     downloaded.push(downloaded_temp[i].clone());
                 }
@@ -192,14 +214,16 @@ async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) {
         }
         arg_force = false;
     }
-    if downloaded.len() != 0 {
-        string(1, 0, "Downloaded files:");
-        for i in 0..downloaded.len() {
-            (_, downloaded) = resolve_move(i as i32, downloaded.clone(), 2, 1);
-        }
-    } else {
-        if !was_rewritten {
-            let _ = fs::remove_dir_all(get_folder_name(manga_name));
+    if !ARGS.web {
+        if downloaded.len() != 0 {
+            string(1, 0, "Downloaded files:");
+            for i in 0..downloaded.len() {
+                (_, downloaded) = resolve_move(i as i32, downloaded.clone(), 2, 1);
+            }
+        } else {
+            if !was_rewritten {
+                let _ = fs::remove_dir_all(get_folder_name(manga_name));
+            }
         }
     }
 }
@@ -220,11 +244,16 @@ pub(crate) fn resolve_move(
             break;
         }
         let message = &hist[i as usize];
-        string(
-            start + i,
-            0,
-            &format!("{}{}", message, " ".repeat((MAXPOINTS.max_x as usize) - message.len()))
-        );
+        let length = message.len();
+        if length < (MAXPOINTS.max_x as usize) {
+            string(
+                start + i,
+                0,
+                &format!("{}{}", message, " ".repeat((MAXPOINTS.max_x as usize) - message.len()))
+            );
+        } else {
+            string(start + i, 0, &format!("{}", message));
+        }
     }
     (moves, hist)
 }

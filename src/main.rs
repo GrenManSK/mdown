@@ -3,12 +3,14 @@ use serde_json::Value;
 use std::{ fs::{ self, File }, process::exit, io::Write, env, sync::Mutex };
 use crosscurses::*;
 use lazy_static::lazy_static;
+use ctrlc;
 
 mod zip_func;
 mod download;
 mod resolute;
 mod getter;
 mod utils;
+mod web;
 
 lazy_static! {
     pub(crate) static ref IS_END: Mutex<bool> = Mutex::new(false);
@@ -45,11 +47,19 @@ struct Args {
     cwd: String,
     #[arg(long)]
     stat: bool,
+    #[arg(short, long)]
+    web: bool,
+    #[arg(short, long, default_value_t = String::from(""))]
+    encode: String,
+    #[arg(long)]
+    log: bool,
 }
 
 fn string(y: i32, x: i32, value: &str) {
-    stdscr().mvaddnstr(y, x, value, MAXPOINTS.max_x - x);
-    stdscr().refresh();
+    if !ARGS.web {
+        stdscr().mvaddnstr(y, x, value, MAXPOINTS.max_x - x);
+        stdscr().refresh();
+    }
 }
 pub(crate) struct MaxPoints {
     max_x: i32,
@@ -70,7 +80,25 @@ async fn main() {
         eprintln!("Failed to set working directory: {}", err);
         exit(1);
     }
+    if ARGS.encode != "" {
+        println!("{}", web::encode(&ARGS.encode));
+        exit(0);
+    }
+    // web
+    if ARGS.web {
+        ctrlc
+            ::set_handler(|| {
+                println!("[user] Ctrl+C received! Exiting...\n[web] Closing server");
+                std::process::exit(0);
+            })
+            .expect("Error setting Ctrl+C handler");
+        web::web().await;
+        exit(0);
+    }
     let (file_path, file_path_tm, file_path_temp) = utils::resolve_start();
+    let _ = initscr();
+    curs_set(2);
+    start_color();
     tokio::spawn(async move { utils::print_version(file_path_tm).await });
     tokio::spawn(async move { utils::ctrl_handler(file_path_temp).await });
 
@@ -83,7 +111,7 @@ async fn main() {
             Ok(manga_name_json) => {
                 let json_value = serde_json::from_str(&manga_name_json).unwrap();
                 if let Value::Object(obj) = json_value {
-                    manga_name = resolute::resolve(obj, id).await;
+                    manga_name = resolute::resolve(obj, id, Some(String::new())).await;
                 } else {
                     eprintln!("Unexpected JSON value");
                     return;
@@ -100,7 +128,13 @@ async fn main() {
     // Final key input is in utils::ctrl_handler
 }
 
-pub(crate) async fn download_manga(manga_json: String, manga_name: &str, arg_force: bool) -> Vec<String> {
+pub(crate) async fn download_manga(
+    manga_json: String,
+    manga_name: &str,
+    arg_force: bool,
+    handle_id: Option<String>
+) -> Vec<String> {
+    let handle_id = handle_id.unwrap_or_default();
     let folder = getter::get_folder_name(manga_name);
     let arg_volume = getter::get_arg(ARGS.volume.to_string());
     let arg_chapter = getter::get_arg(ARGS.chapter.to_string());
@@ -125,6 +159,12 @@ pub(crate) async fn download_manga(manga_json: String, manga_name: &str, arg_for
                         let array_item = getter::get_attr_as_same_from_vec(&data_array, item);
                         let value = getter::get_attr_as_same(array_item, "id").to_string();
                         let id = value.trim_matches('"');
+
+                        let message = format!(" ({}) Found chapter with id: {}", item as i32, id);
+                        if ARGS.web {
+                            println!("[downloader @{}] {}", handle_id, message);
+                        }
+                        string(2, 0, &message);
 
                         let (chapter_attr, lang, pages, chapter_num, mut title) =
                             getter::get_metadata(array_item);
@@ -158,7 +198,8 @@ pub(crate) async fn download_manga(manga_json: String, manga_name: &str, arg_for
                                     .collect(),
                                 item,
                                 moves,
-                                hist.clone()
+                                hist.clone(),
+                                handle_id.clone()
                             );
                             continue;
                         }
@@ -181,10 +222,14 @@ pub(crate) async fn download_manga(manga_json: String, manga_name: &str, arg_for
                             );
                             continue;
                         }
-                        string(2, 0, &format!(" ({}) Found chapter with id: {}", item as i32, id));
                         if lang == language && chapter_num != "This is test" {
                             if arg_offset > (times as i32) {
-                                (moves, hist) = utils::skip_offset(item, moves, hist);
+                                (moves, hist) = utils::skip_offset(
+                                    item,
+                                    moves,
+                                    hist,
+                                    handle_id.clone()
+                                );
                                 times += 1;
                                 continue;
                             }
@@ -194,18 +239,19 @@ pub(crate) async fn download_manga(manga_json: String, manga_name: &str, arg_for
                             if title != "" {
                                 pr_title_full = format!(";Title: {}", title);
                             }
-                            string(
-                                3,
-                                0,
-                                &format!(
-                                    "  Metadata: Language: {};Pages: {};{};Chapter: {}{}",
-                                    lang,
-                                    pages,
-                                    vol,
-                                    chapter_num,
-                                    pr_title_full
-                                )
+                            let message = format!(
+                                "  Metadata: Language: {};Pages: {};{};Chapter: {}{}",
+                                lang,
+                                pages,
+                                vol,
+                                chapter_num,
+                                pr_title_full
                             );
+                            if ARGS.web {
+                                println!("[downloader @{}] {}", handle_id, message);
+                            }
+                            string(3, 0, &message);
+
                             match getter::get_chapter(id).await {
                                 Ok(id) => {
                                     download_chapter(
@@ -214,7 +260,8 @@ pub(crate) async fn download_manga(manga_json: String, manga_name: &str, arg_for
                                         title,
                                         &vol,
                                         chapter_num,
-                                        &filename
+                                        &filename,
+                                        handle_id.clone()
                                     ).await;
                                 }
                                 Err(err) => eprintln!("Error: {}", err),
@@ -227,20 +274,29 @@ pub(crate) async fn download_manga(manga_json: String, manga_name: &str, arg_for
                                 &format!("  Converting images to cbz files: {}.cbz", folder_path)
                             );
                             let file_name = filename.get_file_w_folder();
-                            let _ = zip_func::to_zip(&folder_path, &file_name).await;
+                            let _ = zip_func::to_zip(
+                                &folder_path,
+                                &file_name,
+                                handle_id.clone()
+                            ).await;
                             let _ = fs::remove_dir_all(folder_path);
                             utils::clear_screen(3);
-                            downloaded.push(file_name);
+                            if ARGS.web {
+                                resolute::DOWNLOADED.lock().unwrap().push(file_name);
+                            } else {
+                                downloaded.push(filename.get_file_w_folder_w_cwd());
+                            }
                         } else {
-                            string(
-                                3,
-                                0,
-                                &format!(
-                                    "  Skipping because of wrong language; found '{}', target '{}' ...",
-                                    lang,
-                                    language
-                                )
+                            let message = format!(
+                                "Skipping because of wrong language; found '{}', target '{}' ...",
+                                lang,
+                                language
                             );
+                            string(3, 0, &format!("  {}", message));
+
+                            if ARGS.web {
+                                println!("[downloader @{}]   ({}) {}", handle_id, item, message);
+                            }
                         }
                     }
                 }
@@ -259,9 +315,20 @@ pub(crate) async fn download_chapter(
     title: &str,
     vol: &str,
     chapter: &str,
-    filename: &utils::FileName
+    filename: &utils::FileName,
+    handle_id: String
 ) {
     string(5, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
+    if ARGS.web {
+        println!(
+            "[downloader @{}] Downloading images in folder: {}",
+            handle_id,
+            filename.get_folder_name()
+        );
+        let mut current_chapter = resolute::CURRENT_CHAPTER.lock().unwrap();
+        current_chapter.clear();
+        current_chapter.push_str(&&filename.get_folder_name());
+    }
     match serde_json::from_str(&manga_json) {
         Ok(json_value) =>
             match json_value {
@@ -275,6 +342,10 @@ pub(crate) async fn download_chapter(
                                     .and_then(Value::as_array)
                             {
                                 let images_length = images1.len();
+
+                                *resolute::CURRENT_PAGE_MAX.lock().unwrap() =
+                                    images_length.clone() as u64;
+
                                 if let Some(images) = data_array.get(saver) {
                                     let lock_file = filename.get_lock();
                                     let mut lock_file_inst = File::create(
@@ -317,6 +388,7 @@ pub(crate) async fn download_chapter(
                                             let vol = vol.to_string();
                                             let chapter = chapter.to_string();
                                             let image = image_temp.trim_matches('"').to_string();
+                                            let handle_id_tmp = handle_id.clone();
 
                                             tokio::spawn(async move {
                                                 download::download_image(
@@ -329,7 +401,8 @@ pub(crate) async fn download_chapter(
                                                     item,
                                                     start,
                                                     iter,
-                                                    i
+                                                    i,
+                                                    handle_id_tmp
                                                 ).await;
                                             })
                                         });
@@ -345,6 +418,7 @@ pub(crate) async fn download_chapter(
                                         }
                                     }
 
+                                    *resolute::CURRENT_PAGE.lock().unwrap() = 0;
                                     let _ = fs::remove_file(lock_file.clone());
                                 }
                             } else {

@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.6.2"
+version = "0.7.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -20,6 +20,12 @@ futures = "0.3.28"
 colored = "2.0"
 rustix = "0.38.19"
 lazy_static = "1.4.0"
+socket2 = "0.5"
+structopt = "0.3"
+percent-encoding = "2.1"
+rand = "0.8"
+webbrowser = "0.8.0"
+ctrlc = "3.2.0"
 
 [dependencies.crosscurses]
 version = "0.1.0"

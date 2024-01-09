@@ -145,7 +145,12 @@ pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
     None
 }
 
-pub(crate) async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), reqwest::Error> {
+pub(crate) async fn get_manga(
+    id: &str,
+    offset: i32,
+    handle_id: Option<String>
+) -> Result<(String, usize), reqwest::Error> {
+    let handle_id = handle_id.unwrap();
     let mut times = 0;
     let mut json: String;
     let mut json_2: String = String::new();
@@ -187,6 +192,9 @@ pub(crate) async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), 
                                     offset.to_string()
                                 );
                                 string(1, 0, &message);
+                                if ARGS.web {
+                                    println!("[metadata @{}] {}", handle_id, message);
+                                }
                                 offset_temp = data_array.len();
                                 if offset_temp >= 500 {
                                     if times > 0 {
