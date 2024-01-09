@@ -52,17 +52,21 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
         }
         let orig_lang = title_data.get("originalLanguage").and_then(Value::as_str).unwrap();
         let mut langs = String::new();
+        let mut lang_range: usize = 0;
         for lang in languages {
             langs.push_str(&format!("{} ", lang));
+            lang_range += 1 + lang.to_string().len();
         }
+        lang_range -= 1;
         string(
             1,
             0,
             &format!(
-                "Language is not available\nSelected language: {}\nAvailable languages: {}\nOriginal language: \"{}\"",
+                "Language is not available\nSelected language: {}\nOriginal language: {}\nAvailable languages: {}\nChoose from these    {}",
                 ARGS.lang,
+                orig_lang,
                 langs,
-                orig_lang
+                "^".repeat(lang_range)
             )
         );
         return manga_name;
@@ -74,7 +78,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
         .get("description")
         .and_then(|description| description.get("en"))
         .and_then(Value::as_str)
-        .unwrap();
+        .unwrap_or_default();
     let mut desc_file = OpenOptions::new()
         .read(true)
         .write(true)
