@@ -39,6 +39,8 @@ struct Args {
     saver: bool,
     #[arg(short, long)]
     force_delete: bool,
+    #[arg(long, default_value_t = String::from("./"))]
+    cwd: String,
 }
 
 fn string(y: i32, x: i32, value: &str) {
@@ -59,6 +61,11 @@ lazy_static! {
 }
 #[tokio::main]
 async fn main() {
+    // cwd
+    if let Err(err) = env::set_current_dir(ARGS.cwd.as_str()) {
+        eprintln!("Failed to set working directory: {}", err);
+        exit(1);
+    }
     let (file_path, file_path_tm, file_path_temp) = utils::resolve_start();
     tokio::spawn(async move { utils::print_version(file_path_tm).await });
     tokio::spawn(async move { utils::ctrl_handler(file_path_temp).await });

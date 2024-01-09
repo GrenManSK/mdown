@@ -35,6 +35,8 @@ See [site](https://mangadex.org/) for finding manga
 
 `--force-delete` - will force to delete *.lock file which is stopping from running another instance of program; NOTE that if you already have one instance running it will fail to delete the original file and thus it will crash
 
+`--cwd` - change current working directory
+
 ---
 
 - If you get message that about lock file is present and you believe you don't have already program started use `--force-delete` option to force it to delete lock file
