@@ -109,6 +109,9 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> String {
     download::download_cover(id, cover, &folder).await;
 
     resolve_manga(id, &manga_name, was_rewritten).await;
+    if ARGS.stat {
+        download::download_stat(id, &folder, &manga_name, None).await;
+    }
 
     manga_name
 }

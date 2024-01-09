@@ -43,6 +43,8 @@ struct Args {
     force_delete: bool,
     #[arg(long, default_value_t = String::from("./"))]
     cwd: String,
+    #[arg(long)]
+    stat: bool,
 }
 
 fn string(y: i32, x: i32, value: &str) {

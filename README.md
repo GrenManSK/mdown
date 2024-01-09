@@ -37,6 +37,8 @@ See [site](https://mangadex.org/) for finding manga
 
 `--cwd` - change current working directory
 
+`--stat` - will add txt file which contains status information
+
 ---
 
 - If you get message that about lock file is present and you believe you don't have already program started use `--force-delete` option to force it to delete lock file

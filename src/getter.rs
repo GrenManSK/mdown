@@ -80,6 +80,24 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, reqwest::StatusCo
     }
 }
 
+pub(crate) async fn get_statistic_json(id: &str) -> Result<String, reqwest::StatusCode> {
+    let full_url = format!("https://api.mangadex.org/statistics/manga/{}", id);
+
+    let response = get_response_client(full_url).await.unwrap();
+
+    if response.status().is_success() {
+        let json = response.text().await.unwrap();
+
+        Ok(json)
+    } else {
+        eprintln!(
+            "Error: {}",
+            format!("Failed to fetch data from the API. Status code: {:?}", response.status())
+        );
+        Err(response.status())
+    }
+}
+
 pub(crate) async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
     loop {
         string(4, 0, "Retrieving chapter info");
@@ -163,15 +181,12 @@ pub(crate) async fn get_manga(id: &str, offset: i32) -> Result<(String, usize), 
                     match json_value {
                         Value::Object(obj) => {
                             if let Some(data_array) = obj.get("data").and_then(Value::as_array) {
-                                string(
-                                    1,
-                                    0,
-                                    &format!(
-                                        "{} Data fetched with offset {}   ",
-                                        times.to_string(),
-                                        offset.to_string()
-                                    )
+                                let message = format!(
+                                    "{} Data fetched with offset {}   ",
+                                    times.to_string(),
+                                    offset.to_string()
                                 );
+                                string(1, 0, &message);
                                 offset_temp = data_array.len();
                                 if offset_temp >= 500 {
                                     if times > 0 {

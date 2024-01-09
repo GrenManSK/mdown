@@ -67,6 +67,68 @@ pub(crate) async fn download_cover(c_hash: &str, cover_hash: &str, folder: &str)
         }
     }
 }
+pub(crate) async fn download_stat(
+    id: &str,
+    folder: &str,
+    manga_name: &str,
+    handle_id: Option<String>
+) {
+    let handle_id = handle_id.unwrap_or_default();
+    if ARGS.web {
+        println!("[statistic_downloader @{}]  Getting statistics", handle_id);
+    }
+    string(1, 0, "Getting statistics");
+
+    let response = getter::get_statistic_json(id).await.unwrap();
+
+    let mut file = File::create(format!("{}\\_statistics.md", folder)).unwrap();
+
+    let mut data = String::from(&("# ".to_owned() + manga_name + "\n\n"));
+
+    match serde_json::from_str(&response) {
+        Ok(json_value) =>
+            match json_value {
+                Value::Object(obj) => {
+                    let statistics = obj
+                        .get("statistics")
+                        .and_then(|stat| stat.get(id))
+                        .unwrap();
+                    let comments = statistics.get("comments").unwrap();
+                    let thread_id = comments.get("threadId").and_then(Value::as_u64).unwrap();
+                    let replies_count = comments
+                        .get("repliesCount")
+                        .and_then(Value::as_u64)
+                        .unwrap();
+                    let rating = statistics.get("rating").unwrap();
+                    let average = rating.get("average").and_then(Value::as_f64).unwrap();
+                    let bayesian = rating.get("bayesian").and_then(Value::as_f64).unwrap();
+                    let distribution = rating.get("distribution").unwrap();
+                    let follows = statistics.get("follows").and_then(Value::as_u64).unwrap();
+
+                    data += &format!("---\n\n## RATING\n\nRating: {}\n\n", average);
+                    data += &format!("Bayesian: {}\n\n---\n\n", bayesian);
+                    for i in 1..11 {
+                        data += &get_dist(distribution.clone(), i);
+                    }
+                    data += &format!("## Follows: {}\n\n", follows);
+                    data += &format!(
+                        "## Comments\n\nThread: <https://forums.mangadex.org/threads/{}>\n\nNumber of comments in thread: {}\n",
+                        thread_id,
+                        replies_count
+                    );
+                }
+                _ => todo!(),
+            }
+        Err(err) => eprintln!("  Error parsing JSON: {}", err),
+    }
+
+    file.write_all(data.as_bytes()).unwrap();
+}
+
+fn get_dist(distribution: Value, i: usize) -> String {
+    let value = distribution.get(i.to_string()).and_then(Value::as_u64).unwrap();
+    format!("{}: {}\n\n", i, value)
+}
 
 pub(crate) async fn download_image(
     c_hash: &str,
