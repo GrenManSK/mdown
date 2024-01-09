@@ -10,7 +10,9 @@ mod resolute;
 mod getter;
 mod utils;
 
-static mut IS_END: bool = false;
+lazy_static! {
+    pub(crate) static ref IS_END: Mutex<bool> = Mutex::new(false);
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -336,7 +338,7 @@ pub(crate) async fn download_chapter(
                                             ::join_all(tasks).await
                                             .into_iter()
                                             .collect();
-                                        if (unsafe { IS_END }) || false {
+                                        if *IS_END.lock().unwrap() || false {
                                             return;
                                         }
                                     }

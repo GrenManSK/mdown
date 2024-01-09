@@ -130,7 +130,7 @@ pub(crate) async fn download_image(
     let _ = write!(lock_file_inst, "{:.2}", total_size);
 
     while let Some(chunk) = response.chunk().await.unwrap() {
-        if (unsafe { IS_END }) || false {
+        if *IS_END.lock().unwrap() || false {
             return;
         }
         let _ = file.write_all(&chunk);

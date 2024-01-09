@@ -187,9 +187,8 @@ pub(crate) async fn ctrl_handler(file: String) {
         }
         let key = stdscr().getch().unwrap();
         if key == Input::from(crosscurses::Input::Character('\u{3}')) {
-            unsafe {
-                IS_END = true;
-            }
+            let mut is_end = IS_END.lock().unwrap();
+            *is_end = true;
             break;
         }
     }
