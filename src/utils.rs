@@ -121,29 +121,32 @@ pub(crate) fn progress_bar_preparation(start: i32, images_length: usize, line: i
 
 pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
     let mut data_array = data.to_owned();
-    data_array.sort_unstable_by(|v, b| {
-        return v
-            .get("attributes")
-            .unwrap()
-            .get("chapter")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .parse::<f32>()
-            .unwrap()
-            .total_cmp(
-                &b
-                    .get("attributes")
-                    .unwrap()
-                    .get("chapter")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .parse::<f32>()
-                    .unwrap()
-            );
-    });
-    return data_array;
+    if ARGS.unsorted {
+        data.to_vec()
+    } else {
+        data_array.sort_unstable_by(|v, b| {
+            v.get("attributes")
+                .unwrap()
+                .get("chapter")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .parse::<f32>()
+                .unwrap()
+                .total_cmp(
+                    &b
+                        .get("attributes")
+                        .unwrap()
+                        .get("chapter")
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .parse::<f32>()
+                        .unwrap()
+                )
+        });
+        data_array
+    }
 }
 
 pub(crate) fn resolve_start() -> (String, String, String) {
@@ -341,7 +344,7 @@ pub(crate) fn resolve_end(file_path: String, manga_name: String, status_code: re
             0,
             0,
             &format!(
-                "Either --url was not specified or website is not in pattern of https://mangadex.org/title/id/"
+                "Either --url was not specified or website is not in pattern of https://mangadex.org/title/[id]/"
             )
         );
         format!("Ending session: {} has NOT been downloaded, because it was not found", manga_name)

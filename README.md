@@ -10,15 +10,17 @@ See [site](https://mangadex.org/) for finding manga
 
 `--url [String]` - url of manga
 
-`--lang [String]` - language of manga to download
+`--lang [String]` - language of manga to download; "*" is for all languages
 
 `--offset [Integer]` - changes start offset e.g. 50 starts from chapter 50
 
-`--database-offset [Integer]` - changes start offset e.g. 50 starts from item 50 in database
+`--database-offset [Integer]` - changes start offset e.g. 50 starts from 50 item in database; this occurs before manga is sorted, which result in some weird behavior like missing chapters; For users using `--unsorted`
+
+`--unsorted` - database will not be sorted
 
 `--force` - will download manga even if it already exists
 
-`--title [String]` - will name the manga
+`--title [String]` - name the manga
 
 `--folder [String]` - will put manga in folder specified
 
@@ -39,7 +41,7 @@ See [site](https://mangadex.org/) for finding manga
 
 `--stat` - will add txt file which contains status information
 
-`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed at end of download process
+`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed gradually during download process
 
 `--encode` - will print url in program readable format
 

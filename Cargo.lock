@@ -953,7 +953,7 @@ dependencies = [
 
 [[package]]
 name = "mdown"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "clap 4.4.11",
  "colored",

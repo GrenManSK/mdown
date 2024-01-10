@@ -19,39 +19,132 @@ lazy_static! {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value_t = String::from("None"))]
+    #[arg(
+        short,
+        long,
+        value_name = "SITE",
+        default_value_t = String::from("None"),
+        next_line_help = true,
+        help = format!(
+            "url of manga, supply in the format of https:/{}",
+            "/mangadex.org/title/[id]/\n"
+        )
+        // Reason for this format!() is because highlighting error in VS Code;
+        // precisely "//" this will break it "url of manga, supply in the format of https://mangadex.org/title/[id]/"
+    )]
     url: String,
-    #[arg(short, long, default_value_t = String::from("en"))]
+    #[arg(
+        short,
+        long,
+        value_name = "LANGUAGE",
+        default_value_t = String::from("en"),
+        next_line_help = true,
+        help = "language of manga to download; \"*\" is for all languages\n"
+    )]
     lang: String,
-    #[arg(short, long, default_value_t = String::from("0"))]
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("0"),
+        next_line_help = true,
+        help = "changes start offset e.g. 50 starts from chapter 50,\nalthough if manga contains chapter like 3.1, 3.2 starting chapter will be moved by number of these chapters\n"
+    )]
     offset: String,
-    #[arg(short, long, default_value_t = String::from("0"))]
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("0"),
+        next_line_help = true,
+        help = "changes start offset e.g. 50 starts from 50 item in database; this occurs before manga is sorted, which result in some weird behavior like missing chapters\nFor users using --unsorted\n"
+    )]
     database_offset: String,
-    #[arg(short, long, default_value_t = String::from("*"))]
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("*"),
+        next_line_help = true,
+        help = "name of the manga\n"
+    )]
     title: String,
-    #[arg(short, long, default_value_t = String::from("."))]
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("."),
+        next_line_help = true,
+        help = "put all chapters in folder specified,\n- if folder name is name it will put in folder same as manga name\n- if folder name is name and title is specified it will make folder same as title\n"
+    )]
     folder: String,
-    #[arg(short, long, default_value_t = String::from("*"))]
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("*"),
+        next_line_help = true,
+        help = "download only specified volume\n"
+    )]
     volume: String,
-    #[arg(short, long, default_value_t = String::from("*"))]
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("*"),
+        next_line_help = true,
+        help = "download only specified chapter\n"
+    )]
     chapter: String,
-    #[arg(short, long, default_value_t = String::from("40"))]
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("40"),
+        next_line_help = true,
+        help = "download manga images by supplied number at once;\nit is highly recommended to use MAX 50 because of lack of performance and non complete manga downloading,\nmeaning chapter will not download correctly, meaning missing pages\n"
+    )]
     max_consecutive: String,
-    #[arg(long)]
+    #[arg(long, next_line_help = true, help = "download manga even if it already exists")]
     force: bool,
-    #[arg(short, long)]
+    #[arg(long, next_line_help = true, help = "database will not be sorted")]
+    unsorted: bool,
+    #[arg(
+        short,
+        long,
+        next_line_help = true,
+        help = "download images of lower quality and lower download size; will save network resources and reduce download time"
+    )]
     saver: bool,
-    #[arg(long)]
+    #[arg(
+        long,
+        next_line_help = true,
+        help = "force to delete *.lock file which is stopping from running another instance of program;\nNOTE that if you already have one instance running it will fail to delete the original file and thus it will crash"
+    )]
     force_delete: bool,
-    #[arg(long, default_value_t = String::from("./"))]
+    #[arg(
+        long,
+        default_value_t = String::from("./"),
+        next_line_help = true,
+        help = "change current working directory\n"
+    )]
     cwd: String,
-    #[arg(long)]
+    #[arg(long, next_line_help = true, help = "add txt file which contains status information")]
     stat: bool,
-    #[arg(short, long)]
+    #[arg(
+        short,
+        long,
+        next_line_help = true,
+        help = "enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed gradually during download process"
+    )]
     web: bool,
-    #[arg(short, long, default_value_t = String::from(""))]
+    #[arg(
+        short,
+        long,
+        next_line_help = true,
+        default_value_t = String::from(""),
+        help = "print url in program readable format\n"
+    )]
     encode: String,
-    #[arg(long)]
+    #[arg(
+        long,
+        next_line_help = true,
+        requires = "web",
+        help = "print progress requests when received, \"--web\" flag need to be set for this to work"
+    )]
     log: bool,
 }
 
@@ -226,7 +319,7 @@ pub(crate) async fn download_manga(
                             );
                             continue;
                         }
-                        if lang == language && chapter_num != "This is test" {
+                        if (lang == language || language == "*") && chapter_num != "This is test" {
                             if arg_offset > (times as i32) {
                                 (moves, hist) = utils::skip_offset(
                                     item,

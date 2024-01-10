@@ -54,7 +54,7 @@ pub(crate) async fn resolve(
     for lang in languages {
         final_lang.push(lang.as_str().unwrap());
     }
-    if ARGS.lang != orig_lang && !final_lang.contains(&ARGS.lang.as_str()) {
+    if (ARGS.lang != orig_lang && !final_lang.contains(&ARGS.lang.as_str())) && ARGS.lang != "*" {
         let languages = title_data
             .get("availableTranslatedLanguages")
             .and_then(Value::as_array)
