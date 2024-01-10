@@ -147,7 +147,6 @@ pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
 }
 
 pub(crate) fn resolve_start() -> (String, String, String) {
-    let _ = fs::create_dir(".cache");
     let file_path: String = format!(".cache\\mdown_{}.lock", env!("CARGO_PKG_VERSION"));
     if ARGS.force_delete {
         let _ = fs::remove_file(file_path);
@@ -357,7 +356,7 @@ pub(crate) fn resolve_end(file_path: String, manga_name: String, status_code: re
     );
 }
 
-fn is_directory_empty(path: &str) -> bool {
+pub(crate) fn is_directory_empty(path: &str) -> bool {
     if let Ok(entries) = std::fs::read_dir(path) {
         let mut count = 0;
 

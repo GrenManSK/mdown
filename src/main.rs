@@ -84,11 +84,15 @@ async fn main() {
         println!("{}", web::encode(&ARGS.encode));
         exit(0);
     }
+    let _ = fs::create_dir(".cache");
     // web
     if ARGS.web {
         ctrlc
             ::set_handler(|| {
                 println!("[user] Ctrl+C received! Exiting...\n[web] Closing server");
+                if utils::is_directory_empty(".cache\\") {
+                    let _ = fs::remove_dir_all(".cache");
+                }
                 std::process::exit(0);
             })
             .expect("Error setting Ctrl+C handler");
