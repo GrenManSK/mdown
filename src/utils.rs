@@ -236,7 +236,7 @@ pub(crate) async fn ctrl_handler(file: String) {
     let pattern = Regex::new(r"(.*?)( - (Vol\.\d+ )?Ch\.\d+|$)").expect("Invalid regex pattern");
     match delete_matching_directories(&pattern) {
         Ok(path) => {
-            let pattern = r"(.+?)(?: - )(?: - Vol\.\d+)?(?: - Ch\.\d+)?";
+            let pattern = r"(.+)(?: - Vol\.\d+)(?: Ch\.\d+)(?: - .+)";
             let re = Regex::new(pattern).expect("Invalid regex pattern");
             if let Some(captures) = re.captures(&path) {
                 if let Some(result) = captures.get(1) {
@@ -277,12 +277,11 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
                     let file_name = file_path.file_name().unwrap().to_str().unwrap();
 
                     if
-                        file_name.ends_with("_cover.png") ||
-                        file_name.ends_with("_description.txt") ||
-                        file_name.ends_with("_scanlation_groups.txt") ||
-                        file_name.ends_with("_statistics.md")
+                        !file_name.ends_with("_cover.png") &&
+                        !file_name.ends_with("_description.txt") &&
+                        !file_name.ends_with("_scanlation_groups.txt") &&
+                        !file_name.ends_with("_statistics.md")
                     {
-                    } else {
                         should_delete += 1;
                     }
                 }
