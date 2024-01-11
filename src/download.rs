@@ -1,5 +1,6 @@
 use std::{ time::{ Duration, Instant }, fs::{ self, File, OpenOptions }, thread::sleep, io::Write };
 use serde_json::{ self, Value };
+use tracing::info;
 
 use crate::{
     string,
@@ -47,7 +48,7 @@ pub(crate) async fn download_cover(
 ) {
     let handle_id = handle_id.unwrap_or_default();
     if ARGS.web {
-        println!("[cover_downloader @{}]  Downloading cover", handle_id);
+        info!("@{}  Downloading cover", handle_id);
     }
     string(1, 0, "Downloading cover_art");
 
@@ -83,7 +84,7 @@ pub(crate) async fn download_cover(
                 )
             );
             if ARGS.web {
-                println!("[cover_downloader @{}]  {}", handle_id, message);
+                info!("@{}  {}", handle_id, message);
             }
         }
     }
@@ -97,7 +98,7 @@ pub(crate) async fn download_stat(
 ) {
     let handle_id = handle_id.unwrap_or_default();
     if ARGS.web {
-        println!("[statistic_downloader @{}]  Getting statistics", handle_id);
+        info!("@{}  Getting statistics", handle_id);
     }
     string(1, 0, "Getting statistics");
 
@@ -171,7 +172,7 @@ pub(crate) async fn download_image(
     }
     let page = page + 1;
     if ARGS.web {
-        println!("[image_downloader @{}] Starting image download {}", handle_id, page);
+        info!("@{} Starting image download {}", handle_id, page);
     }
     let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
     let folder_name = process_filename(
@@ -247,7 +248,7 @@ pub(crate) async fn download_image(
                 (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
             );
             if ARGS.web {
-                println!("[image_downloader @{}] {}", handle_id, message.to_string());
+                info!("@{} {}", handle_id, message.to_string());
             }
             string(
                 5 + 1 + (page as i32),
@@ -299,7 +300,7 @@ pub(crate) async fn download_image(
     let _ = lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes());
 
     if ARGS.web {
-        println!("[image_downloader @{}] Finished image download {}", handle_id, page);
+        info!("@{} Finished image download {}", handle_id, page);
     }
 }
 

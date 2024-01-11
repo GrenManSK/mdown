@@ -1,6 +1,7 @@
 use serde_json::{ Value, Map };
 use std::{ fs::{ self, OpenOptions }, process::exit, io::Write, sync::Mutex };
 use lazy_static::lazy_static;
+use tracing::info;
 
 use crate::{
     ARGS,
@@ -128,7 +129,7 @@ pub(crate) async fn resolve(
     resolve_manga(id, &manga_name, was_rewritten, handle_id.clone()).await;
 
     if ARGS.web {
-        println!("[downloader @{}] Downloaded manga\n", handle_id.unwrap_or_default());
+        info!("@{} Downloaded manga", handle_id.unwrap_or_default());
     }
     manga_name
 }

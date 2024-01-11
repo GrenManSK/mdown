@@ -1,5 +1,6 @@
 use serde_json::Value;
 use std::{ thread::sleep, time::Duration, process::exit };
+use tracing::info;
 
 use crate::{
     ARGS,
@@ -193,7 +194,7 @@ pub(crate) async fn get_manga(
                                 );
                                 string(1, 0, &message);
                                 if ARGS.web {
-                                    println!("[metadata @{}] {}", handle_id, message);
+                                    info!("@{} {}", handle_id, message);
                                 }
                                 offset_temp = data_array.len();
                                 if offset_temp >= 500 {

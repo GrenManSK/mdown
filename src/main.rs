@@ -4,6 +4,7 @@ use std::{ fs::{ self, File }, process::exit, io::Write, env, sync::Mutex };
 use crosscurses::*;
 use lazy_static::lazy_static;
 use ctrlc;
+use tracing::info;
 
 mod zip_func;
 mod download;
@@ -180,9 +181,17 @@ async fn main() {
     let _ = fs::create_dir(".cache");
     // web
     if ARGS.web {
+        let subscriber = tracing_subscriber
+            ::fmt()
+            .compact()
+            .with_file(true)
+            .with_line_number(true)
+            .finish();
+        let _ = tracing::subscriber::set_global_default(subscriber);
         ctrlc
             ::set_handler(|| {
-                println!("[user] Ctrl+C received! Exiting...\n[web] Closing server");
+                info!("[user] Ctrl+C received! Exiting...");
+                info!("[web] Closing server");
                 if utils::is_directory_empty(".cache\\") {
                     let _ = fs::remove_dir_all(".cache");
                 }
@@ -259,7 +268,7 @@ pub(crate) async fn download_manga(
 
                         let message = format!(" ({}) Found chapter with id: {}", item as i32, id);
                         if ARGS.web {
-                            println!("[downloader @{}] {}", handle_id, message);
+                            info!("@{} {}", handle_id, message);
                         }
                         string(2, 0, &message);
 
@@ -345,7 +354,7 @@ pub(crate) async fn download_manga(
                                 pr_title_full
                             );
                             if ARGS.web {
-                                println!("[downloader @{}] {}", handle_id, message);
+                                info!("@{} {}", handle_id, message);
                             }
                             string(3, 0, &message);
 
@@ -392,7 +401,7 @@ pub(crate) async fn download_manga(
                             string(3, 0, &format!("  {}", message));
 
                             if ARGS.web {
-                                println!("[downloader @{}]   ({}) {}", handle_id, item, message);
+                                info!("@{}   ({}) {}", handle_id, item, message);
                             }
                         }
                     }
@@ -417,11 +426,7 @@ pub(crate) async fn download_chapter(
 ) {
     string(5, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
     if ARGS.web {
-        println!(
-            "[downloader @{}] Downloading images in folder: {}",
-            handle_id,
-            filename.get_folder_name()
-        );
+        info!("@{} Downloading images in folder: {}", handle_id, filename.get_folder_name());
         let mut current_chapter = resolute::CURRENT_CHAPTER.lock().unwrap();
         current_chapter.clear();
         current_chapter.push_str(&&filename.get_folder_name());

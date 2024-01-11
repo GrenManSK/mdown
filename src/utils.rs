@@ -10,6 +10,7 @@ use std::{
 };
 use serde_json::Value;
 use regex::Regex;
+use tracing::info;
 
 use crate::{
     string,
@@ -440,7 +441,7 @@ pub(crate) fn skip(
 ) -> (i32, Vec<String>) {
     let al_dow = format!("({}) Skipping because file is already downloaded {}", item, attr);
     if ARGS.web {
-        println!("[downloader @{}]   {}", handle_id, al_dow);
+        info!("@{}   {}", handle_id, al_dow);
     }
     hist.push(al_dow);
     resolve_move(moves, hist.clone(), 3, 0)
@@ -453,7 +454,7 @@ pub(crate) fn skip_offset(
 ) -> (i32, Vec<String>) {
     let al_dow = format!("({}) Skipping because of offset", item);
     if ARGS.web {
-        println!("[downloader @{}]   {}", handle_id, al_dow);
+        info!("@{}   {}", handle_id, al_dow);
     }
     hist.push(al_dow);
     resolve_move(moves, hist.clone(), 3, 0)

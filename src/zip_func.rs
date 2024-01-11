@@ -1,6 +1,7 @@
 use std::{ fs::File, io::{ Read, Write, Seek }, path::Path };
 use walkdir::{ DirEntry, WalkDir };
 use zip::{ result::ZipError, write::FileOptions };
+use tracing::info;
 
 use crate::{ string, utils::progress_bar_preparation, MAXPOINTS, ARGS };
 
@@ -67,13 +68,13 @@ fn doit(
 const METHOD_STORED: Option<zip::CompressionMethod> = Some(zip::CompressionMethod::Stored);
 pub(crate) async fn to_zip(src_dir: &str, dst_file: &str, handle_id: String) {
     if ARGS.web {
-        println!("[zip @{}] Zipping files to: {} ...", handle_id, dst_file);
+        info!("@{} Zipping files to: {} ...", handle_id, dst_file);
     }
     match doit(src_dir, dst_file, METHOD_STORED.unwrap()) {
         Ok(_) => string(9, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str()),
         Err(e) => eprintln!("  Error: {e:?}"),
     }
     if ARGS.web {
-        println!("[zip @{}] Zipping files to: {} Done", handle_id, dst_file);
+        info!("@{} Zipping files to: {} Done", handle_id, dst_file);
     }
 }
