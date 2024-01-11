@@ -217,10 +217,6 @@ pub(crate) async fn download_image(
         .unwrap();
     let _ = write!(lock_file_inst, "{:.2}", total_size);
 
-    let rotation = vec!["|", "/", "-", "\\"];
-
-    let mut rotate = 0;
-
     while let Some(chunk) = response.chunk().await.unwrap() {
         if *IS_END.lock().unwrap() || false {
             return;
@@ -253,24 +249,17 @@ pub(crate) async fn download_image(
             if ARGS.web {
                 println!("[image_downloader @{}] {}", handle_id, message.to_string());
             }
-            rotate += 1;
-            if rotate > 3 {
-                rotate = 0;
-            }
             string(
                 5 + 1 + (page as i32),
                 0,
                 &format!(
-                    "{} {}{}",
+                    "{} {}",
                     message,
                     "#".repeat(
-                        (
-                            ((((MAXPOINTS.max_x - (message.len() as i32)) as f32) /
-                                (total_size as f32)) *
-                                (downloaded as f32)) as usize
-                        ) - 1
-                    ),
-                    rotation[rotate]
+                        ((((MAXPOINTS.max_x - (message.len() as i32)) as f32) /
+                            (total_size as f32)) *
+                            (downloaded as f32)) as usize
+                    )
                 )
             );
             last_size = downloaded as f32;
