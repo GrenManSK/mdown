@@ -13,10 +13,6 @@ mod getter;
 mod utils;
 mod web;
 
-lazy_static! {
-    pub(crate) static ref IS_END: Mutex<bool> = Mutex::new(false);
-}
-
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -56,7 +52,7 @@ struct Args {
         long,
         default_value_t = String::from("0"),
         next_line_help = true,
-        help = "changes start offset e.g. 50 starts from 50 item in database; this occurs before manga is sorted, which result in some weird behavior like missing chapters\nFor users using --unsorted\n"
+        help = "changes start offset e.g. 50 starts from 50 item in database;\nthis occurs before manga is sorted, which result in some weird behavior like missing chapters\n"
     )]
     database_offset: String,
     #[arg(
@@ -113,6 +109,7 @@ struct Args {
     #[arg(
         long,
         next_line_help = true,
+        exclusive = true,
         help = "force to delete *.lock file which is stopping from running another instance of program;\nNOTE that if you already have one instance running it will fail to delete the original file and thus it will crash"
     )]
     force_delete: bool,
@@ -147,10 +144,26 @@ struct Args {
         help = "print progress requests when received, \"--web\" flag need to be set for this to work"
     )]
     log: bool,
+    #[arg(
+        long,
+        next_line_help = true,
+        exclusive = true,
+        help = "Check downloaded files for errors"
+    )]
+    check: bool,
+    #[arg(
+        long,
+        next_line_help = true,
+        exclusive = true,
+        help = "Check downloaded files for errors"
+    )]
+    update: bool,
+    #[arg(long, next_line_help = true, exclusive = true, help = "Delete database")]
+    delete: bool,
 }
 
 fn string(y: i32, x: i32, value: &str) {
-    if !ARGS.web {
+    if !ARGS.web || !ARGS.check || !ARGS.update {
         stdscr().mvaddnstr(y, x, value, MAXPOINTS.max_x - x);
         stdscr().refresh();
     }
@@ -166,6 +179,8 @@ lazy_static! {
         max_x: stdscr().get_max_x(),
         max_y: stdscr().get_max_y(),
     };
+    pub(crate) static ref IS_END: Mutex<bool> = Mutex::new(false);
+    pub(crate) static ref MANGA_ID: Mutex<String> = Mutex::new(String::new());
 }
 #[tokio::main]
 async fn main() {
@@ -178,9 +193,16 @@ async fn main() {
         println!("{}", web::encode(&ARGS.encode));
         exit(0);
     }
+
+    if ARGS.delete {
+        let _ = fs::remove_file(getter::get_dat_path());
+        exit(0);
+    }
+
     let _ = fs::create_dir(".cache");
-    // web
-    if ARGS.web {
+
+    // subscriber
+    if ARGS.web || ARGS.update {
         let subscriber = tracing_subscriber
             ::fmt()
             .compact()
@@ -188,6 +210,18 @@ async fn main() {
             .with_line_number(true)
             .finish();
         let _ = tracing::subscriber::set_global_default(subscriber);
+    }
+
+    if ARGS.check || ARGS.update {
+        resolute::resolve_check().await;
+        if utils::is_directory_empty(".cache\\") {
+            let _ = fs::remove_dir_all(".cache");
+        }
+        exit(0);
+    }
+
+    // web
+    if ARGS.web {
         ctrlc
             ::set_handler(|| {
                 info!("[user] Ctrl+C received! Exiting...");
@@ -212,6 +246,7 @@ async fn main() {
     let mut status_code = reqwest::StatusCode::from_u16(200).unwrap();
     if let Some(id) = utils::resolve_regex(&ARGS.url) {
         let id: &str = id.as_str();
+        *MANGA_ID.lock().unwrap() = id.to_string();
         string(0, 0, &format!("Extracted ID: {}", id));
         match getter::get_manga_json(id).await {
             Ok(manga_name_json) => {
@@ -267,7 +302,7 @@ pub(crate) async fn download_manga(
                         let id = value.trim_matches('"');
 
                         let message = format!(" ({}) Found chapter with id: {}", item as i32, id);
-                        if ARGS.web {
+                        if ARGS.web || ARGS.check || ARGS.update {
                             info!("@{} {}", handle_id, message);
                         }
                         string(2, 0, &message);
@@ -297,6 +332,7 @@ pub(crate) async fn download_manga(
                         };
                         let folder_path = filename.get_folder_name();
                         if fs::metadata(filename.get_file_w_folder()).is_ok() && !arg_force {
+                            resolute::CHAPTERS.lock().unwrap().push(chapter_num.to_string());
                             (moves, hist) = utils::skip(
                                 folder_path
                                     .chars()
@@ -353,44 +389,58 @@ pub(crate) async fn download_manga(
                                 chapter_num,
                                 pr_title_full
                             );
-                            if ARGS.web {
+                            if ARGS.web || ARGS.check || ARGS.update {
                                 info!("@{} {}", handle_id, message);
                             }
                             string(3, 0, &message);
-
-                            match getter::get_chapter(id).await {
-                                Ok(id) => {
-                                    download_chapter(
-                                        id,
-                                        &manga_name,
-                                        title,
-                                        &vol,
-                                        chapter_num,
-                                        &filename,
-                                        handle_id.clone()
-                                    ).await;
+                            if
+                                !ARGS.check ||
+                                !resolute::CHAPTERS
+                                    .lock()
+                                    .unwrap()
+                                    .contains(&chapter_num.to_string())
+                            {
+                                if ARGS.check {
+                                    resolute::TO_DOWNLOAD
+                                        .lock()
+                                        .unwrap()
+                                        .push(chapter_num.to_string());
+                                    continue;
                                 }
-                                Err(err) => eprintln!("Error: {}", err),
-                            }
-                            resolute::resolve_group(array_item, manga_name).await;
-                            utils::clear_screen(7);
-                            string(
-                                7,
-                                0,
-                                &format!("  Converting images to cbz files: {}.cbz", folder_path)
-                            );
-                            let file_name = filename.get_file_w_folder();
-                            let _ = zip_func::to_zip(
-                                &folder_path,
-                                &file_name,
-                                handle_id.clone()
-                            ).await;
-                            let _ = fs::remove_dir_all(folder_path);
-                            utils::clear_screen(3);
-                            if ARGS.web {
-                                resolute::DOWNLOADED.lock().unwrap().push(file_name);
-                            } else {
-                                downloaded.push(filename.get_file_w_folder_w_cwd());
+                                match getter::get_chapter(id).await {
+                                    Ok(id) => {
+                                        download_chapter(
+                                            id,
+                                            &manga_name,
+                                            title,
+                                            &vol,
+                                            chapter_num,
+                                            &filename,
+                                            handle_id.clone()
+                                        ).await;
+                                    }
+                                    Err(err) => eprintln!("Error: {}", err),
+                                }
+                                resolute::resolve_group(array_item, manga_name).await;
+                                utils::clear_screen(7);
+                                string(
+                                    7,
+                                    0,
+                                    &format!("  Converting images to cbz files: {}.cbz", folder_path)
+                                );
+                                let file_name = filename.get_file_w_folder();
+                                let _ = zip_func::to_zip(
+                                    &folder_path,
+                                    &file_name,
+                                    handle_id.clone()
+                                ).await;
+                                let _ = fs::remove_dir_all(folder_path);
+                                utils::clear_screen(3);
+                                if ARGS.web || ARGS.check || ARGS.update {
+                                    resolute::DOWNLOADED.lock().unwrap().push(file_name);
+                                } else {
+                                    downloaded.push(filename.get_file_w_folder_w_cwd());
+                                }
                             }
                         } else {
                             let message = format!(
@@ -400,7 +450,7 @@ pub(crate) async fn download_manga(
                             );
                             string(3, 0, &format!("  {}", message));
 
-                            if ARGS.web {
+                            if ARGS.web || ARGS.check || ARGS.update {
                                 info!("@{}   ({}) {}", handle_id, item, message);
                             }
                         }
@@ -425,7 +475,7 @@ pub(crate) async fn download_chapter(
     handle_id: String
 ) {
     string(5, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
-    if ARGS.web {
+    if ARGS.web || ARGS.check || ARGS.update {
         info!("@{} Downloading images in folder: {}", handle_id, filename.get_folder_name());
         let mut current_chapter = resolute::CURRENT_CHAPTER.lock().unwrap();
         current_chapter.clear();
@@ -521,6 +571,8 @@ pub(crate) async fn download_chapter(
                                     }
 
                                     *resolute::CURRENT_PAGE.lock().unwrap() = 0;
+                                    resolute::CHAPTERS.lock().unwrap().push(chapter.to_string());
+                                    resolute::resolve_dat();
                                     let _ = fs::remove_file(lock_file.clone());
                                 }
                             } else {

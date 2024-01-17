@@ -47,6 +47,12 @@ See [site](https://mangadex.org/) for finding manga
 
 `--log` - will print progress requests when received, `--web` flag need to be set for this to work
 
+`--check` - check for for any manga updates
+
+`--update` - will download manga updates
+
+`--delete` - will delete database
+
 ---
 
 - If you get message that about lock file is present and you believe you don't have already program started use `--force-delete` option to force it to delete lock file

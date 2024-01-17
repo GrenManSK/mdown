@@ -11,6 +11,10 @@ use crate::{
     download::get_response_client,
 };
 
+pub(crate) fn get_dat_path() -> String {
+    format!("{}\\dat.json", std::env::current_exe().unwrap().parent().unwrap().to_str().unwrap()).to_string()
+}
+
 pub(crate) fn get_folder_name(manga_name: &str) -> String {
     if ARGS.folder == "name" { manga_name.to_owned() } else { ARGS.folder.as_str().to_string() }
 }
@@ -193,7 +197,7 @@ pub(crate) async fn get_manga(
                                     offset.to_string()
                                 );
                                 string(1, 0, &message);
-                                if ARGS.web {
+                                if ARGS.web || ARGS.check || ARGS.update {
                                     info!("@{} {}", handle_id, message);
                                 }
                                 offset_temp = data_array.len();

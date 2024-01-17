@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub(crate) fn clear_screen(from: i32) {
-    if !ARGS.web {
+    if !ARGS.web || !ARGS.check || !ARGS.update {
         for i in from..MAXPOINTS.max_y {
             string(i, 0, &" ".repeat(MAXPOINTS.max_x as usize));
         }
@@ -105,7 +105,7 @@ pub(crate) async fn wait_for_end(file_path: String, images_length: usize) {
 }
 
 pub(crate) fn progress_bar_preparation(start: i32, images_length: usize, line: i32) {
-    if !ARGS.web {
+    if !ARGS.web && !ARGS.check && !ARGS.update {
         string(line, 0, &format!("{}|", &"-".repeat((start as usize) - 1)));
         string(
             line,
@@ -440,7 +440,7 @@ pub(crate) fn skip(
     handle_id: String
 ) -> (i32, Vec<String>) {
     let al_dow = format!("({}) Skipping because file is already downloaded {}", item, attr);
-    if ARGS.web {
+    if ARGS.web || ARGS.check || ARGS.update {
         info!("@{}   {}", handle_id, al_dow);
     }
     hist.push(al_dow);
@@ -453,7 +453,7 @@ pub(crate) fn skip_offset(
     handle_id: String
 ) -> (i32, Vec<String>) {
     let al_dow = format!("({}) Skipping because of offset", item);
-    if ARGS.web {
+    if ARGS.web || ARGS.check || ARGS.update {
         info!("@{}   {}", handle_id, al_dow);
     }
     hist.push(al_dow);

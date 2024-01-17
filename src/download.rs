@@ -47,7 +47,7 @@ pub(crate) async fn download_cover(
     handle_id: Option<String>
 ) {
     let handle_id = handle_id.unwrap_or_default();
-    if ARGS.web {
+    if ARGS.web || ARGS.check || ARGS.update {
         info!("@{}  Downloading cover", handle_id);
     }
     string(1, 0, "Downloading cover_art");
@@ -83,7 +83,7 @@ pub(crate) async fn download_cover(
                     )
                 )
             );
-            if ARGS.web {
+            if ARGS.web || ARGS.check || ARGS.update {
                 info!("@{}  {}", handle_id, message);
             }
         }
@@ -97,7 +97,7 @@ pub(crate) async fn download_stat(
     handle_id: Option<String>
 ) {
     let handle_id = handle_id.unwrap_or_default();
-    if ARGS.web {
+    if ARGS.web || ARGS.check || ARGS.update {
         info!("@{}  Getting statistics", handle_id);
     }
     string(1, 0, "Getting statistics");
@@ -171,7 +171,7 @@ pub(crate) async fn download_image(
         pr_title = format!(" - {}", name);
     }
     let page = page + 1;
-    if ARGS.web {
+    if ARGS.web || ARGS.check || ARGS.update {
         info!("@{} Starting image download {}", handle_id, page);
     }
     let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
@@ -247,7 +247,7 @@ pub(crate) async fn download_image(
                 final_size,
                 (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
             );
-            if ARGS.web {
+            if ARGS.web || ARGS.check || ARGS.update {
                 info!("@{} {}", handle_id, message.to_string());
             }
             string(
@@ -299,7 +299,7 @@ pub(crate) async fn download_image(
         .unwrap();
     let _ = lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes());
 
-    if ARGS.web {
+    if ARGS.web || ARGS.check || ARGS.update {
         info!("@{} Finished image download {}", handle_id, page);
     }
 }

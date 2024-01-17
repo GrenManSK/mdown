@@ -1,5 +1,5 @@
-use serde_json::{ Value, Map };
-use std::{ fs::{ self, OpenOptions }, process::exit, io::Write, sync::Mutex };
+use serde_json::{ Value, Map, json };
+use std::{ fs::{ self, File, OpenOptions }, process::exit, io::{ Write, Read }, sync::Mutex };
 use lazy_static::lazy_static;
 use tracing::info;
 
@@ -8,21 +8,223 @@ use crate::{
     MAXPOINTS,
     download_manga,
     string,
-    getter::{ get_manga, get_manga_name, get_folder_name, get_scanlation_group },
+    getter::{ self, get_manga, get_manga_name, get_folder_name, get_scanlation_group },
     download,
     utils::clear_screen,
+    MANGA_ID,
 };
 
 lazy_static! {
     pub(crate) static ref SCANLATION_GROUPS: Mutex<Vec<String>> = Mutex::new(Vec::new());
     pub(crate) static ref DOWNLOADED: Mutex<Vec<String>> = Mutex::new(Vec::new());
     pub(crate) static ref MANGA_NAME: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref CHAPTERS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(crate) static ref MWD: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref TO_DOWNLOAD: Mutex<Vec<String>> = Mutex::new(Vec::new());
     pub(crate) static ref CURRENT_CHAPTER: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref CURRENT_PAGE: Mutex<u64> = Mutex::new(0);
     pub(crate) static ref CURRENT_PAGE_MAX: Mutex<u64> = Mutex::new(0);
     pub(crate) static ref CURRENT_PERCENT: Mutex<f64> = Mutex::new(0.0);
     pub(crate) static ref CURRENT_SIZE: Mutex<f64> = Mutex::new(0.0);
     pub(crate) static ref CURRENT_SIZE_MAX: Mutex<f64> = Mutex::new(0.0);
+}
+
+pub(crate) async fn resolve_check() {
+    if fs::metadata(getter::get_dat_path()).is_err() {
+        return;
+    }
+    let result = match get_dat_content() {
+        Some(value) => value,
+        None => {
+            return;
+        }
+    };
+    match result {
+        Ok(mut json) => {
+            if let Some(data) = json.get_mut("data").and_then(Value::as_array_mut) {
+                let mut iter: i32 = -1;
+                let mut to_remove = vec![];
+                for item in data.iter_mut() {
+                    iter += 1;
+                    println!("Checking {}\r", item.get("name").and_then(Value::as_str).unwrap());
+                    let past_mwd = std::env::current_dir().unwrap().to_str().unwrap().to_string();
+                    let mwd = item.get("mwd").and_then(Value::as_str).unwrap();
+                    if let Err(_) = std::env::set_current_dir(mwd) {
+                        to_remove.push(iter);
+                        continue;
+                    }
+
+                    let _ = std::fs::rename(
+                        format!("{past_mwd}\\.cache"),
+                        format!("{mwd}\\.cache")
+                    );
+                    let id = item.get("id").and_then(Value::as_str).unwrap();
+                    match getter::get_manga_json(id).await {
+                        Ok(manga_name_json) => {
+                            let json_value = serde_json::from_str(&manga_name_json).unwrap();
+                            if let Value::Object(obj) = json_value {
+                                let title_data = obj
+                                    .get("data")
+                                    .and_then(|name_data| name_data.get("attributes"))
+                                    .unwrap_or_else(|| {
+                                        eprintln!("attributes or title doesn't exist");
+                                        exit(1);
+                                    });
+                                *MANGA_NAME.lock().unwrap() = get_manga_name(title_data);
+                                resolve_manga(
+                                    id,
+                                    get_manga_name(title_data).as_str(),
+                                    false,
+                                    Some(String::new())
+                                ).await;
+                            } else {
+                                eprintln!("Unexpected JSON value");
+                                return;
+                            }
+                        }
+                        Err(_) => {}
+                    }
+                    if let Some(chapters) = item.get_mut("chapters").and_then(Value::as_array_mut) {
+                        chapters.clear();
+                        chapters.extend(
+                            CHAPTERS.lock().unwrap().iter().cloned().map(Value::String)
+                        );
+                    }
+
+                    if ARGS.check {
+                        println!("Checked {}", MANGA_NAME.lock().unwrap());
+                        if !TO_DOWNLOAD.lock().unwrap().is_empty() {
+                            println!("Chapters available");
+                            for chapter in TO_DOWNLOAD.lock().unwrap().iter() {
+                                println!(" {}", chapter);
+                            }
+                        } else {
+                            println!("Up to-date");
+                        }
+                    }
+                    CHAPTERS.lock().unwrap().clear();
+                }
+                for &index in to_remove.iter().rev() {
+                    data.remove(index as usize);
+                }
+                let mut file = File::create(getter::get_dat_path()).unwrap();
+
+                let json_string = serde_json::to_string_pretty(&json);
+                if let Err(err) = json_string {
+                    eprintln!("Error serializing to JSON: {:?}", err);
+                    return;
+                }
+
+                if let Err(err) = writeln!(file, "{}", json_string.unwrap()) {
+                    eprintln!("Error writing to file: {:?}", err);
+                    return;
+                }
+            }
+        }
+        Err(err) => {
+            eprintln!("Error parsing JSON: {:?}", err);
+        }
+    }
+}
+
+pub(crate) fn resolve_dat() {
+    if fs::metadata(getter::get_dat_path()).is_err() {
+        let mut file = fs::File::create(getter::get_dat_path()).unwrap();
+
+        let content = "{\n  \"data\": []\n}";
+
+        file.write_all(content.as_bytes()).unwrap();
+    }
+    let result = match get_dat_content() {
+        Some(value) => value,
+        None => {
+            return;
+        }
+    };
+    match result {
+        Ok(mut json) => {
+            if let Some(data) = json.get_mut("data").and_then(Value::as_array_mut) {
+                let manga_names: Vec<&str> = data
+                    .iter()
+                    .filter_map(|item| item.get("name").and_then(Value::as_str))
+                    .collect();
+
+                if manga_names.contains(&MANGA_NAME.lock().unwrap().as_str()) {
+                    for item in data.iter_mut() {
+                        if let Some(name) = item.get("name").and_then(Value::as_str) {
+                            if name == MANGA_NAME.lock().unwrap().as_str() {
+                                let existing_chapters = item
+                                    .get_mut("chapters")
+                                    .and_then(Value::as_array_mut)
+                                    .unwrap();
+
+                                let mut new_chapters: Vec<_> = CHAPTERS.lock()
+                                    .unwrap()
+                                    .iter()
+                                    .cloned()
+                                    .map(Value::String)
+                                    .filter(|chapter| !existing_chapters.contains(chapter))
+                                    .collect();
+
+                                new_chapters.sort_by(|a, b| {
+                                    let a_num = a.as_str().unwrap().parse::<u32>().unwrap_or(0);
+                                    let b_num = b.as_str().unwrap().parse::<u32>().unwrap_or(0);
+                                    a_num.cmp(&b_num)
+                                });
+
+                                existing_chapters.extend(new_chapters);
+
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    let mwd = format!("{}", MWD.lock().unwrap());
+                    let manga_data =
+                        json!({
+                    "name": MANGA_NAME.lock().unwrap().clone(),
+                    "id": MANGA_ID.lock().unwrap().to_string(),
+                    "chapters": CHAPTERS.lock().unwrap().clone(),
+                    "mwd": mwd,
+                    });
+
+                    data.push(manga_data.clone());
+                }
+
+                let mut file = File::create(getter::get_dat_path()).unwrap();
+
+                let json_string = serde_json::to_string_pretty(&json);
+                if let Err(err) = json_string {
+                    eprintln!("Error serializing to JSON: {:?}", err);
+                    return;
+                }
+
+                if let Err(err) = writeln!(file, "{}", json_string.unwrap()) {
+                    eprintln!("Error writing to file: {:?}", err);
+                    return;
+                }
+            }
+        }
+        Err(err) => {
+            eprintln!("Error parsing JSON: {:?}", err);
+        }
+    }
+}
+
+fn get_dat_content() -> Option<Result<Value, serde_json::Error>> {
+    let file = File::open(getter::get_dat_path());
+    if let Err(err) = file {
+        eprintln!("Error opening file: {:?}", err);
+        return None;
+    }
+    let mut file = file.unwrap();
+    let mut contents = String::new();
+    if let Err(err) = file.read_to_string(&mut contents) {
+        eprintln!("Error reading file: {:?}", err);
+        return None;
+    }
+    let result: Result<Value, _> = serde_json::from_str(&contents);
+    Some(result)
 }
 
 pub(crate) async fn resolve(
@@ -55,7 +257,7 @@ pub(crate) async fn resolve(
     for lang in languages {
         final_lang.push(lang.as_str().unwrap());
     }
-    if (ARGS.lang != orig_lang && !final_lang.contains(&ARGS.lang.as_str())) && ARGS.lang != "*" {
+    if ARGS.lang != orig_lang && !final_lang.contains(&ARGS.lang.as_str()) && ARGS.lang != "*" {
         let languages = title_data
             .get("availableTranslatedLanguages")
             .and_then(Value::as_array)
@@ -88,6 +290,8 @@ pub(crate) async fn resolve(
 
     let was_rewritten = fs::metadata(folder.clone()).is_ok();
     let _ = fs::create_dir(&folder);
+    *MWD.lock().unwrap() = std::fs::canonicalize(&folder).unwrap().to_str().unwrap().to_string();
+    println!("{}", MWD.lock().unwrap());
     let desc = title_data
         .get("description")
         .and_then(|description| description.get("en"))
@@ -128,7 +332,7 @@ pub(crate) async fn resolve(
 
     resolve_manga(id, &manga_name, was_rewritten, handle_id.clone()).await;
 
-    if ARGS.web {
+    if ARGS.web || ARGS.check || ARGS.update {
         info!("@{} Downloaded manga", handle_id.unwrap_or_default());
     }
     manga_name
@@ -195,7 +399,7 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Option<(String, String)>
 async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool, handle_id: Option<String>) {
     let going_offset: i32 = ARGS.database_offset.as_str().parse().unwrap();
     let mut arg_force = ARGS.force;
-    let end = 2;
+    let end = if ARGS.check || ARGS.update { 1 } else { 2 };
     let mut downloaded: Vec<String> = vec![];
     for _ in 0..end {
         match get_manga(id, going_offset, handle_id.clone()).await {
@@ -215,7 +419,7 @@ async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool, handle_i
         }
         arg_force = false;
     }
-    if !ARGS.web {
+    if !ARGS.web || ARGS.check || ARGS.update {
         if downloaded.len() != 0 {
             string(1, 0, "Downloaded files:");
             for i in 0..downloaded.len() {
