@@ -20,6 +20,7 @@ use crate::{
         CURRENT_PERCENT,
     },
     ARGS,
+    MANGA_ID,
 };
 
 fn decode(url: &str) -> String {
@@ -34,6 +35,7 @@ async fn resolve_web_download(url: &str, handle_id: String) -> String {
     let mut manga_name = String::from("!");
     if let Some(id) = utils::resolve_regex(&url) {
         let id: &str = id.as_str();
+        *MANGA_ID.lock().unwrap() = id.to_string();
         info!("@{} Found {}", handle_id, id);
         match getter::get_manga_json(id).await {
             Ok(manga_name_json) => {
