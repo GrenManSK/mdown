@@ -13,10 +13,17 @@ use crate::{
 };
 
 pub(crate) async fn get_response(c_hash: &str, cover_hash: &str, mode: &str) -> reqwest::Response {
-    reqwest
-        ::get(format!("https://uploads.mangadex.org\\{}\\{}\\{}", mode, c_hash, cover_hash)).await
-        .unwrap()
+    let client = reqwest::Client
+        ::builder()
+        .user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
+        )
+        .build()
+        .unwrap();
+    let url = format!("https://uploads.mangadex.org\\{}\\{}\\{}", mode, c_hash, cover_hash);
+    client.get(url).send().await.unwrap()
 }
+
 pub(crate) fn get_size(response: &reqwest::Response) -> (u64, f32) {
     let total_size: u64 = response.content_length().unwrap_or(0);
     (total_size, (total_size as f32) / (1024 as f32) / (1024 as f32))
