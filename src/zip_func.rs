@@ -1,18 +1,18 @@
-use std::{ fs::File, io::{ Read, Write, Seek }, path::Path };
-use walkdir::{ DirEntry, WalkDir };
-use zip::{ result::ZipError, write::FileOptions };
+use std::{ fs::File, io::{ Read, Seek, Write }, path::Path };
 use tracing::info;
+use walkdir::{ DirEntry, WalkDir };
+use zip::{ result::ZipError, write::FileOptions, ZipArchive };
 
-use crate::{ string, utils::progress_bar_preparation, MAXPOINTS, ARGS };
+use crate::{ string, utils::progress_bar_preparation, ARGS, MAXPOINTS, error };
 
 fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
     prefix: &str,
-    writer: T,
-    method: zip::CompressionMethod
-) -> zip::result::ZipResult<()>
+    writer: T
+) -> Result<(), error::mdown::Error>
     where T: Write + Seek
 {
+    let method = zip::CompressionMethod::Stored;
     let walkdir = WalkDir::new(prefix);
     let it_temp = &mut walkdir.into_iter().filter_map(|e| e.ok());
     let dir_entries_vec: Vec<DirEntry> = it_temp.collect();
@@ -26,55 +26,139 @@ fn zip_dir<T>(
     let mut times = -1;
     for entry in it {
         let path = entry.path();
-        let name = path.strip_prefix(Path::new(prefix)).unwrap();
+        let name = match path.strip_prefix(Path::new(prefix)) {
+            Ok(name) => name,
+            Err(err) => {
+                return Err(error::mdown::Error::ConversionError(err.to_string()));
+            }
+        };
         if path.is_file() {
             string(8, start + times, "#");
             #[allow(deprecated)]
-            zip.start_file_from_path(name, options)?;
-            let mut f = File::open(path)?;
+            match zip.start_file_from_path(name, options) {
+                Ok(()) => (),
+                Err(err) => {
+                    return Err(error::mdown::Error::ZipError(err));
+                }
+            }
+            let mut f = match File::open(path) {
+                Ok(file) => file,
+                Err(err) => {
+                    return Err(error::mdown::Error::IoError(err, None));
+                }
+            };
 
-            f.read_to_end(&mut buffer)?;
-            zip.write_all(&buffer)?;
+            match f.read_to_end(&mut buffer) {
+                Ok(_size) => (),
+                Err(err) => {
+                    return Err(error::mdown::Error::IoError(err, None));
+                }
+            }
+            match zip.write_all(&buffer) {
+                Ok(()) => (),
+                Err(err) => {
+                    return Err(error::mdown::Error::IoError(err, None));
+                }
+            }
             buffer.clear();
         } else if !name.as_os_str().is_empty() {
             #[allow(deprecated)]
-            zip.add_directory_from_path(name, options)?;
+            match zip.add_directory_from_path(name, options) {
+                Ok(()) => (),
+                Err(err) => {
+                    return Err(error::mdown::Error::ZipError(err));
+                }
+            };
         }
         times += 1;
     }
-    zip.finish()?;
-    Result::Ok(())
+    match zip.finish() {
+        Ok(_writer) => (),
+        Err(err) => {
+            return Err(error::mdown::Error::ZipError(err));
+        }
+    }
+    Ok(())
 }
 
-fn doit(
-    src_dir: &str,
-    dst_file: &str,
-    method: zip::CompressionMethod
-) -> zip::result::ZipResult<()> {
+fn doit(src_dir: &str, dst_file: &str) -> Result<(), error::mdown::Error> {
     if !Path::new(src_dir).is_dir() {
-        return Err(ZipError::FileNotFound);
+        return Err(error::mdown::Error::ZipError(ZipError::FileNotFound));
     }
     let path = Path::new(dst_file);
-    let file = File::create(path).unwrap();
+    let file = match File::create(path) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(error::mdown::Error::IoError(err, None));
+        }
+    };
 
     let walkdir = WalkDir::new(src_dir);
     let it = walkdir.into_iter();
 
-    zip_dir(&mut it.filter_map(|e| e.ok()), src_dir, file, method)?;
+    match zip_dir(&mut it.filter_map(|e| e.ok()), src_dir, file) {
+        Ok(_) => (),
+        Err(_err) => (),
+    }
 
     Ok(())
 }
 
-const METHOD_STORED: Option<zip::CompressionMethod> = Some(zip::CompressionMethod::Stored);
-pub(crate) async fn to_zip(src_dir: &str, dst_file: &str, handle_id: String) {
+pub(crate) async fn to_zip(src_dir: &str, dst_file: &str, handle_id: Box<str>) {
     if ARGS.web || ARGS.check || ARGS.update {
         info!("@{} Zipping files to: {} ...", handle_id, dst_file);
     }
-    match doit(src_dir, dst_file, METHOD_STORED.unwrap()) {
+    match doit(src_dir, dst_file) {
         Ok(_) => string(9, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str()),
         Err(e) => eprintln!("  Error: {e:?}"),
     }
     if ARGS.web || ARGS.check || ARGS.update {
         info!("@{} Zipping files to: {} Done", handle_id, dst_file);
     }
+}
+
+pub(crate) fn extract_metadata_from_zip(
+    zip_file_path: &str,
+    metadata_file_name: &str
+) -> Result<String, error::mdown::Error> {
+    let file = match File::open(zip_file_path) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(error::mdown::Error::IoError(err, Some(zip_file_path.to_string())));
+        }
+    };
+    let mut archive = match ZipArchive::new(file) {
+        Ok(archive) => archive,
+        Err(err) => {
+            return Err(error::mdown::Error::ZipError(err));
+        }
+    };
+
+    for i in 0..archive.len() {
+        let mut file = match archive.by_index(i) {
+            Ok(file) => file,
+            Err(err) => {
+                return Err(error::mdown::Error::ZipError(err));
+            }
+        };
+
+        if file.name() == metadata_file_name {
+            let mut content = String::new();
+            match file.read_to_string(&mut content) {
+                Ok(_) => (),
+                Err(err) => {
+                    return Err(
+                        error::mdown::Error::IoError(err, Some(metadata_file_name.to_string()))
+                    );
+                }
+            }
+            return Ok(content);
+        }
+    }
+
+    Err(
+        error::mdown::Error::NotFoundError(
+            format!("File '{}' not found in the zip archive", metadata_file_name)
+        )
+    )
 }

@@ -53,6 +53,10 @@ See [site](https://mangadex.org/) for finding manga
 
 `--delete` - will delete database
 
+`--search` - will search for manga by its title
+
+`--show` - will show current database
+
 ---
 
 - If you get message that about lock file is present and you believe you don't have already program started use `--force-delete` option to force it to delete lock file

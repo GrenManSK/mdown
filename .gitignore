@@ -13,3 +13,6 @@ convert.py
 final.html
 _statistics.md
 .cache/
+src/_*
+.sync/
+*.psd

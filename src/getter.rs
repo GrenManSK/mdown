@@ -1,18 +1,45 @@
 use serde_json::Value;
-use std::{ thread::sleep, time::Duration, process::exit };
+use std::{ process::exit, thread::sleep, time::Duration };
 use tracing::info;
 
 use crate::{
-    ARGS,
-    string,
-    utils::progress_bar_preparation,
-    getter,
-    MAXPOINTS,
     download::get_response_client,
+    getter,
+    string,
+    utils::{ self, progress_bar_preparation },
+    ARGS,
+    MAXPOINTS,
+    error,
+    resolute,
 };
 
-pub(crate) fn get_dat_path() -> String {
-    format!("{}\\dat.json", std::env::current_exe().unwrap().parent().unwrap().to_str().unwrap()).to_string()
+pub(crate) fn get_dat_path() -> Result<String, error::mdown::Error> {
+    let current = match std::env::current_exe() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(
+                error::mdown::Error::IoError(
+                    err,
+                    Some(String::from("? your path to your exe file is invalid bro"))
+                )
+            );
+        }
+    };
+    let parent = match current.parent() {
+        Some(value) => value,
+        None => {
+            return Err(error::mdown::Error::NotFoundError(String::from("Parent not found")));
+        }
+    };
+    let path = match parent.to_str() {
+        Some(value) => value,
+        None => {
+            return Err(
+                error::mdown::Error::ConversionError(String::from("Transition to str failed"))
+            );
+        }
+    };
+    Ok(format!("{}\\dat.json", path))
 }
 
 pub(crate) fn get_folder_name(manga_name: &str) -> String {
@@ -20,100 +47,158 @@ pub(crate) fn get_folder_name(manga_name: &str) -> String {
 }
 
 pub(crate) fn get_manga_name(title_data: &Value) -> String {
-    title_data
-        .get("title")
-        .and_then(|attr_data| attr_data.get("en"))
-        .and_then(Value::as_str)
-        .unwrap_or_else(|| {
-            let get = title_data.get("altTitles").and_then(|val| val.as_array());
-            if get.is_some() {
-                let mut return_title = "*";
-                for title_object in get.unwrap() {
-                    if let Some(lang_object) = title_object.as_object() {
-                        for (lang, title) in lang_object.iter() {
-                            if lang == "en" {
-                                return_title = title.as_str().unwrap();
-                                break;
+    (
+        match
+            title_data
+                .get("title")
+                .and_then(|attr_data| attr_data.get("en"))
+                .and_then(Value::as_str)
+        {
+            Some(attr_data) => attr_data,
+            None => {
+                let get = title_data.get("altTitles").and_then(|val| val.as_array());
+                if let Some(get) = get {
+                    let mut return_title = "*";
+                    for title_object in get {
+                        if let Some(lang_object) = title_object.as_object() {
+                            for (lang, title) in lang_object.iter() {
+                                if lang == "en" {
+                                    return_title = match title.as_str() {
+                                        Some(s) => s,
+                                        None => "",
+                                    };
+                                    break;
+                                }
                             }
                         }
+                        break;
                     }
-                    break;
-                }
-                if return_title == "*" {
+                    if return_title == "*" {
+                        let and_then = title_data
+                            .get("title")
+                            .and_then(|attr_data| attr_data.get("ja-ro"))
+                            .and_then(Value::as_str);
+                        if let Some(and_then) = and_then {
+                            and_then
+                        } else {
+                            "Unrecognized title"
+                        }
+                    } else {
+                        return_title
+                    }
+                } else {
                     let and_then = title_data
                         .get("title")
                         .and_then(|attr_data| attr_data.get("ja-ro"))
                         .and_then(Value::as_str);
-                    if and_then.is_some() {
-                        and_then.unwrap()
+                    if let Some(and_then) = and_then {
+                        and_then
                     } else {
                         "Unrecognized title"
                     }
-                } else {
-                    return_title
-                }
-            } else {
-                let and_then = title_data
-                    .get("title")
-                    .and_then(|attr_data| attr_data.get("ja-ro"))
-                    .and_then(Value::as_str);
-                if and_then.is_some() {
-                    and_then.unwrap()
-                } else {
-                    "Unrecognized title"
                 }
             }
-        })
-        .to_string()
+        }
+    ).to_string()
 }
 
-pub(crate) async fn get_manga_json(id: &str) -> Result<String, reqwest::StatusCode> {
+pub(crate) async fn get_manga_json(id: &str) -> Result<String, error::mdown::Error> {
     let full_url = format!("https://api.mangadex.org/manga/{}?includes[]=cover_art", id);
 
-    let response = get_response_client(full_url).await.unwrap();
+    let response = match get_response_client(&full_url).await {
+        Ok(res) => res,
+        Err(err) => {
+            return Err(err);
+        }
+    };
 
     if response.status().is_success() {
-        let json = response.text().await.unwrap();
+        let json = match response.text().await {
+            Ok(text) => text,
+            Err(err) => {
+                return Err(
+                    error::mdown::Error::StatusError(match err.status() {
+                        Some(status) => status,
+                        None => {
+                            return Err(
+                                error::mdown::Error::NotFoundError(
+                                    String::from("StatusCode (get_manga_json)")
+                                )
+                            );
+                        }
+                    })
+                );
+            }
+        };
 
         Ok(json)
     } else {
         eprintln!(
-            "Error: {}",
-            format!("Failed to fetch data from the API. Status code: {:?}", response.status())
+            "Error: get manga json Failed to fetch data from the API. Status code: {:?}",
+            response.status()
         );
-        Err(response.status())
+        Err(error::mdown::Error::StatusError(response.status()))
     }
 }
 
-pub(crate) async fn get_statistic_json(id: &str) -> Result<String, reqwest::StatusCode> {
+pub(crate) async fn get_statistic_json(id: &str) -> Result<String, error::mdown::Error> {
     let full_url = format!("https://api.mangadex.org/statistics/manga/{}", id);
 
-    let response = get_response_client(full_url).await.unwrap();
-
+    let response = match get_response_client(&full_url).await {
+        Ok(res) => res,
+        Err(err) => {
+            return Err(err);
+        }
+    };
     if response.status().is_success() {
-        let json = response.text().await.unwrap();
+        let json = match response.text().await {
+            Ok(res) => res,
+            Err(err) => {
+                return Err(error::mdown::Error::JsonError(err.to_string()));
+            }
+        };
 
         Ok(json)
     } else {
         eprintln!(
-            "Error: {}",
-            format!("Failed to fetch data from the API. Status code: {:?}", response.status())
+            "Error: get statistic json Failed to fetch data from the API. Status code: {:?}",
+            response.status()
         );
-        Err(response.status())
+        Err(error::mdown::Error::StatusError(response.status()))
     }
 }
 
-pub(crate) async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
+pub(crate) async fn get_chapter(id: &str) -> Result<String, error::mdown::Error> {
     loop {
         string(4, 0, "Retrieving chapter info");
 
         let base_url = "https://api.mangadex.org/at-home/server/";
         let full_url = format!("{}{}", base_url, id);
 
-        let response = get_response_client(full_url).await.unwrap();
-
+        let response = match get_response_client(&full_url).await {
+            Ok(res) => res,
+            Err(err) => {
+                return Err(err);
+            }
+        };
         if response.status().is_success() {
-            let json = response.text().await?;
+            let json = match response.text().await {
+                Ok(text) => text,
+                Err(err) => {
+                    return Err(
+                        error::mdown::Error::StatusError(match err.status() {
+                            Some(status) => status,
+                            None => {
+                                return Err(
+                                    error::mdown::Error::NotFoundError(
+                                        String::from("StatusCode (get_chapter)")
+                                    )
+                                );
+                            }
+                        })
+                    );
+                }
+            };
 
             string(4, 0, "Retrieving chapter info DONE");
             return Ok(json);
@@ -122,9 +207,25 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
                 5,
                 0,
                 &format!(
-                    "Error: Failed to fetch data from the API. Status code: {:?} {}",
+                    "get chapter Failed to fetch data from the API. Status code: {:?} {}",
                     response.status(),
-                    response.text().await.unwrap()
+                    match response.text().await {
+                        Ok(text) => text,
+                        Err(err) => {
+                            return Err(
+                                error::mdown::Error::StatusError(match err.status() {
+                                    Some(status) => status,
+                                    None => {
+                                        return Err(
+                                            error::mdown::Error::NotFoundError(
+                                                String::from("StatusCode (get_chapter)")
+                                            )
+                                        );
+                                    }
+                                })
+                            );
+                        }
+                    }
                 )
             );
             string(6, 0, "Sleeping for 60 seconds ...");
@@ -140,11 +241,13 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, reqwest::Error> {
 pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
     for relation in json {
         let relation_type = relation.get("type");
+        if let Some(relation_type) = relation.get("type") {
+            if relation_type == "scanlation_group" {
+                return relation.get("id").and_then(Value::as_str);
+            }
+        }
         if relation_type.is_none() {
             return None;
-        }
-        if relation_type.unwrap() == "scanlation_group" {
-            return relation.get("id").and_then(Value::as_str);
         }
     }
     None
@@ -153,9 +256,12 @@ pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
 pub(crate) async fn get_manga(
     id: &str,
     offset: i32,
-    handle_id: Option<String>
-) -> Result<(String, usize), reqwest::Error> {
-    let handle_id = handle_id.unwrap();
+    handle_id: Option<Box<str>>
+) -> Result<(String, usize), error::mdown::Error> {
+    let handle_id = match handle_id {
+        Some(id) => id,
+        None => String::new().into_boxed_str(),
+    };
     let mut times = 0;
     let mut json: String;
     let mut json_2: String = String::new();
@@ -178,95 +284,193 @@ pub(crate) async fn get_manga(
             times_offset
         );
 
-        let response = get_response_client(full_url).await.unwrap();
-
+        let response = match get_response_client(&full_url).await {
+            Ok(res) => res,
+            Err(err) => {
+                return Err(err);
+            }
+        };
         if response.status().is_success() {
-            json = response.text().await?;
+            json = match response.text().await {
+                Ok(text) => text,
+                Err(err) => {
+                    return Err(
+                        error::mdown::Error::StatusError(match err.status() {
+                            Some(status) => status,
+                            None => {
+                                return Err(
+                                    error::mdown::Error::NotFoundError(
+                                        String::from("StatusCode (get_manga)")
+                                    )
+                                );
+                            }
+                        })
+                    );
+                }
+            };
             if times == 0 {
                 json_2 = json.clone();
             }
             let mut offset_temp: usize = 0;
-            match serde_json::from_str(&json) {
-                Ok(json_value) =>
-                    match json_value {
-                        Value::Object(obj) => {
-                            if let Some(data_array) = obj.get("data").and_then(Value::as_array) {
-                                let message = format!(
-                                    "{} Data fetched with offset {}   ",
-                                    times.to_string(),
-                                    offset.to_string()
-                                );
-                                string(1, 0, &message);
-                                if ARGS.web || ARGS.check || ARGS.update {
-                                    info!("@{} {}", handle_id, message);
-                                }
-                                offset_temp = data_array.len();
-                                if offset_temp >= 500 {
-                                    if times > 0 {
-                                        let mut data1: Value = serde_json
-                                            ::from_str(&json)
-                                            .expect("Failed to parse JSON");
-                                        let data2: Value = serde_json
-                                            ::from_str(&json_2)
-                                            .expect("Failed to parse JSON");
+            let json_value = match utils::get_json(&json) {
+                Ok(value) => value,
+                Err(err) => {
+                    return Err(err);
+                }
+            };
+            match json_value {
+                Value::Object(obj) => {
+                    if let Some(data_array) = obj.get("data").and_then(Value::as_array) {
+                        let naive_time_str = chrono::Utc
+                            ::now()
+                            .naive_utc()
+                            .format("%Y-%m-%d %H:%M:%S")
+                            .to_string();
 
-                                        let data1_array = data1
-                                            .get_mut("data")
-                                            .expect("No 'data' field found");
-                                        let data2_array = data2
-                                            .get("data")
-                                            .expect("No 'data' field found");
-
-                                        if let Some(data1_array) = data1_array.as_array_mut() {
-                                            data1_array.extend(
-                                                data2_array.as_array().unwrap().clone()
-                                            );
-                                        }
-
-                                        json = serde_json
-                                            ::to_string(&data1)
-                                            .expect("Failed to serialize to JSON");
-                                    }
-                                    json_2 = json;
-                                    times += 1;
-                                    continue;
-                                } else {
-                                    offset_temp = data_array.len();
-                                }
-                                if times > 0 {
-                                    let mut data1: Value = serde_json
-                                        ::from_str(&json)
-                                        .expect("Failed to parse JSON");
-                                    let data2: Value = serde_json
-                                        ::from_str(&json_2)
-                                        .expect("Failed to parse JSON");
-
-                                    let data1_array = data1
-                                        .get_mut("data")
-                                        .expect("No 'data' field found");
-                                    let data2_array = data2
-                                        .get("data")
-                                        .expect("No 'data' field found");
-
-                                    if let Some(data1_array) = data1_array.as_array_mut() {
-                                        data1_array.extend(data2_array.as_array().unwrap().clone());
-                                    }
-
-                                    json = serde_json
-                                        ::to_string(&data1)
-                                        .expect("Failed to serialize to JSON");
+                        (
+                            match resolute::DATE_FETCHED.lock() {
+                                Ok(d) => d,
+                                Err(err) => {
+                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
                                 }
                             }
+                        ).push(naive_time_str);
+                        let message = format!(
+                            "{} Data fetched with offset {}   ",
+                            times.to_string(),
+                            offset.to_string()
+                        );
+                        string(1, 0, &message);
+                        if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+                            info!("@{} {}", handle_id, message);
                         }
-                        _ => todo!(),
+                        offset_temp = data_array.len();
+                        if offset_temp >= 500 {
+                            if times > 0 {
+                                let mut data1 = match utils::get_json(&json) {
+                                    Ok(value) => value,
+                                    Err(err) => {
+                                        return Err(err);
+                                    }
+                                };
+                                let data2 = match utils::get_json(&json_2) {
+                                    Ok(value) => value,
+                                    Err(err) => {
+                                        return Err(err);
+                                    }
+                                };
+
+                                let data1_array = match data1.get_mut("data") {
+                                    Some(value) => value,
+                                    None => {
+                                        return Err(
+                                            error::mdown::Error::JsonError(
+                                                String::from("Didn't found data")
+                                            )
+                                        );
+                                    }
+                                };
+                                let data2_array = match data2.get("data") {
+                                    Some(value) => value,
+                                    None => {
+                                        return Err(
+                                            error::mdown::Error::JsonError(
+                                                String::from("Didn't found data")
+                                            )
+                                        );
+                                    }
+                                };
+                                let empty_array = vec![];
+
+                                if let Some(data1_array) = data1_array.as_array_mut() {
+                                    data1_array.extend(
+                                        (
+                                            match data2_array.as_array() {
+                                                Some(array) => array,
+                                                None => &empty_array,
+                                            }
+                                        ).clone()
+                                    );
+                                }
+
+                                json = match serde_json::to_string(&data1) {
+                                    Ok(value) => value,
+                                    Err(err) => {
+                                        return Err(error::mdown::Error::JsonError(err.to_string()));
+                                    }
+                                };
+                            }
+                            json_2 = json;
+                            times += 1;
+                            continue;
+                        } else {
+                            offset_temp = data_array.len();
+                        }
+                        if times > 0 {
+                            let mut data1 = match utils::get_json(&json) {
+                                Ok(value) => value,
+                                Err(err) => {
+                                    return Err(err);
+                                }
+                            };
+                            let data2 = match utils::get_json(&json_2) {
+                                Ok(value) => value,
+                                Err(err) => {
+                                    return Err(err);
+                                }
+                            };
+
+                            let data1_array = match data1.get_mut("data") {
+                                Some(value) => value,
+                                None => {
+                                    return Err(
+                                        error::mdown::Error::JsonError(
+                                            String::from("Did not find data")
+                                        )
+                                    );
+                                }
+                            };
+                            let data2_array = match data2.get("data") {
+                                Some(value) => value,
+                                None => {
+                                    return Err(
+                                        error::mdown::Error::JsonError(
+                                            String::from("Did not find data")
+                                        )
+                                    );
+                                }
+                            };
+
+                            let empty_array = vec![];
+                            if let Some(data1_array) = data1_array.as_array_mut() {
+                                data1_array.extend(
+                                    (
+                                        match data2_array.as_array() {
+                                            Some(array) => array,
+                                            None => &empty_array,
+                                        }
+                                    ).clone()
+                                );
+                            }
+
+                            json = match serde_json::to_string(&data1) {
+                                Ok(value) => value,
+                                Err(err) => {
+                                    return Err(error::mdown::Error::JsonError(err.to_string()));
+                                }
+                            };
+                        }
                     }
-                Err(err) => eprintln!("  Error parsing JSON: {}", err),
+                }
+                _ => todo!(),
             }
+
             return Ok((json, offset_temp));
         } else {
             eprintln!(
-                "Error: {}",
-                format!("Failed to fetch data from the API. Status code: {:?}", response.status())
+                "Error: get manga Failed to fetch data from the API. Status code: {:?} ({})",
+                response.status(),
+                full_url
             );
             exit(1);
         }
@@ -274,36 +478,53 @@ pub(crate) async fn get_manga(
 }
 
 pub(crate) fn get_attr_as_str<'a>(obj: &'a Value, attr: &'a str) -> &'a str {
-    obj.get(attr)
-        .and_then(Value::as_str)
-        .unwrap_or_else(|| { "" })
+    match obj.get(attr).and_then(Value::as_str) {
+        Some(value) => value,
+        None => "",
+    }
 }
 
 pub(crate) fn get_attr_as_u64<'a>(obj: &'a Value, attr: &'a str) -> u64 {
-    obj.get(attr)
-        .and_then(Value::as_u64)
-        .unwrap_or_else(|| { 0 })
+    match obj.get(attr).and_then(Value::as_u64) {
+        Some(value) => value,
+        None => 0,
+    }
 }
 
 pub(crate) fn get_attr_as_same<'a>(obj: &'a Value, attr: &'a str) -> &'a Value {
-    obj.get(attr).unwrap_or_else(|| {
-        eprintln!("{} doesn't exist", attr);
-        exit(1);
-    })
+    match obj.get(attr) {
+        Some(value) => value,
+        None => {
+            eprintln!("{}", error::mdown::Error::NotFoundError(String::from("get_attr_as_same")));
+            exit(1);
+        }
+    }
 }
 
 pub(crate) fn get_attr_as_same_as_index(data_array: &Value, item: usize) -> &Value {
-    data_array.get(item).unwrap_or_else(move || {
-        eprintln!("{} doesn't exist", item);
-        exit(1);
-    })
+    match data_array.get(item) {
+        Some(value) => value,
+        None => {
+            eprintln!(
+                "{}",
+                error::mdown::Error::NotFoundError(String::from("get_attr_as_same_as_index"))
+            );
+            exit(1);
+        }
+    }
 }
 
 pub(crate) fn get_attr_as_same_from_vec(data_array: &Vec<Value>, item: usize) -> &Value {
-    data_array.get(item).unwrap_or_else(move || {
-        eprintln!("{} doesn't exist", item);
-        exit(1);
-    })
+    match data_array.get(item) {
+        Some(value) => value,
+        None => {
+            eprintln!(
+                "{}",
+                error::mdown::Error::NotFoundError(String::from("get_attr_as_same_from_vec"))
+            );
+            exit(1);
+        }
+    }
 }
 
 pub(crate) fn get_metadata(array_item: &Value) -> (&Value, &str, u64, &str, &str) {
@@ -323,7 +544,14 @@ pub(crate) fn get_arg(arg: String) -> String {
 }
 
 pub(crate) fn get_saver() -> String {
-    if ARGS.saver { String::from("dataSaver") } else { String::from("data") }
+    match resolute::SAVER.lock() {
+        Ok(value) =>
+            match *value {
+                true => String::from("dataSaver"),
+                false => String::from("data"),
+            }
+        Err(_err) => { String::from("data") }
+    }
 }
 
 // returns english title if exists in title_data
@@ -331,10 +559,10 @@ pub(crate) fn get_saver() -> String {
 fn test_get_manga_name_returns_english_title_if_exists() {
     let title_data =
         serde_json::json!({
-                "title": {
-                    "en": "English Title"
-                }
-            });
+        "title": {
+            "en": "English Title"
+        }
+    });
 
     let result = get_manga_name(&title_data);
 
@@ -346,12 +574,12 @@ fn test_get_manga_name_returns_english_title_if_exists() {
 fn test_get_manga_name_returns_english_title_if_exists_in_alt_titles() {
     let title_data =
         serde_json::json!({
-                "altTitles": [
-                    {
-                        "en": "English Title"
-                    }
-                ]
-            });
+        "altTitles": [
+            {
+                "en": "English Title"
+            }
+        ]
+    });
 
     let result = get_manga_name(&title_data);
 
@@ -363,10 +591,10 @@ fn test_get_manga_name_returns_english_title_if_exists_in_alt_titles() {
 fn test_get_manga_name_returns_japanese_romanized_title_if_english_title_not_found() {
     let title_data =
         serde_json::json!({
-                "title": {
-                    "ja-ro": "Japanese Romanized Title"
-                }
-            });
+        "title": {
+            "ja-ro": "Japanese Romanized Title"
+        }
+    });
 
     let result = get_manga_name(&title_data);
 
@@ -378,15 +606,15 @@ fn test_get_manga_name_returns_japanese_romanized_title_if_english_title_not_fou
 fn test_get_manga_name_returns_first_english_title_found_in_alt_titles() {
     let title_data =
         serde_json::json!({
-                "altTitles": [
-                    {
-                        "en": "English Title"
-                    },
-                    {
-                        "fr": "French Title"
-                    }
-                ]
-            });
+        "altTitles": [
+            {
+                "en": "English Title"
+            },
+            {
+                "fr": "French Title"
+            }
+        ]
+    });
 
     let result = get_manga_name(&title_data);
 
@@ -398,12 +626,12 @@ fn test_get_manga_name_returns_first_english_title_found_in_alt_titles() {
 fn test_get_manga_name_returns_empty_string_if_title_in_alt_titles_but_no_english_language_available() {
     let title_data =
         serde_json::json!({
-                "altTitles": [
-                    {
-                        "fr": "French Title"
-                    }
-                ]
-            });
+        "altTitles": [
+            {
+                "fr": "French Title"
+            }
+        ]
+    });
 
     let result = get_manga_name(&title_data);
 
@@ -413,12 +641,11 @@ fn test_get_manga_name_returns_empty_string_if_title_in_alt_titles_but_no_englis
 // returns empty string if title in alt_titles but no language available
 #[test]
 fn test_get_manga_name_returns_empty_string_if_title_in_alt_titles_but_no_language_available() {
-    let title_data =
-        serde_json::json!({
-                "altTitles": [
-                    {}
-                ]
-            });
+    let title_data = serde_json::json!({
+        "altTitles": [
+            {}
+        ]
+    });
 
     let result = get_manga_name(&title_data);
 
@@ -431,13 +658,13 @@ fn test_get_metadata_should_return_tuple_with_five_elements() {
     // Arrange
     let array_item = Value::from(
         serde_json::json!({
-            "attributes": {
-                "translatedLanguage": "English",
-                "pages": 10,
-                "chapter": "Chapter 1",
-                "title": "Title"
-            }
-        })
+        "attributes": {
+            "translatedLanguage": "English",
+            "pages": 10,
+            "chapter": "Chapter 1",
+            "title": "Title"
+        }
+    })
     );
 
     // Act
@@ -456,12 +683,12 @@ fn test_get_metadata_should_return_empty_string_for_language_when_translated_lan
     // Arrange
     let array_item = Value::from(
         serde_json::json!({
-            "attributes": {
-                "pages": 10,
-                "chapter": "Chapter 1",
-                "title": "Title"
-            }
-        })
+        "attributes": {
+            "pages": 10,
+            "chapter": "Chapter 1",
+            "title": "Title"
+        }
+    })
     );
 
     // Act
@@ -477,12 +704,12 @@ fn test_get_metadata_should_return_zero_for_number_of_pages_when_pages_attribute
     // Arrange
     let array_item = Value::from(
         serde_json::json!({
-            "attributes": {
-                "translatedLanguage": "English",
-                "chapter": "Chapter 1",
-                "title": "Title"
-            }
-        })
+        "attributes": {
+            "translatedLanguage": "English",
+            "chapter": "Chapter 1",
+            "title": "Title"
+        }
+    })
     );
 
     // Act
@@ -498,12 +725,12 @@ fn test_get_metadata_should_return_empty_string_for_chapter_number_when_chapter_
     // Arrange
     let array_item = Value::from(
         serde_json::json!({
-            "attributes": {
-                "translatedLanguage": "English",
-                "pages": 10,
-                "title": "Title"
-            }
-        })
+        "attributes": {
+            "translatedLanguage": "English",
+            "pages": 10,
+            "title": "Title"
+        }
+    })
     );
 
     // Act
@@ -517,8 +744,8 @@ fn test_get_metadata_should_return_empty_string_for_chapter_number_when_chapter_
 #[test]
 fn test_get_attr_as_str_returns_value_if_attribute_exists() {
     let json = serde_json::json!({
-            "attr": "value"
-        });
+        "attr": "value"
+    });
     let result = get_attr_as_str(&json, "attr");
     assert_eq!(result, "value");
 }
@@ -527,8 +754,8 @@ fn test_get_attr_as_str_returns_value_if_attribute_exists() {
 #[test]
 fn test_get_attr_as_str_returns_empty_string_if_attribute_value_string() {
     let json = serde_json::json!({
-            "attr": 123
-        });
+        "attr": 123
+    });
     let result = get_attr_as_str(&json, "attr");
     assert_eq!(result, "");
 }
@@ -537,8 +764,8 @@ fn test_get_attr_as_str_returns_empty_string_if_attribute_value_string() {
 #[test]
 fn test_get_attr_as_u64_returns_u64_value_if_attribute_exists() {
     let json = serde_json::json!({
-            "attr": 10
-        });
+        "attr": 10
+    });
     let obj = &json;
     let attr = "attr";
 
@@ -562,8 +789,8 @@ fn test_get_attr_as_u64_returns_0_if_json_object_null() {
 #[test]
 fn test_get_attr_as_u64_returns_0_if_attribute_null() {
     let json = serde_json::json!({
-            "attr": serde_json::Value::Null
-        });
+        "attr": serde_json::Value::Null
+    });
     let obj = &json;
     let attr = "attr";
 
@@ -607,13 +834,13 @@ fn test_get_attr_as_same_as_index_returns_last_value_if_index_is_last_index() {
 fn test_get_scanlation_group_returns_scanlation_group_id_if_exists() {
     let json = vec![
         serde_json::json!({
-                "type": "scanlation_group",
-                "id": "group1"
-            }),
+            "type": "scanlation_group",
+            "id": "group1"
+        }),
         serde_json::json!({
-                "type": "other",
-                "id": "group2"
-            })
+            "type": "other",
+            "id": "group2"
+        })
     ];
 
     let result = get_scanlation_group(&json);
@@ -626,13 +853,13 @@ fn test_get_scanlation_group_returns_scanlation_group_id_if_exists() {
 fn test_get_scanlation_group_returns_none_if_no_scanlation_group_id_exists() {
     let json = vec![
         serde_json::json!({
-                "type": "other",
-                "id": "group1"
-            }),
+            "type": "other",
+            "id": "group1"
+        }),
         serde_json::json!({
-                "type": "other",
-                "id": "group2"
-            })
+            "type": "other",
+            "id": "group2"
+        })
     ];
 
     let result = get_scanlation_group(&json);
@@ -655,13 +882,13 @@ fn test_get_scanlation_group_returns_none_if_input_json_array_is_empty() {
 fn test_get_scanlation_group_returns_none_if_input_json_array_does_not_contain_relation_objects() {
     let json = vec![
         serde_json::json!({
-                "type": "other",
-                "id": "group1"
-            }),
+            "type": "other",
+            "id": "group1"
+        }),
         serde_json::json!({
-                "type": "other",
-                "id": "group2"
-            })
+            "type": "other",
+            "id": "group2"
+        })
     ];
 
     let result = get_scanlation_group(&json);
@@ -674,12 +901,12 @@ fn test_get_scanlation_group_returns_none_if_input_json_array_does_not_contain_r
 fn test_get_scanlation_group_returns_none_if_relation_object_does_not_contain_type_field() {
     let json = vec![
         serde_json::json!({
-                "id": "group1"
-            }),
+            "id": "group1"
+        }),
         serde_json::json!({
-                "type": "other",
-                "id": "group2"
-            })
+            "type": "other",
+            "id": "group2"
+        })
     ];
 
     let result = get_scanlation_group(&json);
@@ -692,13 +919,13 @@ fn test_get_scanlation_group_returns_none_if_relation_object_does_not_contain_ty
 fn test_get_scanlation_group_returns_none_if_type_field_is_not_scanlation_group() {
     let json = vec![
         serde_json::json!({
-                "type": "other",
-                "id": "group1"
-            }),
+            "type": "other",
+            "id": "group1"
+        }),
         serde_json::json!({
-                "type": "other",
-                "id": "group2"
-            })
+            "type": "other",
+            "id": "group2"
+        })
     ];
 
     let result = get_scanlation_group(&json);

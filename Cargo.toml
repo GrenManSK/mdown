@@ -1,34 +1,46 @@
 [package]
 name = "mdown"
-version = "0.7.2"
+version = "0.8.0"
 edition = "2021"
+
+build = "src/build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-regex = "1"
-reqwest = { version = "0.11.20", features = ["json"] }
-tokio = { version = "1", features = ["full"] }
-serde = "1.0"
-serde_json = "1.0"
-clap = { version = "4.4.1", features = ["derive"] }
+chrono = "0.4.35"
+clap = { version = "4.4.18", features = ["derive"] }
+crosscurses = { version = "0.1.0", features = ["win32"] }
+ctrlc = "3.4.2"
 curl = "0.4.44"
-zip = "0.6.6"
-walkdir = "2.3.2"
+eframe = "0.27.2"
+egui = "0.27.2"
+egui_extras = "0.27.2"
+futures = "0.3.30"
+http = "1.0.0"
 indicatif = "0.17.7"
-futures = "0.3.28"
-colored = "2.0"
-rustix = "0.38.19"
 lazy_static = "1.4.0"
-socket2 = "0.5"
-structopt = "0.3"
-percent-encoding = "2.1"
-rand = "0.8"
-webbrowser = "0.8.0"
-ctrlc = "3.2.0"
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json"] }
+percent-encoding = "2.3.1"
+rand = "0.8.5"
+regex = "1.10.3"
+reqwest = { version = "0.12.1", features = ["json"] }
+rustix = "0.38.30"
+serde = "1.0.196"
+serde_json = "1.0.113"
+socket2 = "0.5.5"
+structopt = "0.3.26"
+tokio = { version = "1.35.1", features = ["full"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+url = "2.5.0"
+uuid = "1.7.0"
+walkdir = "2.4.0"
+webbrowser = "0.8.12"
+zip = "0.6.6"
 
-[dependencies.crosscurses]
-version = "0.1.0"
-features = ["win32"]
+
+[build-dependencies]
+winres = "0.1.12"
+
+[dev-dependencies]
+h2 = "0.4.4"

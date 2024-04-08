@@ -1,31 +1,81 @@
-use std::{ time::{ Duration, Instant }, fs::{ self, File, OpenOptions }, thread::sleep, io::Write };
-use serde_json::{ self, Value };
+use serde_json::Value;
+use std::{
+    fs::{ self, File, OpenOptions },
+    io::Write,
+    sync::Arc,
+    thread::sleep,
+    time::{ Duration, Instant },
+};
 use tracing::info;
 
 use crate::{
-    string,
-    ARGS,
-    MAXPOINTS,
-    utils::{ process_filename, clear_screen },
-    IS_END,
+    error,
     getter,
-    resolute::CURRENT_PAGE,
+    resolute::{ self, CURRENT_PAGE },
+    string,
+    utils::{ self, clear_screen, process_filename },
+    ARGS,
+    IS_END,
+    MAXPOINTS,
 };
 
-pub(crate) async fn get_response(c_hash: &str, cover_hash: &str, mode: &str) -> reqwest::Response {
-    let client = reqwest::Client
-        ::builder()
-        .user_agent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
-        )
-        .build()
-        .unwrap();
-    let url = format!("https://uploads.mangadex.org\\{}\\{}\\{}", mode, c_hash, cover_hash);
-    client.get(url).send().await.unwrap()
+pub(crate) fn get_client() -> Result<reqwest::Client, reqwest::Error> {
+    match
+        reqwest::Client
+            ::builder()
+            .user_agent(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
+            )
+            .build()
+    {
+        Ok(response) => Ok(response),
+        Err(err) => {
+            return Err(err);
+        }
+    }
 }
 
+pub(crate) async fn get_response(
+    base_url: Arc<str>,
+    c_hash: Arc<str>,
+    cover_hash: Arc<str>,
+    mode: &str
+) -> Result<reqwest::Response, error::mdown::Error> {
+    let client = match get_client() {
+        Ok(client) => client,
+        Err(err) => {
+            return Err(error::mdown::Error::NetworkError(err));
+        }
+    };
+    let base_url = match url::Url::parse(&base_url.to_string()) {
+        Ok(url) => url,
+        Err(err) => {
+            return Err(error::mdown::Error::ConversionError(err.to_string()));
+        }
+    };
+    let url = format!("\\{}\\{}\\{}", mode, c_hash, cover_hash);
+
+    let full_url = match base_url.join(&url) {
+        Ok(url) => url,
+        Err(err) => {
+            return Err(error::mdown::Error::ConversionError(err.to_string()));
+        }
+    };
+
+    match client.get(full_url).send().await {
+        Ok(response) => {
+            return Ok(response);
+        }
+        Err(err) => {
+            return Err(error::mdown::Error::NetworkError(err));
+        }
+    }
+}
 pub(crate) fn get_size(response: &reqwest::Response) -> (u64, f32) {
-    let total_size: u64 = response.content_length().unwrap_or(0);
+    let total_size: u64 = match response.content_length() {
+        Some(value) => value,
+        None => 0,
+    };
     (total_size, (total_size as f32) / (1024 as f32) / (1024 as f32))
 }
 
@@ -34,42 +84,80 @@ pub(crate) fn get_perc(percentage: i64) -> String {
 }
 
 pub(crate) async fn get_response_client(
-    full_url: String
-) -> Result<reqwest::Response, reqwest::Error> {
-    let client = reqwest::Client
-        ::builder()
-        .user_agent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0"
-        )
-        .build()
-        .unwrap();
+    full_url: &str
+) -> Result<reqwest::Response, error::mdown::Error> {
+    let client = match get_client() {
+        Ok(client) => client,
+        Err(err) => {
+            return Err(error::mdown::Error::NetworkError(err));
+        }
+    };
 
-    client.get(&full_url).send().await
+    match client.get(full_url).send().await {
+        Ok(response) => Ok(response),
+        Err(err) => {
+            return Err(error::mdown::Error::NetworkError(err));
+        }
+    }
 }
 
 pub(crate) async fn download_cover(
-    c_hash: &str,
-    cover_hash: &str,
-    folder: &str,
-    handle_id: Option<String>
-) {
-    let handle_id = handle_id.unwrap_or_default();
-    if ARGS.web || ARGS.check || ARGS.update {
+    image_base_url: Arc<str>,
+    c_hash: Arc<str>,
+    cover_hash: Arc<str>,
+    folder: Arc<str>,
+    handle_id: Option<Box<str>>
+) -> Result<(), error::mdown::Error> {
+    let handle_id = match handle_id {
+        Some(id) => id,
+        None => String::from("0").into_boxed_str(),
+    };
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
         info!("@{}  Downloading cover", handle_id);
     }
     string(1, 0, "Downloading cover_art");
 
-    let mut response = get_response(c_hash, cover_hash, "covers").await;
+    let mut response = match get_response(image_base_url, c_hash, cover_hash, "covers").await {
+        Ok(res) => res,
+        Err(err) => {
+            return Err(err);
+        }
+    };
     let (total_size, _) = get_size(&response);
 
-    let mut file = File::create(format!("{}\\_cover.png", folder)).unwrap();
+    let mut file = match File::create(format!("{}\\_cover.png", folder)) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(error::mdown::Error::IoError(err, Some(format!("{}\\_cover.png", folder))));
+        }
+    };
 
     let interval = Duration::from_millis(250);
     let mut last_check_time = Instant::now();
     let mut downloaded = 0;
 
-    while let Some(chunk) = response.chunk().await.unwrap() {
-        let _ = file.write_all(&chunk);
+    while
+        // prettier-ignore or #[rustfmt::skip]
+        let Some(chunk) = match response.chunk().await {
+            Ok(size) => size,
+            Err(err) => {
+                return Err(error::mdown::Error::NetworkError(err));
+            }
+        }
+    {
+        match file.write_all(&chunk) {
+            Ok(()) => (),
+            Err(err) => {
+                (
+                    match resolute::SUSPENDED.lock() {
+                        Ok(value) => value,
+                        Err(err) => {
+                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                        }
+                    }
+                ).push(error::mdown::Error::IoError(err, Some(format!("{}\\_cover.png", folder))));
+            }
+        }
         downloaded += chunk.len() as u64;
         let current_time = Instant::now();
         if current_time.duration_since(last_check_time) >= interval {
@@ -90,107 +178,181 @@ pub(crate) async fn download_cover(
                     )
                 )
             );
-            if ARGS.web || ARGS.check || ARGS.update {
+            if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
                 info!("@{}  {}", handle_id, message);
             }
         }
     }
     clear_screen(1);
+    Ok(())
 }
 pub(crate) async fn download_stat(
     id: &str,
     folder: &str,
     manga_name: &str,
-    handle_id: Option<String>
-) {
-    let handle_id = handle_id.unwrap_or_default();
-    if ARGS.web || ARGS.check || ARGS.update {
+    handle_id: Option<Box<str>>
+) -> Result<(), error::mdown::Error> {
+    let handle_id = match handle_id {
+        Some(id) => id,
+        None => String::from("0").into_boxed_str(),
+    };
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
         info!("@{}  Getting statistics", handle_id);
     }
     string(1, 0, "Getting statistics");
 
-    let response = getter::get_statistic_json(id).await.unwrap();
+    let response = match getter::get_statistic_json(id).await {
+        Ok(response) => response,
+        Err(err) => {
+            return Err(err);
+        }
+    };
 
-    let mut file = File::create(format!("{}\\_statistics.md", folder)).unwrap();
+    let mut file = match File::create(format!("{}\\_statistics.md", folder)) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(
+                error::mdown::Error::IoError(err, Some(format!("{}\\_statistics.md", folder)))
+            );
+        }
+    };
 
     let mut data = String::from(&("# ".to_owned() + manga_name + "\n\n"));
 
-    match serde_json::from_str(&response) {
-        Ok(json_value) =>
-            match json_value {
-                Value::Object(obj) => {
-                    let statistics = obj
-                        .get("statistics")
-                        .and_then(|stat| stat.get(id))
-                        .unwrap();
-                    let comments = statistics.get("comments").unwrap();
-                    let thread_id = comments.get("threadId").and_then(Value::as_u64).unwrap();
-                    let replies_count = comments
-                        .get("repliesCount")
-                        .and_then(Value::as_u64)
-                        .unwrap();
-                    let rating = statistics.get("rating").unwrap();
-                    let average = rating.get("average").and_then(Value::as_f64).unwrap();
-                    let bayesian = rating.get("bayesian").and_then(Value::as_f64).unwrap();
-                    let distribution = rating.get("distribution").unwrap();
-                    let follows = statistics.get("follows").and_then(Value::as_u64).unwrap();
-
-                    data += &format!("---\n\n## RATING\n\nRating: {}\n\n", average);
-                    data += &format!("Bayesian: {}\n\n---\n\n", bayesian);
-                    for i in 1..11 {
-                        data += &get_dist(distribution.clone(), i);
+    let json_value = match utils::get_json(&response) {
+        Ok(value) => value,
+        Err(err) => {
+            (
+                match resolute::SUSPENDED.lock() {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(error::mdown::Error::PoisonError(err.to_string()));
                     }
-                    data += &format!("## Follows: {}\n\n", follows);
-                    data += &format!(
-                        "## Comments\n\nThread: <https://forums.mangadex.org/threads/{}>\n\nNumber of comments in thread: {}\n",
-                        thread_id,
-                        replies_count
+                }
+            ).push(error::mdown::Error::JsonError(err.to_string()));
+            return Ok(());
+        }
+    };
+    match json_value {
+        Value::Object(obj) => {
+            let statistics = match obj.get("statistics").and_then(|stat| stat.get(id)) {
+                Some(stat) => stat,
+                None => {
+                    return Err(
+                        error::mdown::Error::JsonError(String::from("Didn't find statistics"))
                     );
                 }
-                _ => todo!(),
+            };
+            let comments = match statistics.get("comments") {
+                Some(comm) => comm,
+                None => {
+                    return Err(
+                        error::mdown::Error::JsonError(String::from("Didn't find comments"))
+                    );
+                }
+            };
+            let thread_id = match comments.get("threadId").and_then(Value::as_i64) {
+                Some(id) => id,
+                None => -1,
+            };
+            let replies_count = match comments.get("repliesCount").and_then(Value::as_i64) {
+                Some(id) => id,
+                None => -1,
+            };
+            let rating = match statistics.get("rating") {
+                Some(rating) => rating,
+                None => {
+                    return Err(error::mdown::Error::JsonError(String::from("Didn't find rating")));
+                }
+            };
+            let average = match rating.get("average").and_then(Value::as_f64) {
+                Some(id) => id,
+                None => -1.0,
+            };
+            let bayesian = match rating.get("bayesian").and_then(Value::as_f64) {
+                Some(id) => id,
+                None => -1.0,
+            };
+            let distribution = match rating.get("distribution") {
+                Some(dist) => dist,
+                None => {
+                    return Err(
+                        error::mdown::Error::JsonError(String::from("Didn't find distribution"))
+                    );
+                }
+            };
+            let follows = match statistics.get("follows").and_then(Value::as_i64) {
+                Some(id) => id,
+                None => -1,
+            };
+
+            data += &format!("---\n\n## RATING\n\nRating: {}\n\n", average);
+            data += &format!("Bayesian: {}\n\n---\n\n", bayesian);
+            for i in 1..11 {
+                data += &get_dist(distribution.clone(), i);
             }
-        Err(err) => eprintln!("  Error parsing JSON: {}", err),
+            data += &format!("## Follows: {}\n\n", follows);
+            data += &format!(
+                "## Comments\n\nThread: <https://forums.mangadex.org/threads/{}>\n\nNumber of comments in thread: {}\n",
+                thread_id,
+                replies_count
+            );
+        }
+        _ => todo!(),
     }
 
-    file.write_all(data.as_bytes()).unwrap();
+    match file.write_all(data.as_bytes()) {
+        Ok(()) => (),
+        Err(err) => {
+            return Err(
+                error::mdown::Error::IoError(err, Some(format!("{}\\_statistics.md", folder)))
+            );
+        }
+    }
+
+    Ok(())
 }
 
 fn get_dist(distribution: Value, i: usize) -> String {
-    let value = distribution.get(i.to_string()).and_then(Value::as_u64).unwrap();
+    let value = match distribution.get(i.to_string()).and_then(Value::as_i64) {
+        Some(value) => value,
+        _ => -1,
+    };
     format!("{}: {}\n\n", i, value)
 }
 
 pub(crate) async fn download_image(
-    c_hash: &str,
-    f_name: &str,
-    manga_name: &str,
-    name: &str,
-    vol: &str,
-    chapter: &str,
+    image_base_url: Arc<str>,
+    c_hash: Arc<str>,
+    f_name: Arc<str>,
+    manga_name: Arc<str>,
+    name: Arc<str>,
+    vol: Arc<str>,
+    chapter: Arc<str>,
     page: usize,
     start: i32,
     iter: usize,
     times: usize,
-    handle_id: String
-) {
+    handle_id: Box<str>
+) -> Result<(), error::mdown::Error> {
     let mut pr_title = "".to_string();
-    if name != "" {
+    if name != "".into() {
         pr_title = format!(" - {}", name);
     }
     let page = page + 1;
-    if ARGS.web || ARGS.check || ARGS.update {
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
         info!("@{} Starting image download {}", handle_id, page);
     }
     let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
     let folder_name = process_filename(
-        format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title)
+        &format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title)
     );
     let file_name = process_filename(
-        format!("{} - {}Ch.{}{} - {}.jpg", manga_name, vol, chapter, pr_title, page)
+        &format!("{} - {}Ch.{}{} - {}.jpg", manga_name, vol, chapter, pr_title, page)
     );
-    let file_name_brief = process_filename(format!("{}Ch.{} - {}.jpg", vol, chapter, page));
+    let file_name_brief = process_filename(&format!("{}Ch.{} - {}.jpg", vol, chapter, page));
 
-    let lock_file = process_filename(format!(".cache\\{}.lock", folder_name));
+    let lock_file = process_filename(&format!(".cache\\{}.lock", folder_name));
 
     string(5 + 1, -1 + start + (page as i32), "|");
     string(5 + 1 + (page as i32), 0, "   Sleeping");
@@ -199,48 +361,150 @@ pub(crate) async fn download_image(
     string(5 + 1, -1 + start + (page as i32), "/");
     let full_path = format!(".cache/{}/{}", folder_name, file_name);
 
-    let mut response;
-    if ARGS.saver {
-        response = get_response(c_hash, f_name, "data-saver").await;
-    } else {
-        response = get_response(c_hash, f_name, "data").await;
-    }
+    let saver = match resolute::SAVER.lock() {
+        Ok(saver) =>
+            match *saver {
+                true => "data-saver",
+                false => "data",
+            }
+        Err(err) => {
+            return Err(error::mdown::Error::PoisonError(err.to_string()));
+        }
+    };
+    let mut response = match get_response(image_base_url, c_hash, f_name, saver).await {
+        Ok(res) => res,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
     let (total_size, final_size) = get_size(&response);
 
     string(5 + 1, -1 + start + (page as i32), "\\");
-    let mut file = File::create(full_path).unwrap();
+    let mut file = match File::create(full_path.clone()) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(error::mdown::Error::IoError(err, Some(full_path.clone())));
+        }
+    };
 
     let (mut downloaded, mut last_size) = (0, 0.0);
-    let interval = Duration::from_millis(250);
+    let interval = Duration::from_millis(100);
     let mut last_check_time = Instant::now();
 
     while fs::metadata(format!(".cache\\{}.lock", lock_file)).is_ok() {
         sleep(Duration::from_millis(10));
     }
-    let mut lock_file_inst = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(format!(".cache\\{}_{}_final.lock", folder_name, page))
-        .unwrap();
-    let _ = write!(lock_file_inst, "{:.2}", total_size);
-
-    while let Some(chunk) = response.chunk().await.unwrap() {
-        if *IS_END.lock().unwrap() || false {
-            return;
+    let mut lock_file_inst = match
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(format!(".cache\\{}_{}_final.lock", folder_name, page))
+    {
+        Ok(lock_file) => lock_file,
+        Err(err) => {
+            return Err(
+                error::mdown::Error::IoError(
+                    err,
+                    Some(format!(".cache\\{}_{}_final.lock", folder_name, page))
+                )
+            );
         }
-        let _ = file.write_all(&chunk);
+    };
+    match write!(lock_file_inst, "{:.2}", total_size) {
+        Ok(()) => (),
+        Err(err) => {
+            (
+                match resolute::SUSPENDED.lock() {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(error::mdown::Error::PoisonError(err.to_string()));
+                    }
+                }
+            ).push(
+                error::mdown::Error::IoError(
+                    err,
+                    Some(format!(".cache\\{}_{}_final.lock", folder_name, page))
+                )
+            );
+        }
+    }
+
+    while
+        //prettier-ignore
+        let Some(chunk) = match response.chunk().await {
+            Ok(Some(chunk)) => Some(chunk),
+            Ok(None) => None,
+            Err(err) => {
+                return Err(error::mdown::Error::NetworkError(err));
+            }
+        }
+    {
+        // prettier-ignore
+        if match IS_END.lock() {
+            Ok(value) => *value,
+            Err(err) => {
+                return Err(error::mdown::Error::PoisonError(err.to_string()));
+            }
+        }
+        {
+            return Ok(());
+        }
+        match file.write_all(&chunk) {
+            Ok(()) => (),
+            Err(err) => {
+                (
+                    match resolute::SUSPENDED.lock() {
+                        Ok(value) => value,
+                        Err(err) => {
+                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                        }
+                    }
+                ).push(error::mdown::Error::IoError(err, Some(full_path.clone())));
+            }
+        }
         downloaded += chunk.len() as u64;
         let current_time = Instant::now();
         if current_time.duration_since(last_check_time) >= interval {
             if (downloaded as f32) != last_size {
-                let mut lock_file = OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(format!(".cache\\{}_{}.lock", folder_name, page))
-                    .unwrap();
-                let _ = lock_file.write(format!("{}", downloaded / 1024 / 1024).as_bytes());
+                let mut lock_file = match
+                    OpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .create(true)
+                        .open(format!(".cache\\{}_{}.lock", folder_name, page))
+                {
+                    Ok(file) => file,
+                    Err(err) => {
+                        return Err(
+                            error::mdown::Error::IoError(
+                                err,
+                                Some(format!(".cache\\{}_{}.lock", folder_name, page))
+                            )
+                        );
+                    }
+                };
+                match
+                    lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes())
+                {
+                    Ok(_size) => (),
+                    Err(err) => {
+                        (
+                            match resolute::SUSPENDED.lock() {
+                                Ok(value) => value,
+                                Err(err) => {
+                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                }
+                            }
+                        ).push(
+                            error::mdown::Error::IoError(
+                                err,
+                                Some(format!(".cache\\{}_{}.lock", folder_name, page))
+                            )
+                        );
+                    }
+                }
             }
             last_check_time = current_time;
             let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
@@ -254,7 +518,7 @@ pub(crate) async fn download_image(
                 final_size,
                 (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
             );
-            if ARGS.web || ARGS.check || ARGS.update {
+            if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
                 info!("@{} {}", handle_id, message.to_string());
             }
             string(
@@ -274,7 +538,12 @@ pub(crate) async fn download_image(
         }
     }
 
-    *CURRENT_PAGE.lock().unwrap() += 1;
+    *(match CURRENT_PAGE.lock() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(error::mdown::Error::PoisonError(err.to_string()));
+        }
+    }) += 1;
 
     let message = format!(
         "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
@@ -298,24 +567,53 @@ pub(crate) async fn download_image(
         )
     );
     string(5 + 1, -1 + start + (page as i32), "#");
-    let mut lock_file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(format!(".cache\\{}_{}.lock", folder_name, page))
-        .unwrap();
-    let _ = lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes());
+    let mut lock_file = match
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(format!(".cache\\{}_{}.lock", folder_name, page))
+    {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(
+                error::mdown::Error::IoError(
+                    err,
+                    Some(format!(".cache\\{}_{}.lock", folder_name, page))
+                )
+            );
+        }
+    };
+    match lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes()) {
+        Ok(_size) => (),
+        Err(err) => {
+            (
+                match resolute::SUSPENDED.lock() {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(error::mdown::Error::PoisonError(err.to_string()));
+                    }
+                }
+            ).push(
+                error::mdown::Error::IoError(
+                    err,
+                    Some(format!(".cache\\{}_{}.lock", folder_name, page))
+                )
+            );
+        }
+    }
 
-    if ARGS.web || ARGS.check || ARGS.update {
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
         info!("@{} Finished image download {}", handle_id, page);
     }
+    Ok(())
 }
 
 // Returns a valid response object when given a valid URL
 #[tokio::test]
 async fn test_get_response_client_valid_url() {
     let url = "https://example.com";
-    let response = get_response_client(url.to_string()).await;
+    let response = get_response_client(&url.to_string()).await;
     assert!(response.is_ok());
 }
 
@@ -323,7 +621,7 @@ async fn test_get_response_client_valid_url() {
 #[tokio::test]
 async fn test_get_response_client_invalid_url() {
     let url = "invalid_url";
-    let response = get_response_client(url.to_string()).await;
+    let response = get_response_client(&url.to_string()).await;
     assert!(response.is_err());
 }
 
@@ -331,16 +629,6 @@ async fn test_get_response_client_invalid_url() {
 #[tokio::test]
 async fn test_get_response_client_empty_url() {
     let url = "";
-    let response = get_response_client(url.to_string()).await;
-    assert!(response.is_err());
-}
-
-// Returns an error when the request times out
-#[tokio::test]
-async fn test_get_response_client_request_timeout() {
-    let url = "https://example.com";
-    // Set a very short timeout for testing purposes
-    let client = reqwest::Client::builder().timeout(Duration::from_millis(1)).build().unwrap();
-    let response = client.get(url).send().await;
+    let response = get_response_client(&url.to_string()).await;
     assert!(response.is_err());
 }
