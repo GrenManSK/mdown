@@ -47,6 +47,7 @@ lazy_static! {
     pub(crate) static ref LANGUAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
     pub(crate) static ref LANGUAGE: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref CHAPTER_DATES: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
+    pub(crate) static ref FIXED_DATES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 }
 
 pub(crate) fn args_delete() -> Result<(), error::mdown::Error> {
@@ -156,6 +157,11 @@ pub(crate) async fn show() -> Result<(), error::mdown::Error> {
                         Some(id) => id,
                         None => { "Didn't find ID property" }
                     };
+
+                    let language = match item.get("current_language").and_then(Value::as_str) {
+                        Some(id) => id,
+                        None => { "Didn't find ID property" }
+                    };
                     let date: Vec<String> = match item.get("date").and_then(Value::as_array) {
                         Some(date) => {
                             date.iter()
@@ -199,7 +205,8 @@ pub(crate) async fn show() -> Result<(), error::mdown::Error> {
                     println!("MWD: {}", mwd);
                     println!("ID: {}", id);
                     println!("{}", date_str);
-                    println!("cover: {}", cover);
+                    println!("Cover: {}", cover);
+                    println!("Language: {}", language);
                     println!("Chapters: {}", chapter_str);
                     println!("");
                 }
@@ -656,6 +663,29 @@ pub(crate) async fn resolve_check() -> Result<(), error::mdown::Error> {
                             ).iter() {
                                 println!(" {} (OUTDATED CHAPTER)", chapter);
                             }
+                        } else if
+                            (match FIXED_DATES.lock() {
+                                Ok(value) => !value.is_empty(),
+                                Err(err) => {
+                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                }
+                            }) &&
+                            true
+                        {
+                            to_dow = false;
+                            println!("Chapters ERROR");
+                            for date in (
+                                match FIXED_DATES.lock() {
+                                    Ok(value) => value,
+                                    Err(err) => {
+                                        return Err(
+                                            error::mdown::Error::PoisonError(err.to_string())
+                                        );
+                                    }
+                                }
+                            ).iter() {
+                                println!(" {} (CORRUPT DATE) (FIXED)", date);
+                            }
                         } else {
                             to_dow = false;
                         }
@@ -1047,26 +1077,23 @@ pub(crate) async fn resolve(
         let mut langs = String::new();
         let mut lang_range: usize = 0;
         for lang in languages {
-            langs.push_str(&format!("{} ", lang));
-            lang_range += 1 + lang.to_string().len();
+            langs.push_str(&format!("{} ", lang.to_string().replace("\"", "")));
+            lang_range += 1 + lang.to_string().replace("\"", "").len();
         }
         lang_range -= 1;
         string(
             1,
             0,
-            &format!(
-                "Language is not available\nSelected language: {}\nOriginal language: {}\nAvailable languages: {}\nChoose from these    {}",
-                match LANGUAGE.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(error::mdown::Error::PoisonError(err.to_string()));
-                    }
-                },
-                orig_lang,
-                langs,
-                "^".repeat(lang_range)
-            )
+            &format!("Language is not available\nSelected language: {}", match LANGUAGE.lock() {
+                Ok(value) => value,
+                Err(err) => {
+                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                }
+            })
         );
+        string(3, 0, &format!("Original language: {}", orig_lang));
+        string(4, 0, &format!("Available languages: {}", langs));
+        string(5, 0, &format!("Choose from these    {}", "^".repeat(lang_range)));
         return Ok(manga_name);
     }
     drop(current_lang);

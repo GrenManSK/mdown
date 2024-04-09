@@ -491,7 +491,7 @@ pub(crate) async fn download_manga(
             for item in 0..data_len {
                 let mut date_change = false;
                 let parsed = format!(
-                    "Parsed chapters: {}/{}",
+                    "   Parsed chapters: {}/{}",
                     match resolute::CURRENT_CHAPTER_PARSED.lock() {
                         Ok(value) => value,
                         Err(err) => {
@@ -595,6 +595,37 @@ pub(crate) async fn download_manga(
                                                 )
                                             );
                                         }
+                                    } else if datetime_cur > datetime {
+                                        (
+                                            match resolute::FIXED_DATES.lock() {
+                                                Ok(value) => value,
+                                                Err(err) => {
+                                                    return Err(
+                                                        error::mdown::Error::PoisonError(
+                                                            err.to_string()
+                                                        )
+                                                    );
+                                                }
+                                            }
+                                        ).push(chapter_num.to_string());
+                                        (
+                                            match resolute::CHAPTERS_TO_REMOVE.lock() {
+                                                Ok(value) => value,
+                                                Err(err) => {
+                                                    return Err(
+                                                        error::mdown::Error::PoisonError(
+                                                            err.to_string()
+                                                        )
+                                                    );
+                                                }
+                                            }
+                                        ).push(
+                                            resolute::ChapterMetadata::new(
+                                                chapter_num,
+                                                &cur_date,
+                                                id
+                                            )
+                                        );
                                     }
                                 }
                                 Err(_err) => (),
