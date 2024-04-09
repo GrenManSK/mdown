@@ -47,33 +47,54 @@ pub(crate) fn get_folder_name(manga_name: &str) -> String {
 }
 
 pub(crate) fn get_manga_name(title_data: &Value) -> String {
-    (
-        match
-            title_data
-                .get("title")
-                .and_then(|attr_data| attr_data.get("en"))
-                .and_then(Value::as_str)
-        {
-            Some(attr_data) => attr_data,
-            None => {
-                let get = title_data.get("altTitles").and_then(|val| val.as_array());
-                if let Some(get) = get {
-                    let mut return_title = "*";
-                    for title_object in get {
-                        if let Some(lang_object) = title_object.as_object() {
-                            for (lang, title) in lang_object.iter() {
-                                if lang == "en" {
-                                    return_title = match title.as_str() {
-                                        Some(s) => s,
-                                        None => "",
-                                    };
-                                    break;
+    if
+        *(match resolute::LANGUAGE.lock() {
+            Ok(value) => value,
+            Err(_err) => {
+                return String::from("Poison Error");
+            }
+        }) == String::from("en")
+    {
+        (
+            match
+                title_data
+                    .get("title")
+                    .and_then(|attr_data| attr_data.get("en"))
+                    .and_then(Value::as_str)
+            {
+                Some(attr_data) => attr_data,
+                None => {
+                    let get = title_data.get("altTitles").and_then(|val| val.as_array());
+                    if let Some(get) = get {
+                        let mut return_title = "*";
+                        for title_object in get {
+                            if let Some(lang_object) = title_object.as_object() {
+                                for (lang, title) in lang_object.iter() {
+                                    if lang == "en" {
+                                        return_title = match title.as_str() {
+                                            Some(s) => s,
+                                            None => "",
+                                        };
+                                        break;
+                                    }
                                 }
                             }
+                            break;
                         }
-                        break;
-                    }
-                    if return_title == "*" {
+                        if return_title == "*" {
+                            let and_then = title_data
+                                .get("title")
+                                .and_then(|attr_data| attr_data.get("ja-ro"))
+                                .and_then(Value::as_str);
+                            if let Some(and_then) = and_then {
+                                and_then
+                            } else {
+                                "Unrecognized title"
+                            }
+                        } else {
+                            return_title
+                        }
+                    } else {
                         let and_then = title_data
                             .get("title")
                             .and_then(|attr_data| attr_data.get("ja-ro"))
@@ -83,23 +104,64 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                         } else {
                             "Unrecognized title"
                         }
-                    } else {
-                        return_title
-                    }
-                } else {
-                    let and_then = title_data
-                        .get("title")
-                        .and_then(|attr_data| attr_data.get("ja-ro"))
-                        .and_then(Value::as_str);
-                    if let Some(and_then) = and_then {
-                        and_then
-                    } else {
-                        "Unrecognized title"
                     }
                 }
             }
+        ).to_string()
+    } else {
+        let get = title_data.get("altTitles").and_then(|val| val.as_array());
+
+        if let Some(get) = get {
+            let mut return_title = String::from("*");
+            let mut get_final: serde_json::Map<String, Value> = serde_json::Map::new();
+
+            for obj in get {
+                if let Value::Object(inner_map) = obj {
+                    for (key, value) in inner_map {
+                        get_final.insert(key.to_string(), value.clone());
+                    }
+                }
+            }
+            for (lang, title) in get_final {
+                if
+                    lang ==
+                    *(match resolute::LANGUAGE.lock() {
+                        Ok(value) => value,
+                        Err(_err) => {
+                            return String::from("Poison Error");
+                        }
+                    })
+                {
+                    return_title = title.to_string();
+                    break;
+                }
+            }
+
+            if return_title == String::from("*") {
+                let and_then = title_data
+                    .get("title")
+                    .and_then(|attr_data| attr_data.get("ja-ro"))
+                    .and_then(Value::as_str);
+                if let Some(and_then) = and_then {
+                    and_then.to_string().replace("\"", "")
+                } else {
+                    String::from("Unrecognized title")
+                }
+            } else {
+                return_title.replace("\"", "")
+            }
+        } else {
+            let and_then = title_data
+                .get("title")
+                .and_then(|attr_data| attr_data.get("ja-ro"))
+                .and_then(Value::as_str);
+            if let Some(and_then) = and_then {
+                and_then.to_string().replace("\"", "")
+            } else {
+                String::from("Unrecognized title")
+            }
         }
-    ).to_string()
+    }
 }
 
 pub(crate) async fn get_manga_json(id: &str) -> Result<String, error::mdown::Error> {

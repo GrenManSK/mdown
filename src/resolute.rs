@@ -45,6 +45,7 @@ lazy_static! {
     pub(crate) static ref SAVER: Mutex<bool> = Mutex::new(ARGS.saver);
     pub(crate) static ref DATE_FETCHED: Mutex<Vec<String>> = Mutex::new(Vec::new());
     pub(crate) static ref LANGUAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(crate) static ref LANGUAGE: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref CHAPTER_DATES: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
 }
 
@@ -67,13 +68,15 @@ pub(crate) fn args_delete() -> Result<(), error::mdown::Error> {
 pub(crate) struct ChapterMetadata {
     pub(crate) updated_at: String,
     pub(crate) number: String,
+    pub(crate) id: String,
 }
 
 impl ChapterMetadata {
-    pub(crate) fn new(number: &str, updated_at: &str) -> ChapterMetadata {
+    pub(crate) fn new(number: &str, updated_at: &str, id: &str) -> ChapterMetadata {
         ChapterMetadata {
             updated_at: updated_at.to_owned(),
             number: number.to_owned(),
+            id: id.to_owned(),
         }
     }
 
@@ -81,6 +84,7 @@ impl ChapterMetadata {
         let mut json = HashMap::new();
         json.insert("number".to_owned(), self.number.clone());
         json.insert("updatedAt".to_owned(), self.updated_at.clone());
+        json.insert("id".to_owned(), self.id.clone());
         json
     }
 
@@ -88,13 +92,20 @@ impl ChapterMetadata {
         json!({
             "number": self.number.clone(),
             "updatedAt": self.updated_at.clone(),
+            "id": self.id.clone(),
         })
     }
 }
 
 impl std::fmt::Display for ChapterMetadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\"number\": {}, \"updatedAt\": {}", self.number, self.updated_at)
+        write!(
+            f,
+            "\"number\": {}, \"updatedAt\": {}, \"id\": {}",
+            self.number,
+            self.updated_at,
+            self.id
+        )
     }
 }
 
@@ -326,6 +337,22 @@ pub(crate) async fn resolve_check() -> Result<(), error::mdown::Error> {
                             );
                         }
                     };
+
+                    *(match LANGUAGE.lock() {
+                        Ok(value) => value,
+                        Err(err) => {
+                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                        }
+                    }) = match item.get("current_language").and_then(Value::as_str) {
+                        Some(val) => val.to_string(),
+                        None => {
+                            return Err(
+                                error::mdown::Error::NotFoundError(
+                                    String::from("Didn't find ID property")
+                                )
+                            );
+                        }
+                    };
                     if std::env::set_current_dir(mwd).is_err() {
                         println!("{} not found; deleting from database", &manga_name);
                         to_remove.push(iter);
@@ -530,7 +557,8 @@ pub(crate) async fn resolve_check() -> Result<(), error::mdown::Error> {
                             chapters_temp.retain(|value| {
                                 let number = getter::get_attr_as_str(value, "number");
                                 let date = getter::get_attr_as_str(value, "updatedAt");
-                                ChapterMetadata::new(number, date).value() != i.value()
+                                let id = getter::get_attr_as_str(value, "id");
+                                ChapterMetadata::new(number, date, id).value() != i.value()
                             });
                         }
                         drop(chapters_remove);
@@ -538,7 +566,8 @@ pub(crate) async fn resolve_check() -> Result<(), error::mdown::Error> {
                         for i in chapters_temp.iter() {
                             let number = getter::get_attr_as_str(i, "number");
                             let date = getter::get_attr_as_str(i, "updatedAt");
-                            chapters.push(ChapterMetadata::new(number, date).value());
+                            let id = getter::get_attr_as_str(i, "id");
+                            chapters.push(ChapterMetadata::new(number, date, id).value());
                         }
                         let chapters_lock = match CHAPTERS.lock() {
                             Ok(value) => value,
@@ -861,7 +890,15 @@ pub(crate) fn resolve_dat() -> Result<(), error::mdown::Error> {
                             );
                         }
                     }.clone(),
-                    "languages":  match LANGUAGES.lock(){
+                    "available_languages":  match LANGUAGES.lock(){
+                        Ok(value) => value,
+                        Err(err) => {
+                            return Err(
+                                error::mdown::Error::PoisonError(err.to_string())
+                            );
+                        }
+                    }.clone(),
+                    "current_language":  match LANGUAGE.lock(){
                         Ok(value) => value,
                         Err(err) => {
                             return Err(
@@ -981,7 +1018,19 @@ pub(crate) async fn resolve(
             }
         });
     }
-    if ARGS.lang != orig_lang && !final_lang.contains(&ARGS.lang.as_str()) && ARGS.lang != "*" {
+    let current_lang = (
+        match LANGUAGE.lock() {
+            Ok(value) => value,
+            Err(err) => {
+                return Err(error::mdown::Error::PoisonError(err.to_string()));
+            }
+        }
+    ).to_string();
+    if
+        current_lang != orig_lang &&
+        !final_lang.contains(&current_lang.as_str()) &&
+        current_lang != "*"
+    {
         let mut final_lang = vec![];
         for lang in languages {
             final_lang.push(match lang.as_str() {
@@ -1007,7 +1056,12 @@ pub(crate) async fn resolve(
             0,
             &format!(
                 "Language is not available\nSelected language: {}\nOriginal language: {}\nAvailable languages: {}\nChoose from these    {}",
-                ARGS.lang,
+                match LANGUAGE.lock() {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(error::mdown::Error::PoisonError(err.to_string()));
+                    }
+                },
                 orig_lang,
                 langs,
                 "^".repeat(lang_range)
@@ -1015,6 +1069,7 @@ pub(crate) async fn resolve(
         );
         return Ok(manga_name);
     }
+    drop(current_lang);
     *(match DOWNLOADING.lock() {
         Ok(value) => value,
         Err(err) => {
@@ -1064,9 +1119,7 @@ pub(crate) async fn resolve(
             .and_then(Value::as_str)
     {
         Some(value) => value,
-        None => {
-            return Err(error::mdown::Error::NotFoundError(String::from("resolve")));
-        }
+        None => { "" }
     };
     let mut desc_file = match
         OpenOptions::new()

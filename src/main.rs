@@ -321,6 +321,15 @@ async fn start() -> Result<(), error::mdown::Final> {
         }
     };
 
+    *(match resolute::LANGUAGE.lock() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(
+                error::mdown::Final::Final(error::mdown::Error::PoisonError(err.to_string()))
+            );
+        }
+    }) = ARGS.lang.clone();
+
     let id;
 
     if ARGS.search != String::from("*") {
@@ -451,7 +460,12 @@ pub(crate) async fn download_manga(
     };
     let (mut downloaded, mut hist) = (vec![], vec![]);
     let (mut times, mut moves) = (0, 0);
-    let language = ARGS.lang.to_string();
+    let language = match resolute::LANGUAGE.lock() {
+        Ok(value) => value.to_string(),
+        Err(err) => {
+            return Err(error::mdown::Error::PoisonError(err.to_string()));
+        }
+    };
     let mut filename;
     let json_value = match utils::get_json(&manga_json) {
         Ok(value) => value,
@@ -527,6 +541,8 @@ pub(crate) async fn download_manga(
                 };
                 let folder_path = filename.get_folder_name();
                 if
+                    (lang == language || language == "*") &&
+                    chapter_num != "This is test" &&
                     fs::metadata(filename.get_file_w_folder()).is_ok() &&
                     !arg_force &&
                     !(match resolute::check_for_metadata_saver(&filename.get_file_w_folder()) {
@@ -574,7 +590,8 @@ pub(crate) async fn download_manga(
                                             ).push(
                                                 resolute::ChapterMetadata::new(
                                                     chapter_num,
-                                                    &cur_date
+                                                    &cur_date,
+                                                    id
                                                 )
                                             );
                                         }
@@ -592,7 +609,11 @@ pub(crate) async fn download_manga(
                             return Err(error::mdown::Error::PoisonError(err.to_string()));
                         }
                     }) += 1;
-                    if cont {
+                    if
+                        cont &&
+                        (lang == language || language == "*") &&
+                        chapter_num != "This is test"
+                    {
                         (
                             match resolute::CHAPTERS.lock() {
                                 Ok(value) => value,
@@ -600,7 +621,7 @@ pub(crate) async fn download_manga(
                                     return Err(error::mdown::Error::PoisonError(err.to_string()));
                                 }
                             }
-                        ).push(resolute::ChapterMetadata::new(&chapter_num, update_date));
+                        ).push(resolute::ChapterMetadata::new(&chapter_num, update_date, id));
                         (moves, hist) = utils::skip(
                             utils::process_filename(&folder_path),
                             item,
@@ -641,7 +662,7 @@ pub(crate) async fn download_manga(
                                     return Err(error::mdown::Error::PoisonError(err.to_string()));
                                 }
                             }
-                        ).push(resolute::ChapterMetadata::new(chapter_num, &cur_date));
+                        ).push(resolute::ChapterMetadata::new(chapter_num, &cur_date, id));
                         drop(dates);
                     }
                     let update_date = getter::get_attr_as_str(chapter_attr, "updatedAt");
@@ -730,6 +751,7 @@ pub(crate) async fn download_manga(
                             Ok(json) => {
                                 match
                                     download_chapter(
+                                        id,
                                         json,
                                         &manga_name,
                                         title,
@@ -827,6 +849,7 @@ pub(crate) async fn download_manga(
 }
 
 pub(crate) async fn download_chapter(
+    id: &str,
     manga_json: String,
     manga_name: &str,
     title: &str,
@@ -1109,7 +1132,11 @@ pub(crate) async fn download_chapter(
                                 }
                             }) = 0;
 
-                            let chapter_met = resolute::ChapterMetadata::new(chapter, update_date);
+                            let chapter_met = resolute::ChapterMetadata::new(
+                                chapter,
+                                update_date,
+                                id
+                            );
                             (
                                 match resolute::CHAPTERS.lock() {
                                     Ok(value) => value,
