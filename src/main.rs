@@ -812,6 +812,15 @@ pub(crate) async fn download_manga(
                                 ).push(err);
                             }
                         }
+                        // prettier-ignore or #[rustfmt::skip]
+                        if match IS_END.lock() {
+                                Ok(value) => *value,
+                                Err(err) => {
+                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                }
+                            } {
+                            return Ok(downloaded);
+                        }
                         match resolute::resolve_group(array_item, manga_name).await {
                             Ok(()) => (),
                             Err(err) => {
@@ -820,9 +829,9 @@ pub(crate) async fn download_manga(
                         }
                         utils::clear_screen(5);
                         string(
-                            7,
+                            6,
                             0,
-                            &format!("  Converting images to cbz files: {}.cbz", folder_path)
+                            &format!("  Converting images to cbz files: {}.cbz", filename.get_folder())
                         );
                         let file_name = filename.get_file_w_folder();
                         zip_func::to_zip(&folder_path, &file_name, handle_id.clone()).await;
@@ -1142,6 +1151,7 @@ pub(crate) async fn download_chapter(
                                             }
                                         }
                                         {
+                                            std::thread::sleep(std::time::Duration::from_millis(1000));
                                             *(match IS_END.lock() {
                                                 Ok(value) => value,
                                                 Err(err) => {

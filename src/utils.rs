@@ -756,6 +756,9 @@ impl FileName {
     pub(crate) fn get_folder_w_end(&self) -> String {
         format!(".cache/{}/", self.get_folder_name())
     }
+    pub(crate) fn get_folder(&self) -> String {
+        format!(".cache/{}", self.get_folder_name())
+    }
     pub(crate) fn get_lock(&self) -> String {
         format!(".cache\\{}.lock", self.get_folder_name())
     }

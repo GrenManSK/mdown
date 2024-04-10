@@ -18,7 +18,7 @@ fn zip_dir<T>(
     let dir_entries_vec: Vec<DirEntry> = it_temp.collect();
     let total_items = dir_entries_vec.len();
     let start = MAXPOINTS.max_x / 3 - ((total_items / 2) as i32);
-    progress_bar_preparation(start, total_items, 6);
+    progress_bar_preparation(start, total_items, 5);
     let mut zip = zip::ZipWriter::new(writer);
     let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
 
@@ -33,7 +33,7 @@ fn zip_dir<T>(
             }
         };
         if path.is_file() {
-            string(6, start + times, "#");
+            string(5, start + times, "#");
             #[allow(deprecated)]
             match zip.start_file_from_path(name, options) {
                 Ok(()) => (),
