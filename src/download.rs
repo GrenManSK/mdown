@@ -354,11 +354,11 @@ pub(crate) async fn download_image(
 
     let lock_file = process_filename(&format!(".cache\\{}.lock", folder_name));
 
-    string(5 + 1, -1 + start + (page as i32), "|");
-    string(5 + 1 + (page as i32), 0, "   Sleeping");
+    string(3 + 1, -1 + start + (page as i32), "|");
+    string(3 + 1 + (page as i32), 0, "   Sleeping");
     sleep(Duration::from_millis(((page - iter * times) * 50) as u64));
-    string(5 + 1 + (page as i32), 0, &format!("   {} Downloading {}", page_str, file_name_brief));
-    string(5 + 1, -1 + start + (page as i32), "/");
+    string(3 + 1 + (page as i32), 0, &format!("   {} Downloading {}", page_str, file_name_brief));
+    string(3 + 1, -1 + start + (page as i32), "/");
     let full_path = format!(".cache/{}/{}", folder_name, file_name);
 
     let saver = match resolute::SAVER.lock() {
@@ -380,7 +380,7 @@ pub(crate) async fn download_image(
 
     let (total_size, final_size) = get_size(&response);
 
-    string(5 + 1, -1 + start + (page as i32), "\\");
+    string(3 + 1, -1 + start + (page as i32), "\\");
     let mut file = match File::create(full_path.clone()) {
         Ok(file) => file,
         Err(err) => {
@@ -522,7 +522,7 @@ pub(crate) async fn download_image(
                 info!("@{} {}", handle_id, message.to_string());
             }
             string(
-                5 + 1 + (page as i32),
+                3 + 1 + (page as i32),
                 0,
                 &format!(
                     "{} {}",
@@ -555,7 +555,7 @@ pub(crate) async fn download_image(
     );
 
     string(
-        5 + 1 + (page as i32),
+        3 + 1 + (page as i32),
         0,
         &format!(
             "{} {}",
@@ -566,7 +566,7 @@ pub(crate) async fn download_image(
             )
         )
     );
-    string(5 + 1, -1 + start + (page as i32), "#");
+    string(3 + 1, -1 + start + (page as i32), "#");
     let mut lock_file = match
         OpenOptions::new()
             .read(true)

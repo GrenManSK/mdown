@@ -18,7 +18,7 @@ fn zip_dir<T>(
     let dir_entries_vec: Vec<DirEntry> = it_temp.collect();
     let total_items = dir_entries_vec.len();
     let start = MAXPOINTS.max_x / 3 - ((total_items / 2) as i32);
-    progress_bar_preparation(start, total_items, 8);
+    progress_bar_preparation(start, total_items, 6);
     let mut zip = zip::ZipWriter::new(writer);
     let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
 
@@ -33,7 +33,7 @@ fn zip_dir<T>(
             }
         };
         if path.is_file() {
-            string(8, start + times, "#");
+            string(6, start + times, "#");
             #[allow(deprecated)]
             match zip.start_file_from_path(name, options) {
                 Ok(()) => (),
@@ -109,7 +109,7 @@ pub(crate) async fn to_zip(src_dir: &str, dst_file: &str, handle_id: Box<str>) {
         info!("@{} Zipping files to: {} ...", handle_id, dst_file);
     }
     match doit(src_dir, dst_file) {
-        Ok(_) => string(9, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str()),
+        Ok(_) => string(7, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str()),
         Err(e) => eprintln!("  Error: {e:?}"),
     }
     if ARGS.web || ARGS.check || ARGS.update {

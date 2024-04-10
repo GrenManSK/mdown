@@ -1,17 +1,8 @@
 use serde_json::Value;
-use std::{ process::exit, thread::sleep, time::Duration };
+use std::process::exit;
 use tracing::info;
 
-use crate::{
-    download::get_response_client,
-    getter,
-    string,
-    utils::{ self, progress_bar_preparation },
-    ARGS,
-    MAXPOINTS,
-    error,
-    resolute,
-};
+use crate::{ download::get_response_client, getter, string, utils, ARGS, error, resolute };
 
 pub(crate) fn get_dat_path() -> Result<String, error::mdown::Error> {
     let current = match std::env::current_exe() {
@@ -62,7 +53,7 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                     .and_then(|attr_data| attr_data.get("en"))
                     .and_then(Value::as_str)
             {
-                Some(attr_data) => attr_data,
+                Some(manga_name) => manga_name,
                 None => {
                     let get = title_data.get("altTitles").and_then(|val| val.as_array());
                     if let Some(get) = get {
@@ -82,32 +73,34 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                             break;
                         }
                         if return_title == "*" {
-                            let and_then = title_data
-                                .get("title")
-                                .and_then(|attr_data| attr_data.get("ja-ro"))
-                                .and_then(Value::as_str);
-                            if let Some(and_then) = and_then {
-                                and_then
-                            } else {
-                                "Unrecognized title"
+                            match
+                                title_data
+                                    .get("title")
+                                    .and_then(|attr_data| attr_data.get("ja-ro"))
+                                    .and_then(Value::as_str)
+                            {
+                                Some(value) => value,
+                                None => "Unrecognized title",
                             }
                         } else {
                             return_title
                         }
                     } else {
-                        let and_then = title_data
-                            .get("title")
-                            .and_then(|attr_data| attr_data.get("ja-ro"))
-                            .and_then(Value::as_str);
-                        if let Some(and_then) = and_then {
-                            and_then
-                        } else {
-                            "Unrecognized title"
+                        match
+                            title_data
+                                .get("title")
+                                .and_then(|attr_data| attr_data.get("ja-ro"))
+                                .and_then(Value::as_str)
+                        {
+                            Some(value) => value,
+                            None => "Unrecognized title",
                         }
                     }
                 }
             }
-        ).to_string()
+        )
+            .to_string()
+            .replace("\"", "")
     } else {
         let get = title_data.get("altTitles").and_then(|val| val.as_array());
 
@@ -138,27 +131,47 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
             }
 
             if return_title == String::from("*") {
-                let and_then = title_data
-                    .get("title")
-                    .and_then(|attr_data| attr_data.get("ja-ro"))
-                    .and_then(Value::as_str);
-                if let Some(and_then) = and_then {
-                    and_then.to_string().replace("\"", "")
-                } else {
-                    String::from("Unrecognized title")
+                match
+                    title_data
+                        .get("title")
+                        .and_then(|attr_data| attr_data.get("en"))
+                        .and_then(Value::as_str)
+                {
+                    Some(manga_name) => manga_name.to_string().replace("\"", ""),
+                    None => {
+                        match
+                            title_data
+                                .get("title")
+                                .and_then(|attr_data| attr_data.get("ja-ro"))
+                                .and_then(Value::as_str)
+                        {
+                            Some(manga_name) => manga_name.to_string().replace("\"", ""),
+                            None => String::from("Unrecognized title"),
+                        }
+                    }
                 }
             } else {
                 return_title.replace("\"", "")
             }
         } else {
-            let and_then = title_data
-                .get("title")
-                .and_then(|attr_data| attr_data.get("ja-ro"))
-                .and_then(Value::as_str);
-            if let Some(and_then) = and_then {
-                and_then.to_string().replace("\"", "")
-            } else {
-                String::from("Unrecognized title")
+            match
+                title_data
+                    .get("title")
+                    .and_then(|attr_data| attr_data.get("en"))
+                    .and_then(Value::as_str)
+            {
+                Some(manga_name) => manga_name.to_string().replace("\"", ""),
+                None => {
+                    match
+                        title_data
+                            .get("title")
+                            .and_then(|attr_data| attr_data.get("ja-ro"))
+                            .and_then(Value::as_str)
+                    {
+                        Some(manga_name) => manga_name.to_string().replace("\"", ""),
+                        None => String::from("Unrecognized title"),
+                    }
+                }
             }
         }
     }
@@ -232,7 +245,7 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, error::mdown:
 
 pub(crate) async fn get_chapter(id: &str) -> Result<String, error::mdown::Error> {
     loop {
-        string(4, 0, "Retrieving chapter info");
+        string(3, 0, "Retrieving chapter info");
 
         let base_url = "https://api.mangadex.org/at-home/server/";
         let full_url = format!("{}{}", base_url, id);
@@ -262,7 +275,7 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, error::mdown::Error>
                 }
             };
 
-            string(4, 0, "Retrieving chapter info DONE");
+            string(3, 0, "Retrieving chapter info DONE");
             return Ok(json);
         } else {
             string(
@@ -290,26 +303,16 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, error::mdown::Error>
                     }
                 )
             );
-            string(6, 0, "Sleeping for 60 seconds ...");
-            progress_bar_preparation(MAXPOINTS.max_x - 30, 60, 7);
-            for i in 0..60 {
-                sleep(Duration::from_millis(1000));
-                string(7, MAXPOINTS.max_x - 29 + i, "#");
-            }
         }
     }
 }
 
 pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
     for relation in json {
-        let relation_type = relation.get("type");
         if let Some(relation_type) = relation.get("type") {
             if relation_type == "scanlation_group" {
                 return relation.get("id").and_then(Value::as_str);
             }
-        }
-        if relation_type.is_none() {
-            return None;
         }
     }
     None

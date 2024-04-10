@@ -514,7 +514,7 @@ pub(crate) async fn download_manga(
                 if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
                     info!("@{} {}", handle_id, message);
                 }
-                string(2, 0, &message);
+                string(1, 0, &message);
 
                 let (chapter_attr, lang, pages, chapter_num, mut title) =
                     getter::get_metadata(array_item);
@@ -714,7 +714,7 @@ pub(crate) async fn download_manga(
                         }) += 1;
                         continue;
                     }
-                    utils::clear_screen(3);
+                    utils::clear_screen(2);
                     let folder_path = filename.get_folder_w_end();
                     let mut pr_title_full = "".to_string();
                     if title != "" {
@@ -731,7 +731,7 @@ pub(crate) async fn download_manga(
                     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
                         info!("@{} {}", handle_id, message);
                     }
-                    string(3, 0, &message);
+                    string(2, 0, &message);
                     if
                         !ARGS.check ||
                         !(
@@ -818,7 +818,7 @@ pub(crate) async fn download_manga(
                                 error::handle_error(&err, String::from("group"));
                             }
                         }
-                        utils::clear_screen(7);
+                        utils::clear_screen(5);
                         string(
                             7,
                             0,
@@ -835,7 +835,7 @@ pub(crate) async fn download_manga(
                             }
                         }
 
-                        utils::clear_screen(3);
+                        utils::clear_screen(2);
                         if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
                             (
                                 match resolute::DOWNLOADED.lock() {
@@ -857,7 +857,7 @@ pub(crate) async fn download_manga(
                         lang,
                         language
                     );
-                    string(3, 0, &format!("  {}", message));
+                    string(2, 0, &format!("  {}", message));
 
                     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
                         info!("@{}  ({}) {}", handle_id, item, message);
@@ -890,7 +890,7 @@ pub(crate) async fn download_chapter(
     update_date: &str,
     handle_id: Box<str>
 ) -> Result<(), error::mdown::Error> {
-    string(5, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
+    string(3, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
         info!("@{} Downloading images in folder: {}", handle_id, filename.get_folder_name());
         let mut current_chapter = match resolute::CURRENT_CHAPTER.lock() {
@@ -1124,7 +1124,7 @@ pub(crate) async fn download_chapter(
                                     })
                                 });
 
-                                utils::progress_bar_preparation(start, images_length, 6);
+                                utils::progress_bar_preparation(start, images_length, 4);
 
                                 let _: Vec<_> = futures::future
                                     ::join_all(tasks).await

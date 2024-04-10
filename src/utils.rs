@@ -213,7 +213,7 @@ pub(crate) async fn wait_for_end(
             }
         }) = full_size;
         string(
-            6,
+            4,
             MAXPOINTS.max_x - 60,
             &format!(
                 "{:.2}% {:.2}mb/{:.2}mb [{:.2}mb remaining] [{:.2}s]",
@@ -221,7 +221,7 @@ pub(crate) async fn wait_for_end(
                 size,
                 full_size,
                 full_size - size,
-                (Instant::now() - start).as_secs_f64()
+                (Instant::now() - start).as_secs_f64().abs()
             )
         );
     }
