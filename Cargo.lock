@@ -2356,7 +2356,7 @@ dependencies = [
 
 [[package]]
 name = "mdown"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "chrono",
  "clap 4.5.4",

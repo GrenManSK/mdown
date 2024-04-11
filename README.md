@@ -45,7 +45,7 @@ See [site](https://mangadex.org/) for finding manga
 
 `--encode` - will print url in program readable format
 
-`--log` - will print progress requests when received, `--web` flag need to be set for this to work
+`--log` - will print log
 
 `--check` - check for for any manga updates
 

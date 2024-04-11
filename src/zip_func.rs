@@ -17,13 +17,13 @@ fn zip_dir<T>(
     let it_temp = &mut walkdir.into_iter().filter_map(|e| e.ok());
     let dir_entries_vec: Vec<DirEntry> = it_temp.collect();
     let total_items = dir_entries_vec.len();
-    let start = MAXPOINTS.max_x / 3 - ((total_items / 2) as i32);
+    let start = MAXPOINTS.max_x / 3 - ((total_items / 2) as u32) - 1;
     progress_bar_preparation(start, total_items, 5);
     let mut zip = zip::ZipWriter::new(writer);
     let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
 
     let mut buffer = Vec::new();
-    let mut times = -1;
+    let mut times = 0;
     for entry in it {
         let path = entry.path();
         let name = match path.strip_prefix(Path::new(prefix)) {
@@ -105,14 +105,14 @@ fn doit(src_dir: &str, dst_file: &str) -> Result<(), error::mdown::Error> {
 }
 
 pub(crate) async fn to_zip(src_dir: &str, dst_file: &str, handle_id: Box<str>) {
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         info!("@{} Zipping files to: {} ...", handle_id, dst_file);
     }
     match doit(src_dir, dst_file) {
         Ok(_) => string(7, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str()),
         Err(e) => eprintln!("  Error: {e:?}"),
     }
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         info!("@{} Zipping files to: {} Done", handle_id, dst_file);
     }
 }

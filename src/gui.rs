@@ -1,4 +1,4 @@
-use crate::{ utils, error::mdown::Error};
+use crate::{ utils, error::mdown::Error };
 
 fn app() -> Result<(), eframe::Error> {
     Ok(())

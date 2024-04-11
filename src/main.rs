@@ -146,12 +146,7 @@ struct Args {
         help = "print url in program readable format\n"
     )]
     encode: String,
-    #[arg(
-        long,
-        next_line_help = true,
-        requires = "web",
-        help = "print progress requests when received, \"--web\" flag need to be set for this to work"
-    )]
+    #[arg(long, next_line_help = true, help = "print log")]
     log: bool,
     #[arg(
         long,
@@ -182,22 +177,28 @@ struct Args {
     gui: bool,
 }
 
-fn string(y: i32, x: i32, value: &str) {
-    if !ARGS.web || !ARGS.gui || !ARGS.check || !ARGS.update {
-        stdscr().mvaddnstr(y, x, value, MAXPOINTS.max_x - x);
+fn string(y: u32, x: u32, value: &str) {
+    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+        stdscr().mvaddnstr(y as i32, x as i32, value, (MAXPOINTS.max_x - x) as i32);
         stdscr().refresh();
     }
 }
 pub(crate) struct MaxPoints {
-    max_x: i32,
-    max_y: i32,
+    max_x: u32,
+    max_y: u32,
 }
 
 lazy_static! {
     pub(crate) static ref ARGS: Args = Args::parse();
     pub(crate) static ref MAXPOINTS: MaxPoints = MaxPoints {
-        max_x: stdscr().get_max_x(),
-        max_y: stdscr().get_max_y(),
+        max_x: match stdscr().get_max_x() {
+            value @ 0.. => value as u32,
+            _ => 30,
+        },
+        max_y: match stdscr().get_max_y() {
+            value @ 0.. => value as u32,
+            _ => 30,
+        },
     };
     pub(crate) static ref IS_END: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref MANGA_ID: Mutex<String> = Mutex::new(String::new());
@@ -240,7 +241,7 @@ async fn start() -> Result<(), error::mdown::Final> {
     }
 
     // subscriber
-    if ARGS.web || ARGS.gui || ARGS.update || ARGS.gui {
+    if ARGS.web || ARGS.gui || ARGS.update || ARGS.gui || ARGS.log {
         match utils::setup_subscriber() {
             Ok(()) => (),
             Err(err) => {
@@ -248,6 +249,15 @@ async fn start() -> Result<(), error::mdown::Final> {
             }
         }
     }
+
+    *(match resolute::LANGUAGE.lock() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(
+                error::mdown::Final::Final(error::mdown::Error::PoisonError(err.to_string()))
+            );
+        }
+    }) = ARGS.lang.clone();
 
     //gui
     if ARGS.gui {
@@ -320,15 +330,6 @@ async fn start() -> Result<(), error::mdown::Final> {
             );
         }
     };
-
-    *(match resolute::LANGUAGE.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(
-                error::mdown::Final::Final(error::mdown::Error::PoisonError(err.to_string()))
-            );
-        }
-    }) = ARGS.lang.clone();
 
     let id;
 
@@ -454,18 +455,20 @@ pub(crate) async fn download_manga(
     let folder = getter::get_folder_name(manga_name);
     let arg_volume = getter::get_arg(ARGS.volume.to_string());
     let arg_chapter = getter::get_arg(ARGS.chapter.to_string());
-    let arg_offset: i32 = match getter::get_arg(ARGS.offset.to_string()).parse() {
+    let arg_offset: u32 = match getter::get_arg(ARGS.offset.to_string()).parse() {
         Ok(value) => value,
         Err(_err) => 0,
     };
     let (mut downloaded, mut hist) = (vec![], vec![]);
     let (mut times, mut moves) = (0, 0);
-    let language = match resolute::LANGUAGE.lock() {
+    let language_inst = match resolute::LANGUAGE.lock() {
         Ok(value) => value.to_string(),
         Err(err) => {
             return Err(error::mdown::Error::PoisonError(err.to_string()));
         }
     };
+    let language = language_inst.clone();
+    drop(language_inst);
     let mut filename;
     let json_value = match utils::get_json(&manga_json) {
         Ok(value) => value,
@@ -505,13 +508,15 @@ pub(crate) async fn download_manga(
                         }
                     }
                 );
-                string(0, MAXPOINTS.max_x - (parsed.len() as i32), &parsed);
+                if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+                    string(0, MAXPOINTS.max_x - (parsed.len() as u32), &parsed);
+                }
                 let array_item = getter::get_attr_as_same_from_vec(&data_array, item);
                 let value = getter::get_attr_as_same(array_item, "id").to_string();
                 let id = value.trim_matches('"');
 
-                let message = format!(" ({}) Found chapter with id: {}", item as i32, id);
-                if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+                let message = format!(" ({}) Found chapter with id: {}", item as u32, id);
+                if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
                     info!("@{} {}", handle_id, message);
                 }
                 string(1, 0, &message);
@@ -703,7 +708,7 @@ pub(crate) async fn download_manga(
                             return Err(error::mdown::Error::PoisonError(err.to_string()));
                         }
                     }) += 1;
-                    if arg_offset > (times as i32) {
+                    if arg_offset > times {
                         (moves, hist) = utils::skip_offset(item, moves, hist, handle_id.clone());
                         times += 1;
                         *(match resolute::CURRENT_CHAPTER_PARSED.lock() {
@@ -728,7 +733,7 @@ pub(crate) async fn download_manga(
                         chapter_num,
                         pr_title_full
                     );
-                    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+                    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
                         info!("@{} {}", handle_id, message);
                     }
                     string(2, 0, &message);
@@ -864,6 +869,7 @@ pub(crate) async fn download_manga(
                         }
                     }
                 } else {
+                    string(2, 0, &format!("{}", " ".repeat(MAXPOINTS.max_x as usize)));
                     let message = format!(
                         "Skipping because of wrong language; found '{}', target '{}' ...",
                         lang,
@@ -871,7 +877,7 @@ pub(crate) async fn download_manga(
                     );
                     string(2, 0, &format!("  {}", message));
 
-                    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+                    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
                         info!("@{}  ({}) {}", handle_id, item, message);
                     }
 
@@ -903,7 +909,7 @@ pub(crate) async fn download_chapter(
     handle_id: Box<str>
 ) -> Result<(), error::mdown::Error> {
     string(3, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         info!("@{} Downloading images in folder: {}", handle_id, filename.get_folder_name());
         let mut current_chapter = match resolute::CURRENT_CHAPTER.lock() {
             Ok(value) => value,
@@ -1058,7 +1064,7 @@ pub(crate) async fn download_chapter(
                                         err
                                     ),
                             }
-                            let start = MAXPOINTS.max_x / 3 - (images_length as i32) / 2;
+                            let start = MAXPOINTS.max_x / 3 - (images_length as u32) / 2;
 
                             let iter = match ARGS.max_consecutive.parse() {
                                 Ok(x) => x,

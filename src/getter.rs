@@ -2,7 +2,15 @@ use serde_json::Value;
 use std::process::exit;
 use tracing::info;
 
-use crate::{ download::get_response_client, getter, string, utils, ARGS, error::mdown::Error, resolute };
+use crate::{
+    download::get_response_client,
+    getter,
+    string,
+    utils,
+    ARGS,
+    error::mdown::Error,
+    resolute,
+};
 
 pub(crate) fn get_dat_path() -> Result<String, Error> {
     let current = match std::env::current_exe() {
@@ -25,9 +33,7 @@ pub(crate) fn get_dat_path() -> Result<String, Error> {
     let path = match parent.to_str() {
         Some(value) => value,
         None => {
-            return Err(
-                Error::ConversionError(String::from("Transition to str failed"))
-            );
+            return Err(Error::ConversionError(String::from("Transition to str failed")));
         }
     };
     Ok(format!("{}\\dat.json", path))
@@ -38,143 +44,117 @@ pub(crate) fn get_folder_name(manga_name: &str) -> String {
 }
 
 pub(crate) fn get_manga_name(title_data: &Value) -> String {
-    if
-        *(match resolute::LANGUAGE.lock() {
-            Ok(value) => value,
-            Err(_err) => {
-                return String::from("Poison Error");
+    let lang = match resolute::LANGUAGE.lock() {
+        Ok(value) => value,
+        Err(_err) => {
+            return String::from("Poison Error");
+        }
+    };
+    (
+        match
+            title_data
+                .get("title")
+                .and_then(|attr_data| attr_data.get(lang.clone()))
+                .and_then(Value::as_str)
+        {
+            Some(manga_name) => {
+                drop(lang);
+                manga_name.to_string()
             }
-        }) == String::from("en")
-    {
-        (
-            match
-                title_data
-                    .get("title")
-                    .and_then(|attr_data| attr_data.get("en"))
-                    .and_then(Value::as_str)
-            {
-                Some(manga_name) => manga_name,
-                None => {
-                    let get = title_data.get("altTitles").and_then(|val| val.as_array());
-                    if let Some(get) = get {
-                        let mut return_title = "*";
-                        for title_object in get {
-                            if let Some(lang_object) = title_object.as_object() {
-                                for (lang, title) in lang_object.iter() {
-                                    if lang == "en" {
-                                        return_title = match title.as_str() {
-                                            Some(s) => s,
-                                            None => "",
-                                        };
-                                        break;
-                                    }
+            None => {
+                drop(lang);
+                let mut return_title = String::from("*");
+                let get = title_data.get("altTitles").and_then(|val| val.as_array());
+                if let Some(get) = get {
+                    for title_object in get {
+                        if let Some(lang_object) = title_object.as_object() {
+                            for (lang, title) in lang_object.iter() {
+                                if lang == "en" {
+                                    return_title = match title.as_str() {
+                                        Some(s) => s.to_string(),
+                                        None => String::new(),
+                                    };
+                                    break;
                                 }
                             }
-                            break;
                         }
-                        if return_title == "*" {
+                        break;
+                    }
+                    if return_title == "*" {
+                        return_title = match
+                            title_data
+                                .get("title")
+                                .and_then(|attr_data| attr_data.get("ja-ro"))
+                                .and_then(Value::as_str)
+                        {
+                            Some(value) => value.to_string(),
+                            None => String::from("*"),
+                        };
+                    } else {
+                        return return_title.replace("\"", "");
+                    }
+                    let get = title_data.get("altTitles").and_then(|val| val.as_array());
+
+                    if let Some(get) = get {
+                        let mut get_final: serde_json::Map<String, Value> = serde_json::Map::new();
+
+                        for obj in get {
+                            if let Value::Object(inner_map) = obj {
+                                for (key, value) in inner_map {
+                                    get_final.insert(key.to_string(), value.clone());
+                                }
+                            }
+                        }
+                        for (lang, title) in &get_final {
+                            if
+                                *lang ==
+                                *(match resolute::LANGUAGE.lock() {
+                                    Ok(value) => value,
+                                    Err(_err) => {
+                                        return String::from("Poison Error");
+                                    }
+                                })
+                            {
+                                return_title = title.to_string();
+                                break;
+                            }
+                        }
+                        if return_title == String::from("*") {
+                            for (lang, title) in get_final {
+                                if lang == "en" {
+                                    return_title = title.to_string();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if return_title == String::from("*") {
+                    match
+                        title_data
+                            .get("title")
+                            .and_then(|attr_data| attr_data.get("en"))
+                            .and_then(Value::as_str)
+                    {
+                        Some(manga_name) => manga_name.to_string(),
+                        None => {
                             match
                                 title_data
                                     .get("title")
                                     .and_then(|attr_data| attr_data.get("ja-ro"))
                                     .and_then(Value::as_str)
                             {
-                                Some(value) => value,
-                                None => "Unrecognized title",
+                                Some(manga_name) => manga_name.to_string(),
+                                None => String::from("Unrecognized title"),
                             }
-                        } else {
-                            return_title
-                        }
-                    } else {
-                        match
-                            title_data
-                                .get("title")
-                                .and_then(|attr_data| attr_data.get("ja-ro"))
-                                .and_then(Value::as_str)
-                        {
-                            Some(value) => value,
-                            None => "Unrecognized title",
                         }
                     }
-                }
-            }
-        )
-            .to_string()
-            .replace("\"", "")
-    } else {
-        let get = title_data.get("altTitles").and_then(|val| val.as_array());
-
-        if let Some(get) = get {
-            let mut return_title = String::from("*");
-            let mut get_final: serde_json::Map<String, Value> = serde_json::Map::new();
-
-            for obj in get {
-                if let Value::Object(inner_map) = obj {
-                    for (key, value) in inner_map {
-                        get_final.insert(key.to_string(), value.clone());
-                    }
-                }
-            }
-            for (lang, title) in get_final {
-                if
-                    lang ==
-                    *(match resolute::LANGUAGE.lock() {
-                        Ok(value) => value,
-                        Err(_err) => {
-                            return String::from("Poison Error");
-                        }
-                    })
-                {
-                    return_title = title.to_string();
-                    break;
-                }
-            }
-
-            if return_title == String::from("*") {
-                match
-                    title_data
-                        .get("title")
-                        .and_then(|attr_data| attr_data.get("en"))
-                        .and_then(Value::as_str)
-                {
-                    Some(manga_name) => manga_name.to_string().replace("\"", ""),
-                    None => {
-                        match
-                            title_data
-                                .get("title")
-                                .and_then(|attr_data| attr_data.get("ja-ro"))
-                                .and_then(Value::as_str)
-                        {
-                            Some(manga_name) => manga_name.to_string().replace("\"", ""),
-                            None => String::from("Unrecognized title"),
-                        }
-                    }
-                }
-            } else {
-                return_title.replace("\"", "")
-            }
-        } else {
-            match
-                title_data
-                    .get("title")
-                    .and_then(|attr_data| attr_data.get("en"))
-                    .and_then(Value::as_str)
-            {
-                Some(manga_name) => manga_name.to_string().replace("\"", ""),
-                None => {
-                    match
-                        title_data
-                            .get("title")
-                            .and_then(|attr_data| attr_data.get("ja-ro"))
-                            .and_then(Value::as_str)
-                    {
-                        Some(manga_name) => manga_name.to_string().replace("\"", ""),
-                        None => String::from("Unrecognized title"),
-                    }
+                } else {
+                    return_title
                 }
             }
         }
-    }
+    ).replace("\"", "")
 }
 
 pub(crate) async fn get_manga_json(id: &str) -> Result<String, Error> {
@@ -196,9 +176,7 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, Error> {
                         Some(status) => status,
                         None => {
                             return Err(
-                                Error::NotFoundError(
-                                    String::from("StatusCode (get_manga_json)")
-                                )
+                                Error::NotFoundError(String::from("StatusCode (get_manga_json)"))
                             );
                         }
                     })
@@ -265,9 +243,7 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, Error> {
                             Some(status) => status,
                             None => {
                                 return Err(
-                                    Error::NotFoundError(
-                                        String::from("StatusCode (get_chapter)")
-                                    )
+                                    Error::NotFoundError(String::from("StatusCode (get_chapter)"))
                                 );
                             }
                         })
@@ -320,7 +296,7 @@ pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
 
 pub(crate) async fn get_manga(
     id: &str,
-    offset: i32,
+    offset: u32,
     handle_id: Option<Box<str>>
 ) -> Result<(String, usize), Error> {
     let handle_id = match handle_id {
@@ -330,7 +306,7 @@ pub(crate) async fn get_manga(
     let mut times = 0;
     let mut json: String;
     let mut json_2: String = String::new();
-    let mut times_offset: i32;
+    let mut times_offset: u32;
     loop {
         times_offset = offset + 500 * times;
         string(
@@ -364,9 +340,7 @@ pub(crate) async fn get_manga(
                             Some(status) => status,
                             None => {
                                 return Err(
-                                    Error::NotFoundError(
-                                        String::from("StatusCode (get_manga)")
-                                    )
+                                    Error::NotFoundError(String::from("StatusCode (get_manga)"))
                                 );
                             }
                         })
@@ -406,7 +380,7 @@ pub(crate) async fn get_manga(
                             offset.to_string()
                         );
                         string(1, 0, &message);
-                        if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+                        if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
                             info!("@{} {}", handle_id, message);
                         }
                         offset_temp = data_array.len();
@@ -429,9 +403,7 @@ pub(crate) async fn get_manga(
                                     Some(value) => value,
                                     None => {
                                         return Err(
-                                            Error::JsonError(
-                                                String::from("Didn't found data")
-                                            )
+                                            Error::JsonError(String::from("Didn't found data"))
                                         );
                                     }
                                 };
@@ -439,9 +411,7 @@ pub(crate) async fn get_manga(
                                     Some(value) => value,
                                     None => {
                                         return Err(
-                                            Error::JsonError(
-                                                String::from("Didn't found data")
-                                            )
+                                            Error::JsonError(String::from("Didn't found data"))
                                         );
                                     }
                                 };
@@ -488,21 +458,13 @@ pub(crate) async fn get_manga(
                             let data1_array = match data1.get_mut("data") {
                                 Some(value) => value,
                                 None => {
-                                    return Err(
-                                        Error::JsonError(
-                                            String::from("Did not find data")
-                                        )
-                                    );
+                                    return Err(Error::JsonError(String::from("Did not find data")));
                                 }
                             };
                             let data2_array = match data2.get("data") {
                                 Some(value) => value,
                                 None => {
-                                    return Err(
-                                        Error::JsonError(
-                                            String::from("Did not find data")
-                                        )
-                                    );
+                                    return Err(Error::JsonError(String::from("Did not find data")));
                                 }
                             };
 
@@ -570,10 +532,7 @@ pub(crate) fn get_attr_as_same_as_index(data_array: &Value, item: usize) -> &Val
     match data_array.get(item) {
         Some(value) => value,
         None => {
-            eprintln!(
-                "{}",
-                Error::NotFoundError(String::from("get_attr_as_same_as_index"))
-            );
+            eprintln!("{}", Error::NotFoundError(String::from("get_attr_as_same_as_index")));
             exit(1);
         }
     }
@@ -583,10 +542,7 @@ pub(crate) fn get_attr_as_same_from_vec(data_array: &Vec<Value>, item: usize) ->
     match data_array.get(item) {
         Some(value) => value,
         None => {
-            eprintln!(
-                "{}",
-                Error::NotFoundError(String::from("get_attr_as_same_from_vec"))
-            );
+            eprintln!("{}", Error::NotFoundError(String::from("get_attr_as_same_from_vec")));
             exit(1);
         }
     }

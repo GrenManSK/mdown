@@ -22,7 +22,7 @@ use crate::{
     utils,
     ARGS,
     MANGA_ID,
-    error::{mdown::Error, handle_error},
+    error::{ mdown::Error, handle_error },
 };
 
 fn decode(url: &str) -> String {

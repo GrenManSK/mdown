@@ -1172,7 +1172,7 @@ pub(crate) async fn resolve(
         }
     }
 
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         info!("@{} Downloaded manga", match handle_id {
             Some(id) => id,
             None => String::from("0").into_boxed_str(),
@@ -1322,7 +1322,7 @@ async fn resolve_manga(
     was_rewritten: bool,
     handle_id: Option<Box<str>>
 ) -> Result<(), Error> {
-    let going_offset: i32 = match ARGS.database_offset.as_str().parse() {
+    let going_offset: u32 = match ARGS.database_offset.as_str().parse() {
         Ok(offset) => offset,
         Err(err) => {
             return Err(Error::ConversionError(err.to_string()));
@@ -1353,11 +1353,11 @@ async fn resolve_manga(
         }
         Err(err) => eprintln!("Error: {}", err),
     }
-    if !ARGS.web || !ARGS.gui || !ARGS.check || !ARGS.update {
+    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
         if downloaded.len() != 0 {
             string(1, 0, "Downloaded files:");
             for i in 0..downloaded.len() {
-                (_, downloaded) = resolve_move(i as i32, downloaded.clone(), 2, 1);
+                (_, downloaded) = resolve_move(i as u32, downloaded.clone(), 2, 1);
             }
         } else {
             if !was_rewritten {
@@ -1372,11 +1372,11 @@ async fn resolve_manga(
 }
 
 pub(crate) fn resolve_move(
-    mut moves: i32,
+    mut moves: u32,
     mut hist: Vec<String>,
-    start: i32,
-    end: i32
-) -> (i32, Vec<String>) {
+    start: u32,
+    end: u32
+) -> (u32, Vec<String>) {
     if moves + start >= MAXPOINTS.max_y - end {
         hist.remove(0);
     } else {
@@ -1390,7 +1390,7 @@ pub(crate) fn resolve_move(
         let length = message.len();
         if length < (MAXPOINTS.max_x as usize) {
             string(
-                start + i,
+                (start + i) as u32,
                 0,
                 &format!("{}{}", message, " ".repeat((MAXPOINTS.max_x as usize) - message.len()))
             );

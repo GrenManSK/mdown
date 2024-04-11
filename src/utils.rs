@@ -104,8 +104,8 @@ pub(crate) fn is_valid_uuid(s: &str) -> bool {
     }
 }
 
-pub(crate) fn clear_screen(from: i32) {
-    if !ARGS.web || !ARGS.gui || !ARGS.check || !ARGS.update {
+pub(crate) fn clear_screen(from: u32) {
+    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
         for i in from..MAXPOINTS.max_y {
             string(i, 0, &" ".repeat(MAXPOINTS.max_x as usize));
         }
@@ -235,16 +235,16 @@ pub(crate) async fn wait_for_end(file_path: String, images_length: usize) -> Res
     Ok(())
 }
 
-pub(crate) fn progress_bar_preparation(start: i32, images_length: usize, line: i32) {
-    if !ARGS.web || !ARGS.gui || !ARGS.check || !ARGS.update {
+pub(crate) fn progress_bar_preparation(start: u32, images_length: usize, line: u32) {
+    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
         string(line, 0, &format!("{}|", &"-".repeat((start as usize) - 1)));
         string(
             line,
-            start + (images_length as i32),
+            start + (images_length as u32),
             &format!(
                 "|{}",
                 &"-".repeat(
-                    (MAXPOINTS.max_x as usize) - ((start + (images_length as i32) + 1) as usize)
+                    (MAXPOINTS.max_x as usize) - ((start + (images_length as u32) + 1) as usize)
                 )
             )
         );
@@ -751,22 +751,22 @@ impl FileName {
 pub(crate) fn skip_didnt_match(
     attr: &str,
     item: usize,
-    moves: i32,
+    moves: u32,
     mut hist: Vec<String>
-) -> (i32, Vec<String>) {
-    hist.push(format!("({}) Skipping because supplied {} doesn't match", item as i32, attr));
+) -> (u32, Vec<String>) {
+    hist.push(format!("({}) Skipping because supplied {} doesn't match", item as u32, attr));
     resolve_move(moves, hist.clone(), 3, 0)
 }
 
 pub(crate) fn skip(
     attr: String,
     item: usize,
-    moves: i32,
+    moves: u32,
     mut hist: Vec<String>,
     handle_id: Box<str>
-) -> (i32, Vec<String>) {
+) -> (u32, Vec<String>) {
     let al_dow = format!("({}) Skipping because file is already downloaded {}", item, attr);
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         info!("@{}   {}", handle_id, al_dow);
     }
     hist.push(al_dow);
@@ -774,12 +774,12 @@ pub(crate) fn skip(
 }
 pub(crate) fn skip_offset(
     item: usize,
-    moves: i32,
+    moves: u32,
     mut hist: Vec<String>,
     handle_id: Box<str>
-) -> (i32, Vec<String>) {
+) -> (u32, Vec<String>) {
     let al_dow = format!("({}) Skipping because of offset", item);
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         info!("@{}   {}", handle_id, al_dow);
     }
     hist.push(al_dow);
