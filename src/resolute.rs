@@ -60,7 +60,7 @@ pub(crate) fn args_delete() -> Result<(), Error> {
     };
     match fs::remove_file(path.clone()) {
         Ok(()) => Ok(()),
-        Err(err) => Err(Error::IoError(err, Some(format!("YOUR_EXE_PATH\\{}", path)))),
+        Err(err) => Err(Error::IoError(err, Some(path))),
     }
 }
 
@@ -900,9 +900,6 @@ fn get_dat_content() -> Result<Value, Error> {
         }
     };
     let file = File::open(&dat_path);
-    if let Err(err) = file {
-        return Err(Error::IoError(err, Some(dat_path)));
-    }
     let mut file = match file {
         Ok(file) => file,
         Err(err) => {
@@ -1356,7 +1353,7 @@ async fn resolve_manga(
         }
         Err(err) => eprintln!("Error: {}", err),
     }
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
+    if !ARGS.web || !ARGS.gui || !ARGS.check || !ARGS.update {
         if downloaded.len() != 0 {
             string(1, 0, "Downloaded files:");
             for i in 0..downloaded.len() {
