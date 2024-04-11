@@ -22,7 +22,7 @@ use crate::{
     utils,
     ARGS,
     MANGA_ID,
-    error,
+    error::{mdown::Error, handle_error},
 };
 
 fn decode(url: &str) -> String {
@@ -33,10 +33,7 @@ pub(crate) fn encode(url: &str) -> String {
     percent_encode(url.as_bytes(), NON_ALPHANUMERIC).to_string()
 }
 
-async fn resolve_web_download(
-    url: &str,
-    handle_id: Box<str>
-) -> Result<String, error::mdown::Error> {
+async fn resolve_web_download(url: &str, handle_id: Box<str>) -> Result<String, Error> {
     let mut manga_name = String::from("!");
     let id;
     if let Some(id_temp) = utils::resolve_regex(&url) {
@@ -50,7 +47,7 @@ async fn resolve_web_download(
     *(match MANGA_ID.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(error::mdown::Error::PoisonError(err.to_string()));
+            return Err(Error::PoisonError(err.to_string()));
         }
     }) = id.to_string();
     info!("@{} Found {}", handle_id, id);
@@ -84,7 +81,7 @@ async fn resolve_web_download(
             match DOWNLOADED.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                    return Err(Error::PoisonError(err.to_string()));
                 }
             }
         ).clone();
@@ -92,7 +89,7 @@ async fn resolve_web_download(
             match SCANLATION_GROUPS.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                    return Err(Error::PoisonError(err.to_string()));
                 }
             }
         ).clone();
@@ -119,16 +116,16 @@ async fn resolve_web_download(
 
         match serde_json::to_string(&response_map) {
             Ok(value) => Ok(value),
-            Err(err) => { Err(error::mdown::Error::JsonError(err.to_string())) }
+            Err(err) => { Err(Error::JsonError(err.to_string())) }
         }
     }
 }
 
-async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdown::Error> {
+async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
     let addr = match stream.peer_addr() {
         Ok(addr) => addr,
         Err(err) => {
-            return Err(error::mdown::Error::IoError(err, None));
+            return Err(Error::IoError(err, None));
         }
     };
     info!("Connection from: {}", addr);
@@ -136,7 +133,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
     match stream.read(&mut buffer) {
         Ok(_n) => (),
         Err(err) => {
-            return Err(error::mdown::Error::IoError(err, None));
+            return Err(Error::IoError(err, None));
         }
     }
 
@@ -148,7 +145,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                 Ok(response) =>
                     format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}", response),
                 Err(err) => {
-                    error::handle_error(&err, String::from("web_manga"));
+                    handle_error(&err, String::from("web_manga"));
                     format!(
                         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}",
                         r#"{"status": "error"}"#
@@ -173,7 +170,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                     match DOWNLOADED.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                            return Err(Error::PoisonError(err.to_string()));
                         }
                     }
                 ).clone();
@@ -181,7 +178,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                     match SCANLATION_GROUPS.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                            return Err(Error::PoisonError(err.to_string()));
                         }
                     }
                 ).clone();
@@ -194,9 +191,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                                 match MANGA_NAME.lock() {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::mdown::Error::PoisonError(err.to_string())
-                                        );
+                                        return Err(Error::PoisonError(err.to_string()));
                                     }
                                 }
                             ).to_string()
@@ -209,9 +204,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                                 match CURRENT_CHAPTER.lock() {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::mdown::Error::PoisonError(err.to_string())
-                                        );
+                                        return Err(Error::PoisonError(err.to_string()));
                                     }
                                 }
                             ).to_string()
@@ -224,9 +217,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                                 match CURRENT_PAGE.lock() {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::mdown::Error::PoisonError(err.to_string())
-                                        );
+                                        return Err(Error::PoisonError(err.to_string()));
                                     }
                                 }
                             ).to_string()
@@ -239,9 +230,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                                 match CURRENT_PAGE_MAX.lock() {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::mdown::Error::PoisonError(err.to_string())
-                                        );
+                                        return Err(Error::PoisonError(err.to_string()));
                                     }
                                 }
                             ).to_string()
@@ -253,7 +242,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                             format!("{:.2}", match CURRENT_PERCENT.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(Error::PoisonError(err.to_string()));
                                 }
                             })
                         ),
@@ -264,7 +253,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                             format!("{:.2}", match CURRENT_SIZE.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(Error::PoisonError(err.to_string()));
                                 }
                             })
                         ),
@@ -275,7 +264,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                             format!("{:.2}", match CURRENT_SIZE_MAX.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(Error::PoisonError(err.to_string()));
                                 }
                             })
                         ),
@@ -287,9 +276,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                                 match CURRENT_CHAPTER_PARSED.lock() {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::mdown::Error::PoisonError(err.to_string())
-                                        );
+                                        return Err(Error::PoisonError(err.to_string()));
                                     }
                                 }
                             ).to_string()
@@ -302,9 +289,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                                 match CURRENT_CHAPTER_PARSED_MAX.lock() {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::mdown::Error::PoisonError(err.to_string())
-                                        );
+                                        return Err(Error::PoisonError(err.to_string()));
                                     }
                                 }
                             ).to_string()
@@ -329,7 +314,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), error::mdo
                 let json = match serde_json::to_string(&response_map) {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(error::mdown::Error::JsonError(err.to_string()));
+                        return Err(Error::JsonError(err.to_string()));
                     }
                 };
                 format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}", json)
@@ -418,11 +403,11 @@ fn parse_request(
     None
 }
 
-async fn web() -> Result<(), error::mdown::Error> {
+async fn web() -> Result<(), Error> {
     let listener = match TcpListener::bind("127.0.0.1:8080") {
         Ok(listener) => listener,
         Err(err) => {
-            return Err(error::mdown::Error::IoError(err, None));
+            return Err(Error::IoError(err, None));
         }
     };
     info!("Server listening on 127.0.0.1:8080");
@@ -444,7 +429,7 @@ async fn web() -> Result<(), error::mdown::Error> {
     }
 }
 
-pub(crate) async fn start() -> Result<(), error::mdown::Error> {
+pub(crate) async fn start() -> Result<(), Error> {
     match
         ctrlc::set_handler(|| {
             info!("[user] Ctrl+C received! Exiting...");
@@ -453,7 +438,7 @@ pub(crate) async fn start() -> Result<(), error::mdown::Error> {
             match utils::remove_cache() {
                 Ok(()) => (),
                 Err(err) => {
-                    error::handle_error(&err, String::from("ctrl_handler"));
+                    handle_error(&err, String::from("ctrl_handler"));
                 }
             }
             std::process::exit(0);
@@ -462,7 +447,7 @@ pub(crate) async fn start() -> Result<(), error::mdown::Error> {
         Ok(value) => value,
         Err(err) => {
             return Err(
-                error::mdown::Error::CustomError(
+                Error::CustomError(
                     format!("Failed setting up ctrl handler, {}", err.to_string()),
                     String::from("CTRL handler")
                 )

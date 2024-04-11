@@ -2,14 +2,14 @@ use serde_json::Value;
 use std::process::exit;
 use tracing::info;
 
-use crate::{ download::get_response_client, getter, string, utils, ARGS, error, resolute };
+use crate::{ download::get_response_client, getter, string, utils, ARGS, error::mdown::Error, resolute };
 
-pub(crate) fn get_dat_path() -> Result<String, error::mdown::Error> {
+pub(crate) fn get_dat_path() -> Result<String, Error> {
     let current = match std::env::current_exe() {
         Ok(value) => value,
         Err(err) => {
             return Err(
-                error::mdown::Error::IoError(
+                Error::IoError(
                     err,
                     Some(String::from("? your path to your exe file is invalid bro"))
                 )
@@ -19,14 +19,14 @@ pub(crate) fn get_dat_path() -> Result<String, error::mdown::Error> {
     let parent = match current.parent() {
         Some(value) => value,
         None => {
-            return Err(error::mdown::Error::NotFoundError(String::from("Parent not found")));
+            return Err(Error::NotFoundError(String::from("Parent not found")));
         }
     };
     let path = match parent.to_str() {
         Some(value) => value,
         None => {
             return Err(
-                error::mdown::Error::ConversionError(String::from("Transition to str failed"))
+                Error::ConversionError(String::from("Transition to str failed"))
             );
         }
     };
@@ -177,7 +177,7 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
     }
 }
 
-pub(crate) async fn get_manga_json(id: &str) -> Result<String, error::mdown::Error> {
+pub(crate) async fn get_manga_json(id: &str) -> Result<String, Error> {
     let full_url = format!("https://api.mangadex.org/manga/{}?includes[]=cover_art", id);
 
     let response = match get_response_client(&full_url).await {
@@ -192,11 +192,11 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, error::mdown::Err
             Ok(text) => text,
             Err(err) => {
                 return Err(
-                    error::mdown::Error::StatusError(match err.status() {
+                    Error::StatusError(match err.status() {
                         Some(status) => status,
                         None => {
                             return Err(
-                                error::mdown::Error::NotFoundError(
+                                Error::NotFoundError(
                                     String::from("StatusCode (get_manga_json)")
                                 )
                             );
@@ -212,11 +212,11 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, error::mdown::Err
             "Error: get manga json Failed to fetch data from the API. Status code: {:?}",
             response.status()
         );
-        Err(error::mdown::Error::StatusError(response.status()))
+        Err(Error::StatusError(response.status()))
     }
 }
 
-pub(crate) async fn get_statistic_json(id: &str) -> Result<String, error::mdown::Error> {
+pub(crate) async fn get_statistic_json(id: &str) -> Result<String, Error> {
     let full_url = format!("https://api.mangadex.org/statistics/manga/{}", id);
 
     let response = match get_response_client(&full_url).await {
@@ -229,7 +229,7 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, error::mdown:
         let json = match response.text().await {
             Ok(res) => res,
             Err(err) => {
-                return Err(error::mdown::Error::JsonError(err.to_string()));
+                return Err(Error::JsonError(err.to_string()));
             }
         };
 
@@ -239,11 +239,11 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, error::mdown:
             "Error: get statistic json Failed to fetch data from the API. Status code: {:?}",
             response.status()
         );
-        Err(error::mdown::Error::StatusError(response.status()))
+        Err(Error::StatusError(response.status()))
     }
 }
 
-pub(crate) async fn get_chapter(id: &str) -> Result<String, error::mdown::Error> {
+pub(crate) async fn get_chapter(id: &str) -> Result<String, Error> {
     loop {
         string(3, 0, "Retrieving chapter info");
 
@@ -261,11 +261,11 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, error::mdown::Error>
                 Ok(text) => text,
                 Err(err) => {
                     return Err(
-                        error::mdown::Error::StatusError(match err.status() {
+                        Error::StatusError(match err.status() {
                             Some(status) => status,
                             None => {
                                 return Err(
-                                    error::mdown::Error::NotFoundError(
+                                    Error::NotFoundError(
                                         String::from("StatusCode (get_chapter)")
                                     )
                                 );
@@ -288,11 +288,11 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, error::mdown::Error>
                         Ok(text) => text,
                         Err(err) => {
                             return Err(
-                                error::mdown::Error::StatusError(match err.status() {
+                                Error::StatusError(match err.status() {
                                     Some(status) => status,
                                     None => {
                                         return Err(
-                                            error::mdown::Error::NotFoundError(
+                                            Error::NotFoundError(
                                                 String::from("StatusCode (get_chapter)")
                                             )
                                         );
@@ -322,7 +322,7 @@ pub(crate) async fn get_manga(
     id: &str,
     offset: i32,
     handle_id: Option<Box<str>>
-) -> Result<(String, usize), error::mdown::Error> {
+) -> Result<(String, usize), Error> {
     let handle_id = match handle_id {
         Some(id) => id,
         None => String::new().into_boxed_str(),
@@ -360,11 +360,11 @@ pub(crate) async fn get_manga(
                 Ok(text) => text,
                 Err(err) => {
                     return Err(
-                        error::mdown::Error::StatusError(match err.status() {
+                        Error::StatusError(match err.status() {
                             Some(status) => status,
                             None => {
                                 return Err(
-                                    error::mdown::Error::NotFoundError(
+                                    Error::NotFoundError(
                                         String::from("StatusCode (get_manga)")
                                     )
                                 );
@@ -396,7 +396,7 @@ pub(crate) async fn get_manga(
                             match resolute::DATE_FETCHED.lock() {
                                 Ok(d) => d,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(Error::PoisonError(err.to_string()));
                                 }
                             }
                         ).push(naive_time_str);
@@ -429,7 +429,7 @@ pub(crate) async fn get_manga(
                                     Some(value) => value,
                                     None => {
                                         return Err(
-                                            error::mdown::Error::JsonError(
+                                            Error::JsonError(
                                                 String::from("Didn't found data")
                                             )
                                         );
@@ -439,7 +439,7 @@ pub(crate) async fn get_manga(
                                     Some(value) => value,
                                     None => {
                                         return Err(
-                                            error::mdown::Error::JsonError(
+                                            Error::JsonError(
                                                 String::from("Didn't found data")
                                             )
                                         );
@@ -461,7 +461,7 @@ pub(crate) async fn get_manga(
                                 json = match serde_json::to_string(&data1) {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(error::mdown::Error::JsonError(err.to_string()));
+                                        return Err(Error::JsonError(err.to_string()));
                                     }
                                 };
                             }
@@ -489,7 +489,7 @@ pub(crate) async fn get_manga(
                                 Some(value) => value,
                                 None => {
                                     return Err(
-                                        error::mdown::Error::JsonError(
+                                        Error::JsonError(
                                             String::from("Did not find data")
                                         )
                                     );
@@ -499,7 +499,7 @@ pub(crate) async fn get_manga(
                                 Some(value) => value,
                                 None => {
                                     return Err(
-                                        error::mdown::Error::JsonError(
+                                        Error::JsonError(
                                             String::from("Did not find data")
                                         )
                                     );
@@ -521,7 +521,7 @@ pub(crate) async fn get_manga(
                             json = match serde_json::to_string(&data1) {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::JsonError(err.to_string()));
+                                    return Err(Error::JsonError(err.to_string()));
                                 }
                             };
                         }
@@ -560,7 +560,7 @@ pub(crate) fn get_attr_as_same<'a>(obj: &'a Value, attr: &'a str) -> &'a Value {
     match obj.get(attr) {
         Some(value) => value,
         None => {
-            eprintln!("{}", error::mdown::Error::NotFoundError(String::from("get_attr_as_same")));
+            eprintln!("{}", Error::NotFoundError(String::from("get_attr_as_same")));
             exit(1);
         }
     }
@@ -572,7 +572,7 @@ pub(crate) fn get_attr_as_same_as_index(data_array: &Value, item: usize) -> &Val
         None => {
             eprintln!(
                 "{}",
-                error::mdown::Error::NotFoundError(String::from("get_attr_as_same_as_index"))
+                Error::NotFoundError(String::from("get_attr_as_same_as_index"))
             );
             exit(1);
         }
@@ -585,7 +585,7 @@ pub(crate) fn get_attr_as_same_from_vec(data_array: &Vec<Value>, item: usize) ->
         None => {
             eprintln!(
                 "{}",
-                error::mdown::Error::NotFoundError(String::from("get_attr_as_same_from_vec"))
+                Error::NotFoundError(String::from("get_attr_as_same_from_vec"))
             );
             exit(1);
         }

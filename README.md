@@ -31,7 +31,7 @@ See [site](https://mangadex.org/) for finding manga
 
 `--chapter [Integer]` - will download manga which has supplied chapter in it
 
-`--max-consecutive [Integer]` - will download manga images by supplied number at once; it is highly recommended to use **MAX *50*** (default is *40*) because of lack of performance and non complete manga downloading, meaning chapter will not download correctly, meaning missing pages
+`--max-consecutive [Integer]` - will download manga images by supplied number at once; it is highly recommended to use **MAX *50*** (default is *40*) because of lack of performance and non complete manga downloading, meaning chapter will not download correctly, meaning missing pages, **!! USE IT BASED ON YOUR INTERNET SPEED, IF YOU HAVE SLOW INTERNET SPEED USE LOWER NUMBER**
 
 `--saver` - will download images of lower quality and lower download size; will save network resources and reduce download time
 

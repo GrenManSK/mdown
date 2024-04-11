@@ -831,7 +831,10 @@ pub(crate) async fn download_manga(
                         string(
                             6,
                             0,
-                            &format!("  Converting images to cbz files: {}.cbz", filename.get_folder())
+                            &format!(
+                                "  Converting images to cbz files: {}.cbz",
+                                filename.get_folder()
+                            )
                         );
                         let file_name = filename.get_file_w_folder();
                         zip_func::to_zip(&folder_path, &file_name, handle_id.clone()).await;

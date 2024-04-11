@@ -19,7 +19,7 @@ use crate::{
     ARGS,
     IS_END,
     MAXPOINTS,
-    error,
+    error::{ mdown::Error, handle_error },
     download,
 };
 
@@ -32,7 +32,7 @@ pub(crate) fn setup_requirements(file_path_tm: String) {
     tokio::spawn(async move { ctrl_handler(file_path_temp).await });
 }
 
-pub(crate) fn remove_cache() -> Result<(), error::mdown::Error> {
+pub(crate) fn remove_cache() -> Result<(), Error> {
     if is_directory_empty(".cache\\") {
         match fs::remove_dir_all(".cache") {
             Ok(()) => (),
@@ -41,17 +41,17 @@ pub(crate) fn remove_cache() -> Result<(), error::mdown::Error> {
                     match resolute::SUSPENDED.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                            return Err(Error::PoisonError(err.to_string()));
                         }
                     }
-                ).push(error::mdown::Error::IoError(err, Some(String::from(".cache\\"))));
+                ).push(Error::IoError(err, Some(String::from(".cache\\"))));
             }
         };
     }
     Ok(())
 }
 
-pub(crate) fn setup_subscriber() -> Result<(), error::mdown::Error> {
+pub(crate) fn setup_subscriber() -> Result<(), Error> {
     let subscriber = tracing_subscriber
         ::fmt()
         .compact()
@@ -66,11 +66,11 @@ pub(crate) fn setup_subscriber() -> Result<(), error::mdown::Error> {
                 match resolute::SUSPENDED.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(error::mdown::Error::PoisonError(err.to_string()));
+                        return Err(Error::PoisonError(err.to_string()));
                     }
                 }
             ).push(
-                error::mdown::Error::CustomError(
+                Error::CustomError(
                     String::from("Failed to set up tracing_subscriber (basically info)"),
                     String::from("SubscriberError")
                 )
@@ -80,7 +80,7 @@ pub(crate) fn setup_subscriber() -> Result<(), error::mdown::Error> {
     }
 }
 
-pub(crate) fn create_cache_folder() -> Result<(), error::mdown::Error> {
+pub(crate) fn create_cache_folder() -> Result<(), Error> {
     match fs::create_dir(".cache") {
         Ok(()) => Ok(()),
         Err(err) => {
@@ -88,10 +88,10 @@ pub(crate) fn create_cache_folder() -> Result<(), error::mdown::Error> {
                 match resolute::SUSPENDED.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(error::mdown::Error::PoisonError(err.to_string()));
+                        return Err(Error::PoisonError(err.to_string()));
                     }
                 }
-            ).push(error::mdown::Error::IoError(err, Some(String::from(".cache\\"))));
+            ).push(Error::IoError(err, Some(String::from(".cache\\"))));
             Ok(())
         }
     }
@@ -125,10 +125,7 @@ pub(crate) fn process_filename(filename: &str) -> String {
         .replace('"', "")
 }
 
-pub(crate) async fn wait_for_end(
-    file_path: String,
-    images_length: usize
-) -> Result<(), error::mdown::Error> {
+pub(crate) async fn wait_for_end(file_path: String, images_length: usize) -> Result<(), Error> {
     let full_path = format!(".cache\\{}.lock", file_path);
     let mut full_size = 0.0;
     let start = Instant::now();
@@ -152,7 +149,7 @@ pub(crate) async fn wait_for_end(
                     let image_content: f64 = match image_content.parse() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::ConversionError(err.to_string()));
+                            return Err(Error::ConversionError(err.to_string()));
                         }
                     };
                     size += image_content;
@@ -177,7 +174,7 @@ pub(crate) async fn wait_for_end(
                     let image_content: f64 = match image_content.parse() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::ConversionError(err.to_string()));
+                            return Err(Error::ConversionError(err.to_string()));
                         }
                     };
                     full_size += image_content / 1024.0 / 1024.0;
@@ -197,19 +194,19 @@ pub(crate) async fn wait_for_end(
         *(match CURRENT_PERCENT.lock() {
             Ok(value) => value,
             Err(err) => {
-                return Err(error::mdown::Error::PoisonError(err.to_string()));
+                return Err(Error::PoisonError(err.to_string()));
             }
         }) = percent;
         *(match CURRENT_SIZE.lock() {
             Ok(value) => value,
             Err(err) => {
-                return Err(error::mdown::Error::PoisonError(err.to_string()));
+                return Err(Error::PoisonError(err.to_string()));
             }
         }) = size;
         *(match CURRENT_SIZE_MAX.lock() {
             Ok(value) => value,
             Err(err) => {
-                return Err(error::mdown::Error::PoisonError(err.to_string()));
+                return Err(Error::PoisonError(err.to_string()));
             }
         }) = full_size;
         string(
@@ -239,7 +236,7 @@ pub(crate) async fn wait_for_end(
 }
 
 pub(crate) fn progress_bar_preparation(start: i32, images_length: usize, line: i32) {
-    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+    if !ARGS.web || !ARGS.gui || !ARGS.check || !ARGS.update {
         string(line, 0, &format!("{}|", &"-".repeat((start as usize) - 1)));
         string(
             line,
@@ -279,14 +276,14 @@ pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
     data_array
 }
 
-pub(crate) fn get_json(manga_name_json: &str) -> Result<Value, error::mdown::Error> {
+pub(crate) fn get_json(manga_name_json: &str) -> Result<Value, Error> {
     match serde_json::from_str(&manga_name_json) {
         Ok(value) => Ok(value),
-        Err(err) => Err(error::mdown::Error::JsonError(err.to_string())),
+        Err(err) => Err(Error::JsonError(err.to_string())),
     }
 }
 
-pub(crate) async fn search() -> Result<String, error::mdown::Error> {
+pub(crate) async fn search() -> Result<String, Error> {
     let id;
     let base_url = "https://api.mangadex.org";
     let title = ARGS.search.clone();
@@ -294,7 +291,7 @@ pub(crate) async fn search() -> Result<String, error::mdown::Error> {
     let client = match download::get_client() {
         Ok(client) => client,
         Err(err) => {
-            return Err(error::mdown::Error::NetworkError(err));
+            return Err(Error::NetworkError(err));
         }
     };
 
@@ -306,7 +303,7 @@ pub(crate) async fn search() -> Result<String, error::mdown::Error> {
     {
         Ok(response) => response,
         Err(err) => {
-            return Err(error::mdown::Error::NetworkError(err));
+            return Err(Error::NetworkError(err));
         }
     };
 
@@ -314,28 +311,20 @@ pub(crate) async fn search() -> Result<String, error::mdown::Error> {
         let manga_data: serde_json::Value = match response.json().await {
             Ok(value) => value,
             Err(err) => {
-                return Err(error::mdown::Error::JsonError(err.to_string()));
+                return Err(Error::JsonError(err.to_string()));
             }
         };
 
         let data = match manga_data.get("data") {
             Some(data) => data,
             None => {
-                return Err(
-                    error::mdown::Error::NotFoundError(
-                        String::from("data in manga_data in main.rs")
-                    )
-                );
+                return Err(Error::NotFoundError(String::from("data in manga_data in main.rs")));
             }
         };
         let manga_array = match data.as_array() {
             Some(data) => data,
             None => {
-                return Err(
-                    error::mdown::Error::ConversionError(
-                        String::from("manga_data to array in main.rs")
-                    )
-                );
+                return Err(Error::ConversionError(String::from("manga_data to array in main.rs")));
             }
         };
         let manga_ids: Vec<&serde_json::Value> = manga_array
@@ -351,26 +340,24 @@ pub(crate) async fn search() -> Result<String, error::mdown::Error> {
                 Some(id) => id,
                 None => {
                     return Err(
-                        error::mdown::Error::NotFoundError(
-                            String::from("manga_id in manga_ids in main.rs")
-                        )
+                        Error::NotFoundError(String::from("manga_id in manga_ids in main.rs"))
                     );
                 }
             }
         ).to_string();
     } else {
-        return Err(error::mdown::Error::StatusError(response.status()));
+        return Err(Error::StatusError(response.status()));
     }
     Ok(id)
 }
 
-pub(crate) fn resolve_start() -> Result<(String, String), error::mdown::Error> {
+pub(crate) fn resolve_start() -> Result<(String, String), Error> {
     let file_path: String = format!(".cache\\mdown_{}.lock", env!("CARGO_PKG_VERSION"));
     if ARGS.force_delete {
         match fs::remove_file(&file_path) {
             Ok(()) => println!("File has been deleted\nYou can now use it as normal"),
             Err(err) => {
-                return Err(error::mdown::Error::IoError(err, Some(file_path)));
+                return Err(Error::IoError(err, Some(file_path)));
             }
         }
     }
@@ -449,8 +436,8 @@ pub(crate) async fn ctrl_handler(file: String) {
             *(match IS_END.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    error::handle_error(
-                        &error::mdown::Error::PoisonError(err.to_string()),
+                    handle_error(
+                        &Error::PoisonError(err.to_string()),
                         String::from("ctrl_handler")
                     );
                     continue;
@@ -464,10 +451,7 @@ pub(crate) async fn ctrl_handler(file: String) {
         (match resolute::ENDED.lock() {
             Ok(value) => *value,
             Err(err) => {
-                error::handle_error(
-                    &error::mdown::Error::PoisonError(err.to_string()),
-                    String::from("ctrl_handler")
-                );
+                handle_error(&Error::PoisonError(err.to_string()), String::from("ctrl_handler"));
                 false
             }
         })
@@ -521,7 +505,7 @@ pub(crate) fn delete_dir() {
                         return;
                     }
                 }
-            ).push(error::mdown::Error::RegexError(err));
+            ).push(Error::RegexError(err));
             return;
         }
     };
@@ -538,7 +522,7 @@ pub(crate) fn delete_dir() {
                                 return;
                             }
                         }
-                    ).push(error::mdown::Error::RegexError(err));
+                    ).push(Error::RegexError(err));
                     return;
                 }
             };
@@ -631,7 +615,7 @@ pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match> {
                         return None;
                     }
                 }
-            ).push(error::mdown::Error::RegexError(err));
+            ).push(Error::RegexError(err));
             return None;
         }
     };
