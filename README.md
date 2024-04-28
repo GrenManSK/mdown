@@ -65,3 +65,5 @@ See [site](https://mangadex.org/) for finding manga
   - e.g. whole manga was in Japanese and didn't find any English chapters which results in 0 downloads
 
 - Every non-final downloads and temporary files will be put in .cache folder which if empty will be deleted afterwards
+
+- Manga name will be automatically shortened when it exceeds 70 characters
