@@ -13,7 +13,7 @@ use crate::{
         CURRENT_PERCENT,
         CURRENT_SIZE,
         CURRENT_SIZE_MAX,
-        DOWNLOADED,
+        WEB_DOWNLOADED,
         MANGA_NAME,
         SCANLATION_GROUPS,
         CURRENT_CHAPTER_PARSED,
@@ -78,7 +78,7 @@ async fn resolve_web_download(url: &str, handle_id: Box<str>) -> Result<String, 
         Ok(String::from("!"))
     } else {
         let downloaded_files = (
-            match DOWNLOADED.lock() {
+            match WEB_DOWNLOADED.lock() {
                 Ok(value) => value,
                 Err(err) => {
                     return Err(Error::PoisonError(err.to_string()));
@@ -167,7 +167,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
                 )
             } else if url == String::from("progress") {
                 let downloaded_files = (
-                    match DOWNLOADED.lock() {
+                    match WEB_DOWNLOADED.lock() {
                         Ok(value) => value,
                         Err(err) => {
                             return Err(Error::PoisonError(err.to_string()));

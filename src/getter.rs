@@ -50,7 +50,7 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
             return String::from("Poison Error");
         }
     };
-    (
+    let name = (
         match
             title_data
                 .get("title")
@@ -154,7 +154,16 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                 }
             }
         }
-    ).replace("\"", "")
+    )
+        .replace("\"", "")
+        .replace("?", "")
+        .trim()
+        .to_string();
+    if name.len() > 70 {
+        return format!("{}__", &name[0..70]);
+    } else {
+        name
+    }
 }
 
 pub(crate) async fn get_manga_json(id: &str) -> Result<String, Error> {

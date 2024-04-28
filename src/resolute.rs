@@ -23,7 +23,7 @@ use crate::{
 
 lazy_static! {
     pub(crate) static ref SCANLATION_GROUPS: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
-    pub(crate) static ref DOWNLOADED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(crate) static ref WEB_DOWNLOADED: Mutex<Vec<String>> = Mutex::new(Vec::new()); // filenames
     pub(crate) static ref MANGA_NAME: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref CHAPTERS: Mutex<Vec<ChapterMetadata>> = Mutex::new(Vec::new());
     pub(crate) static ref CHAPTERS_TO_REMOVE: Mutex<Vec<ChapterMetadata>> = Mutex::new(Vec::new());
@@ -48,6 +48,8 @@ lazy_static! {
     pub(crate) static ref LANGUAGE: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref CHAPTER_DATES: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
     pub(crate) static ref FIXED_DATES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(crate) static ref GENRES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
+    pub(crate) static ref THEMES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
 }
 
 pub(crate) fn args_delete() -> Result<(), Error> {
@@ -108,6 +110,33 @@ impl std::fmt::Display for ChapterMetadata {
         )
     }
 }
+#[derive(Clone, Debug)]
+pub(crate) struct TagMetadata {
+    pub(crate) name: String,
+    pub(crate) id: String,
+}
+
+impl TagMetadata {
+    pub(crate) fn new(name: &str, id: &str) -> TagMetadata {
+        TagMetadata {
+            name: name.to_owned(),
+            id: id.to_owned(),
+        }
+    }
+
+    pub(crate) fn json(&self) -> HashMap<String, String> {
+        let mut json = HashMap::new();
+        json.insert("name".to_owned(), self.name.clone());
+        json.insert("id".to_owned(), self.id.clone());
+        json
+    }
+}
+
+impl std::fmt::Display for TagMetadata {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\"name\": {} \"id\": {}", self.name, self.id)
+    }
+}
 
 pub(crate) async fn show() -> Result<(), Error> {
     let dat_path = match getter::get_dat_path() {
@@ -122,7 +151,7 @@ pub(crate) async fn show() -> Result<(), Error> {
             return Err(Error::IoError(err, Some(dat_path)));
         }
     }
-    let mut json = match get_dat_content() {
+    let mut json = match get_dat_content(dat_path.as_str()) {
         Ok(value) => value,
         Err(error) => {
             return Err(error);
@@ -168,10 +197,68 @@ pub(crate) async fn show() -> Result<(), Error> {
                 None => vec![String::from("Didn't find date property")],
             };
 
-            let mut date_str = String::from("Database fetched: ");
+            let mut date_str = String::new();
             for i in date.iter() {
-                date_str += &i.to_string();
+                date_str += &format!("{}, ", i.to_string());
             }
+            date_str = date_str.trim_end_matches(", ").to_string();
+            let genres: Vec<String> = match item.get("genre").and_then(Value::as_array) {
+                Some(genre) => {
+                    genre
+                        .iter()
+                        .filter_map(|d| {
+                            match d.get("name").and_then(Value::as_str) {
+                                Some(name) => Some(name.to_string()),
+                                None => None,
+                            }
+                        })
+                        .collect()
+                }
+                None => vec![String::from("Didn't find genre property")],
+            };
+
+            let mut genre_str = String::new();
+            for i in genres.iter() {
+                genre_str += &format!("{}, ", i.to_string());
+            }
+            genre_str = genre_str.trim_end_matches(", ").to_string();
+            let themes: Vec<String> = match item.get("theme").and_then(Value::as_array) {
+                Some(theme) => {
+                    theme
+                        .iter()
+                        .filter_map(|d| {
+                            match d.get("name").and_then(Value::as_str) {
+                                Some(name) => Some(name.to_string()),
+                                None => None,
+                            }
+                        })
+                        .collect()
+                }
+                None => vec![String::from("Didn't find genre property")],
+            };
+
+            let mut theme_str = String::new();
+            for i in themes.iter() {
+                theme_str += &format!("{}, ", i.to_string());
+            }
+            theme_str = theme_str.trim_end_matches(", ").to_string();
+            let available_languages: Vec<String> = match
+                item.get("available_languages").and_then(Value::as_array)
+            {
+                Some(theme) => {
+                    theme
+                        .iter()
+                        .filter_map(|d| d.as_str().map(|s| s.to_string()))
+                        .collect()
+                }
+                None => vec![String::from("Didn't find genre property")],
+            };
+
+            let mut available_languages_str = String::new();
+            for i in available_languages.iter() {
+                available_languages_str += &format!("{}, ", i.to_string());
+            }
+            available_languages_str = available_languages_str.trim_end_matches(", ").to_string();
             let cover = fs::metadata(format!("{}\\_cover.png", mwd)).is_ok();
             let chapters: Vec<String> = match item.get("chapters").and_then(Value::as_array) {
                 Some(chapters) => {
@@ -195,13 +282,17 @@ pub(crate) async fn show() -> Result<(), Error> {
             for i in chapters.iter() {
                 chapter_str.push_str(&format!("{}, ", i.to_string().replace("\"", "")));
             }
+            chapter_str = chapter_str.trim_end_matches(", ").to_string();
 
             println!("Manga name: {}", manga_name);
             println!("MWD: {}", mwd);
             println!("ID: {}", id);
-            println!("{}", date_str);
+            println!("Database fetched: {}", date_str);
+            println!("Genres: {}", genre_str);
+            println!("Themes: {}", theme_str);
             println!("Cover: {}", cover);
             println!("Language: {}", language);
+            println!("Available language: {}", available_languages_str);
             println!("Chapters: {}", chapter_str);
             println!("");
         }
@@ -282,7 +373,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
             return Err(Error::IoError(err, Some(dat_path.clone())));
         }
     }
-    let mut json = match get_dat_content() {
+    let mut json = match get_dat_content(dat_path.as_str()) {
         Ok(value) => value,
         Err(error) => {
             return Err(error);
@@ -696,7 +787,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
             Err(_err) => (),
         };
     }
-    let mut json = match get_dat_content() {
+    let mut json = match get_dat_content(dat_path.as_str()) {
         Ok(value) => value,
         Err(err) => {
             return Err(err);
@@ -820,6 +911,30 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
             for i in chapters_data.iter() {
                 chapters.push(i.json());
             }
+            let mut genres = Vec::new();
+            let genres_data = (
+                match GENRES.lock() {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(Error::PoisonError(err.to_string()));
+                    }
+                }
+            ).clone();
+            for i in genres_data.iter() {
+                genres.push(i.json());
+            }
+            let mut themes = Vec::new();
+            let themes_data = (
+                match THEMES.lock() {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(Error::PoisonError(err.to_string()));
+                    }
+                }
+            ).clone();
+            for i in themes_data.iter() {
+                themes.push(i.json());
+            }
             let manga_data =
                 json!({
                     "name": match MANGA_NAME.lock(){
@@ -865,6 +980,8 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                             );
                         }
                     }.clone(),
+                    "theme":  themes.clone(),
+                    "genre":  genres.clone(),
                     });
 
             data.push(manga_data.clone());
@@ -892,23 +1009,17 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
     Ok(())
 }
 
-fn get_dat_content() -> Result<Value, Error> {
-    let dat_path = match getter::get_dat_path() {
-        Ok(path) => path,
-        Err(err) => {
-            return Err(err);
-        }
-    };
+fn get_dat_content(dat_path: &str) -> Result<Value, Error> {
     let file = File::open(&dat_path);
     let mut file = match file {
         Ok(file) => file,
         Err(err) => {
-            return Err(Error::IoError(err, Some(dat_path)));
+            return Err(Error::IoError(err, Some(dat_path.to_string())));
         }
     };
     let mut contents = String::new();
     if let Err(err) = file.read_to_string(&mut contents) {
-        return Err(Error::IoError(err, Some(dat_path)));
+        return Err(Error::IoError(err, Some(dat_path.to_string())));
     }
     utils::get_json(&contents)
 }
@@ -1081,6 +1192,59 @@ pub(crate) async fn resolve(
         Ok(()) => (),
         Err(err) => eprintln!("Error: writing in description file {}", err),
     }
+
+    let empty_vec = vec![];
+
+    let tags_attributes = match title_data.get("tags").and_then(Value::as_array) {
+        Some(value) => value,
+        None => &empty_vec,
+    };
+
+    let mut theme: Vec<TagMetadata> = vec![];
+    let mut genre: Vec<TagMetadata> = vec![];
+
+    for tag in tags_attributes.iter() {
+        let id = match tag.get("id").and_then(Value::as_str) {
+            Some(value) => value,
+            None => "",
+        };
+        let attr = tag.get("attributes");
+        if let Some(attr) = attr {
+            let typ = match attr.get("group").and_then(Value::as_str) {
+                Some(value) => value,
+                None => "",
+            };
+            let name = match
+                attr
+                    .get("name")
+                    .and_then(|value| value.get("en"))
+                    .and_then(Value::as_str)
+            {
+                Some(value) => value,
+                None => "",
+            };
+            if !name.is_empty() {
+                if typ == "theme" {
+                    theme.push(TagMetadata::new(name, id));
+                } else if typ == "genre" {
+                    genre.push(TagMetadata::new(name, id));
+                }
+            }
+        }
+    }
+
+    *(match GENRES.lock() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(Error::PoisonError(err.to_string()));
+        }
+    }) = genre;
+    *(match THEMES.lock() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(Error::PoisonError(err.to_string()));
+        }
+    }) = theme;
 
     let folder = get_folder_name(&manga_name);
     let cover = match

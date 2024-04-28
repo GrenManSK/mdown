@@ -4,7 +4,7 @@ use serde_json::Value;
 use std::{
     cmp::Ordering,
     fs::{ self, File, OpenOptions },
-    io::Read,
+    io::{ Read, Write },
     path::Path,
     process::exit,
     thread::sleep,
@@ -356,8 +356,13 @@ pub(crate) fn resolve_start() -> Result<(String, String), Error> {
     if ARGS.force_delete {
         match fs::remove_file(&file_path) {
             Ok(()) => println!("File has been deleted\nYou can now use it as normal"),
-            Err(err) => {
-                return Err(Error::IoError(err, Some(file_path)));
+            Err(_err) => {
+                println!("File had been already deleted");
+                match remove_cache() {
+                    Ok(()) => (),
+                    Err(err) => eprintln!("Error: removing cache {}", err),
+                };
+                exit(0);
             }
         }
     }
@@ -752,9 +757,29 @@ pub(crate) fn skip_didnt_match(
     attr: &str,
     item: usize,
     moves: u32,
-    mut hist: Vec<String>
+    mut hist: Vec<String>,
+    handle_id: Box<str>
 ) -> (u32, Vec<String>) {
-    hist.push(format!("({}) Skipping because supplied {} doesn't match", item as u32, attr));
+    let message = format!("({}) Skipping because supplied {} doesn't match", item as u32, attr);
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+        info!("@{}   {}", handle_id, message);
+    }
+    hist.push(message);
+    resolve_move(moves, hist.clone(), 3, 0)
+}
+
+pub(crate) fn skip_custom(
+    attr: &str,
+    item: usize,
+    moves: u32,
+    mut hist: Vec<String>,
+    handle_id: Box<str>
+) -> (u32, Vec<String>) {
+    let message = format!("({}) Skipping because {}", item as u32, attr);
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+        info!("@{}   {}", handle_id, message);
+    }
+    hist.push(message);
     resolve_move(moves, hist.clone(), 3, 0)
 }
 
@@ -784,6 +809,31 @@ pub(crate) fn skip_offset(
     }
     hist.push(al_dow);
     resolve_move(moves, hist.clone(), 3, 0)
+}
+
+pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(), Error> {
+    let mut file_inst = match
+        std::fs::OpenOptions::new().read(true).write(true).create(true).open(file)
+    {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(Error::IoError(err, Some(String::from(file))));
+        }
+    };
+    match write!(file_inst, "{:?}", item) {
+        Ok(()) => (),
+        Err(err) => {
+            (
+                match resolute::SUSPENDED.lock() {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(Error::PoisonError(err.to_string()));
+                    }
+                }
+            ).push(Error::IoError(err, Some(String::from(file))));
+        }
+    }
+    Ok(())
 }
 
 // Returns a regex match when given a string containing a valid Mangadex URL.

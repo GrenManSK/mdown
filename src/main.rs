@@ -175,6 +175,8 @@ struct Args {
     show: bool,
     #[arg(long, next_line_help = true, help = "Gui version of mdown, does nothing for now")]
     gui: bool,
+    #[arg(long, next_line_help = true, help = "debug")]
+    debug: bool,
 }
 
 fn string(y: u32, x: u32, value: &str) {
@@ -670,14 +672,45 @@ pub(crate) async fn download_manga(
                 }
 
                 if con_vol {
-                    (moves, hist) = utils::skip_didnt_match("volume", item, moves, hist.clone());
+                    (moves, hist) = utils::skip_didnt_match(
+                        "volume",
+                        item,
+                        moves,
+                        hist.clone(),
+                        handle_id.clone()
+                    );
                     continue;
                 }
                 if con_chap {
-                    (moves, hist) = utils::skip_didnt_match("chapter", item, moves, hist.clone());
+                    (moves, hist) = utils::skip_didnt_match(
+                        "chapter",
+                        item,
+                        moves,
+                        hist.clone(),
+                        handle_id.clone()
+                    );
                     continue;
                 }
-                if (lang == language || language == "*") && chapter_num != "This is test" {
+                if pages == 0 {
+                    (moves, hist) = utils::skip_custom(
+                        "pages is 0",
+                        item,
+                        moves,
+                        hist.clone(),
+                        handle_id.clone()
+                    );
+                    continue;
+                }
+                if
+                    (lang == language || language == "*") &&
+                    chapter_num != "This is test" &&
+                    (match resolute::CHAPTERS.lock() {
+                        Ok(value) => !value.iter().any(|item| item.number == chapter_num),
+                        Err(err) => {
+                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                        }
+                    })
+                {
                     if ARGS.check {
                         let dates = match resolute::CHAPTER_DATES.lock() {
                             Ok(value) => value,
@@ -855,7 +888,7 @@ pub(crate) async fn download_manga(
                         utils::clear_screen(2);
                         if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
                             (
-                                match resolute::DOWNLOADED.lock() {
+                                match resolute::WEB_DOWNLOADED.lock() {
                                     Ok(value) => value,
                                     Err(err) => {
                                         return Err(
@@ -893,6 +926,9 @@ pub(crate) async fn download_manga(
         _ => {
             eprintln!("JSON is not an object.");
         }
+    }
+    if ARGS.debug {
+        utils::debug_print(hist, "hist.txt").unwrap()
     }
     Ok(downloaded)
 }
