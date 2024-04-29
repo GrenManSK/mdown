@@ -173,6 +173,8 @@ struct Args {
     search: String,
     #[arg(long, next_line_help = true, help = "Shows current manga in database")]
     show: bool,
+    #[arg(long, next_line_help = true, help = "Shows current chapters in database")]
+    show_all: bool,
     #[arg(long, next_line_help = true, help = "Gui version of mdown, does nothing for now")]
     gui: bool,
     #[arg(long, next_line_help = true, help = "debug")]
@@ -270,6 +272,21 @@ async fn start() -> Result<(), error::mdown::Final> {
     }
 
     if ARGS.show {
+        match resolute::show().await {
+            Ok(()) => (),
+            Err(err) => {
+                return Err(error::mdown::Final::Final(err));
+            }
+        }
+        match utils::remove_cache() {
+            Ok(()) => (),
+            Err(err) => {
+                return Err(error::mdown::Final::Final(err));
+            }
+        }
+        return Ok(());
+    }
+    if ARGS.show_all {
         match resolute::show().await {
             Ok(()) => (),
             Err(err) => {
@@ -822,6 +839,7 @@ pub(crate) async fn download_manga(
                                     download_chapter(
                                         id,
                                         json,
+                                        array_item,
                                         &manga_name,
                                         title,
                                         &vol,
@@ -935,7 +953,8 @@ pub(crate) async fn download_manga(
 
 pub(crate) async fn download_chapter(
     id: &str,
-    manga_json: String,
+    manga_chapter_json: String,
+    manga_json: &Value,
     manga_name: &str,
     title: &str,
     vol: &str,
@@ -956,7 +975,7 @@ pub(crate) async fn download_chapter(
         current_chapter.clear();
         current_chapter.push_str(&&filename.get_folder_name());
     }
-    let json_value = match utils::get_json(&manga_json) {
+    let json_value = match utils::get_json(&manga_chapter_json) {
         Ok(value) => value,
         Err(err) => {
             return Err(err);
@@ -1017,6 +1036,33 @@ pub(crate) async fn download_chapter(
                                     );
                                 }
                             };
+                            let attr = match manga_json.get("attributes") {
+                                Some(attr) => attr,
+                                None => {
+                                    return Err(
+                                        error::mdown::Error::NotFoundError(
+                                            String::from("attributes not found")
+                                        )
+                                    );
+                                }
+                            };
+
+                            let pages = match
+                                serde_json::to_string(match attr.get("pages") {
+                                    Some(pages) => pages,
+                                    None => {
+                                        return Err(
+                                            error::mdown::Error::JsonError(
+                                                String::from("pages not found")
+                                            )
+                                        );
+                                    }
+                                })
+                            {
+                                Ok(pages) => pages,
+                                Err(_err) => "null".to_string(),
+                            };
+
                             let response_map: HashMap<&str, serde_json::Value> = [
                                 (
                                     "name",
@@ -1069,11 +1115,19 @@ pub(crate) async fn download_chapter(
                                         ).to_string()
                                     ),
                                 ),
+                                (
+                                    "title",
+                                    serde_json::Value::String(match title {
+                                        "" => "null".to_string(),
+                                        x => x.to_string(),
+                                    }),
+                                ),
+                                ("pages", serde_json::Value::String(pages.to_string())),
                             ]
                                 .iter()
                                 .cloned()
                                 .collect();
-                            let json = match serde_json::to_string(&response_map) {
+                            let json = match serde_json::to_string_pretty(&response_map) {
                                 Ok(value) => value,
                                 Err(err) => {
                                     return Err(error::mdown::Error::JsonError(err.to_string()));

@@ -55,7 +55,9 @@ See [site](https://mangadex.org/) for finding manga
 
 `--search` - will search for manga by its title
 
-`--show` - will show current database
+`--show` - will show current manga in database
+
+`--show-all` - will show current chapters in database
 
 ---
 

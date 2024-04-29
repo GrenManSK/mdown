@@ -164,6 +164,8 @@ pub(crate) async fn show() -> Result<(), Error> {
     println!("Version: {}", version);
 
     if let Some(data) = json.get_mut("data").and_then(Value::as_array_mut) {
+        println!("");
+        println!("------------------------------------");
         if data.len() == 0 {
             println!("No manga found");
         }
@@ -176,17 +178,17 @@ pub(crate) async fn show() -> Result<(), Error> {
             ).to_string();
             let mwd = match item.get("mwd").and_then(Value::as_str) {
                 Some(val) => val,
-                None => { "Didn't find MWD property" }
+                None => "Didn't find MWD property",
             };
 
             let id = match item.get("id").and_then(Value::as_str) {
                 Some(id) => id,
-                None => { "Didn't find ID property" }
+                None => "Didn't find ID property",
             };
 
             let language = match item.get("current_language").and_then(Value::as_str) {
                 Some(id) => id,
-                None => { "Didn't find ID property" }
+                None => "Didn't find ID property",
             };
             let date: Vec<String> = match item.get("date").and_then(Value::as_array) {
                 Some(date) => {
@@ -288,13 +290,67 @@ pub(crate) async fn show() -> Result<(), Error> {
             println!("MWD: {}", mwd);
             println!("ID: {}", id);
             println!("Database fetched: {}", date_str);
-            println!("Genres: {}", genre_str);
-            println!("Themes: {}", theme_str);
+            if genres.len() > 0 {
+                println!("Genres: {}", genre_str);
+            }
+            if themes.len() > 0 {
+                println!("Themes: {}", theme_str);
+            }
             println!("Cover: {}", cover);
             println!("Language: {}", language);
             println!("Available language: {}", available_languages_str);
             println!("Chapters: {}", chapter_str);
             println!("");
+
+            if ARGS.show_all {
+                let mut chapters = vec![];
+                if let Ok(entries) = fs::read_dir(mwd) {
+                    for entry in entries {
+                        if let Ok(entry) = entry {
+                            let file_name = entry.file_name();
+                            if let Some(name) = file_name.to_str() {
+                                if name.ends_with(".cbz") {
+                                    chapters.push(name.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                for entry in chapters {
+                    let path = format!("{}\\{}", mwd, entry);
+                    let obj = match check_for_metadata(&path) {
+                        Ok(metadata) => metadata,
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    };
+
+                    let name = match obj.get("name").and_then(Value::as_str) {
+                        Some(name) => name.to_string(),
+                        None => String::from("No Name; invalid name"),
+                    };
+
+                    let pages = match obj.get("pages").and_then(Value::as_str) {
+                        Some(pages) => pages.to_string(),
+                        None => String::from("Invalid pages"),
+                    };
+
+                    let id = match obj.get("id").and_then(Value::as_str) {
+                        Some(id) => id.to_string(),
+                        None => String::from("Invalid id"),
+                    };
+                    let title = match obj.get("title").and_then(Value::as_str) {
+                        Some(title) => title.to_string(),
+                        None => String::from("Invalid title"),
+                    };
+
+                    println!("Name: {}", name);
+                    println!("Pages: {}", pages);
+                    println!("ID: {}", id);
+                    println!("Title: {}", title);
+                    println!("");
+                }
+            }
         }
     }
     Ok(())
@@ -1174,7 +1230,7 @@ pub(crate) async fn resolve(
             .and_then(Value::as_str)
     {
         Some(value) => value,
-        None => { "" }
+        None => "",
     };
     let mut desc_file = match
         OpenOptions::new()
