@@ -928,7 +928,7 @@ pub(crate) async fn download_manga(
         }
     }
     if ARGS.debug {
-        utils::debug_print(hist, "hist.txt").unwrap()
+        utils::debug_print(hist, "hist.txt").unwrap();
     }
     Ok(downloaded)
 }
