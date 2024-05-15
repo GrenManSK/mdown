@@ -183,6 +183,8 @@ struct Args {
     gui: bool,
     #[arg(long, next_line_help = true, help = "debug")]
     debug: bool,
+    #[arg(long, next_line_help = true, help = "dev")]
+    dev: bool,
 }
 
 fn string(y: u32, x: u32, value: &str) {
