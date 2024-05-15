@@ -1,23 +1,24 @@
 use lazy_static::lazy_static;
 use serde_json::{ json, Map, Value };
 use std::{
+    collections::HashMap,
     fs::{ self, File, OpenOptions },
     io::{ Read, Write },
     sync::{ Arc, Mutex },
-    collections::HashMap,
 };
-use tracing::info;
 
 use crate::{
+    ARGS,
     download,
     download_manga,
     error::{ mdown::Error, handle_error },
     getter::{ self, get_folder_name, get_manga, get_manga_name, get_scanlation_group },
+    log,
+    log_end,
+    metadata::{ ChapterMetadata, TagMetadata, LOG },
+    MAXPOINTS,
     string,
     utils::{ self, clear_screen },
-    ARGS,
-    MANGA_ID,
-    MAXPOINTS,
     zip_func,
 };
 
@@ -25,6 +26,10 @@ lazy_static! {
     pub(crate) static ref SCANLATION_GROUPS: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
     pub(crate) static ref WEB_DOWNLOADED: Mutex<Vec<String>> = Mutex::new(Vec::new()); // filenames
     pub(crate) static ref MANGA_NAME: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref MANGA_ID: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref LOGS: Mutex<Vec<LOG>> = Mutex::new(Vec::new());
+    pub(crate) static ref HANDLE_ID: Mutex<Box<str>> = Mutex::new(String::new().into_boxed_str());
+    pub(crate) static ref HANDLE_ID_END: Mutex<Vec<Box<str>>> = Mutex::new(Vec::new());
     pub(crate) static ref CHAPTERS: Mutex<Vec<ChapterMetadata>> = Mutex::new(Vec::new());
     pub(crate) static ref CHAPTERS_TO_REMOVE: Mutex<Vec<ChapterMetadata>> = Mutex::new(Vec::new());
     pub(crate) static ref MWD: Mutex<String> = Mutex::new(String::new());
@@ -66,78 +71,6 @@ pub(crate) fn args_delete() -> Result<(), Error> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct ChapterMetadata {
-    pub(crate) updated_at: String,
-    pub(crate) number: String,
-    pub(crate) id: String,
-}
-
-impl ChapterMetadata {
-    pub(crate) fn new(number: &str, updated_at: &str, id: &str) -> ChapterMetadata {
-        ChapterMetadata {
-            updated_at: updated_at.to_owned(),
-            number: number.to_owned(),
-            id: id.to_owned(),
-        }
-    }
-
-    pub(crate) fn json(&self) -> HashMap<String, String> {
-        let mut json = HashMap::new();
-        json.insert("number".to_owned(), self.number.clone());
-        json.insert("updatedAt".to_owned(), self.updated_at.clone());
-        json.insert("id".to_owned(), self.id.clone());
-        json
-    }
-
-    pub(crate) fn value(&self) -> Value {
-        json!({
-            "number": self.number.clone(),
-            "updatedAt": self.updated_at.clone(),
-            "id": self.id.clone(),
-        })
-    }
-}
-
-impl std::fmt::Display for ChapterMetadata {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "\"number\": {}, \"updatedAt\": {}, \"id\": {}",
-            self.number,
-            self.updated_at,
-            self.id
-        )
-    }
-}
-#[derive(Clone, Debug)]
-pub(crate) struct TagMetadata {
-    pub(crate) name: String,
-    pub(crate) id: String,
-}
-
-impl TagMetadata {
-    pub(crate) fn new(name: &str, id: &str) -> TagMetadata {
-        TagMetadata {
-            name: name.to_owned(),
-            id: id.to_owned(),
-        }
-    }
-
-    pub(crate) fn json(&self) -> HashMap<String, String> {
-        let mut json = HashMap::new();
-        json.insert("name".to_owned(), self.name.clone());
-        json.insert("id".to_owned(), self.id.clone());
-        json
-    }
-}
-
-impl std::fmt::Display for TagMetadata {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\"name\": {} \"id\": {}", self.name, self.id)
-    }
-}
-
 pub(crate) async fn show() -> Result<(), Error> {
     let dat_path = match getter::get_dat_path() {
         Ok(path) => path,
@@ -164,12 +97,12 @@ pub(crate) async fn show() -> Result<(), Error> {
     println!("Version: {}", version);
 
     if let Some(data) = json.get_mut("data").and_then(Value::as_array_mut) {
-        println!("");
-        println!("------------------------------------");
         if data.len() == 0 {
             println!("No manga found");
         }
         for item in data.iter_mut() {
+            println!("");
+            println!("------------------------------------");
             let manga_name = (
                 match item.get("name").and_then(Value::as_str) {
                     Some(m) => m,
@@ -345,7 +278,20 @@ pub(crate) async fn show() -> Result<(), Error> {
                             None => String::from("Invalid title"),
                         };
 
+                        let chapter = match obj.get("chapter").and_then(Value::as_str) {
+                            Some(chapter) => chapter.to_string(),
+                            None => String::from("Invalid chapter"),
+                        };
+                        let volume = match obj.get("volume").and_then(Value::as_str) {
+                            Some(volume) => volume.to_string(),
+                            None => String::from("Invalid volume"),
+                        };
+
                         println!("Name: {}", name);
+                        if volume != "null" {
+                            println!("Volume: {}", volume);
+                        }
+                        println!("Chapter: {}", chapter);
                         println!("Pages: {}", pages);
                         println!("ID: {}", id);
                         println!("Title: {}", title);
@@ -608,8 +554,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                                     Arc::from("https://uploads.mangadex.org/"),
                                     Arc::from(id),
                                     Arc::from(cover_data),
-                                    Arc::from(folder.clone()),
-                                    Some(String::new().into_boxed_str())
+                                    Arc::from(folder.clone())
                                 ).await
                             {
                                 Ok(()) => {
@@ -628,14 +573,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                                 return Err(Error::PoisonError(err.to_string()));
                             }
                         }) = get_manga_name(title_data);
-                        match
-                            resolve_manga(
-                                &id,
-                                get_manga_name(title_data).as_str(),
-                                false,
-                                Some(String::new().into_boxed_str())
-                            ).await
-                        {
+                        match resolve_manga(&id, get_manga_name(title_data).as_str(), false).await {
                             Ok(()) => (),
                             Err(err) => {
                                 handle_error(&err, String::from("manga"));
@@ -1069,7 +1007,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
     Ok(())
 }
 
-fn get_dat_content(dat_path: &str) -> Result<Value, Error> {
+pub(crate) fn get_dat_content(dat_path: &str) -> Result<Value, Error> {
     let file = File::open(&dat_path);
     let mut file = match file {
         Ok(file) => file,
@@ -1084,11 +1022,14 @@ fn get_dat_content(dat_path: &str) -> Result<Value, Error> {
     utils::get_json(&contents)
 }
 
-pub(crate) async fn resolve(
-    obj: Map<String, Value>,
-    id: &str,
-    handle_id: Option<Box<str>>
-) -> Result<String, Error> {
+pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String, Error> {
+    let handle_id = utils::generate_random_id(16);
+    *(match HANDLE_ID.lock() {
+        Ok(id) => id,
+        Err(err) => {
+            return Err(Error::PoisonError(err.to_string()));
+        }
+    }) = handle_id.clone();
     let title_data = match obj.get("data").and_then(|name_data| name_data.get("attributes")) {
         Some(value) => value,
         None => {
@@ -1284,10 +1225,14 @@ pub(crate) async fn resolve(
                 None => "",
             };
             if !name.is_empty() {
-                if typ == "theme" {
-                    theme.push(TagMetadata::new(name, id));
-                } else if typ == "genre" {
-                    genre.push(TagMetadata::new(name, id));
+                match typ {
+                    "theme" => {
+                        theme.push(TagMetadata::new(name, id));
+                    }
+                    "genre" => {
+                        genre.push(TagMetadata::new(name, id));
+                    }
+                    _ => (),
                 }
             }
         }
@@ -1349,8 +1294,7 @@ pub(crate) async fn resolve(
                 Arc::from("https://uploads.mangadex.org/"),
                 Arc::from(id),
                 Arc::from(cover),
-                Arc::from(folder.clone()),
-                handle_id.clone()
+                Arc::from(folder.clone())
             ).await
         {
             Ok(()) => true,
@@ -1362,7 +1306,7 @@ pub(crate) async fn resolve(
     }
 
     if ARGS.stat {
-        match download::download_stat(&id, &folder, &manga_name, handle_id.clone()).await {
+        match download::download_stat(&id, &folder, &manga_name).await {
             Ok(()) => (),
             Err(err) => {
                 crate::error::handle_error(&err, String::from("statistics"));
@@ -1389,18 +1333,15 @@ pub(crate) async fn resolve(
         langs_final
     };
 
-    match resolve_manga(&id, &manga_name, was_rewritten, handle_id.clone()).await {
+    match resolve_manga(&id, &manga_name, was_rewritten).await {
         Ok(()) => (),
         Err(err) => {
             handle_error(&err, String::from("program"));
         }
     }
-
+    log_end(handle_id);
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{} Downloaded manga", match handle_id {
-            Some(id) => id,
-            None => String::from("0").into_boxed_str(),
-        });
+        log!("Downloaded manga");
     }
     *(match DOWNLOADING.lock() {
         Ok(value) => value,
@@ -1411,11 +1352,11 @@ pub(crate) async fn resolve(
     Ok(manga_name)
 }
 
-pub(crate) async fn resolve_group(array_item: &Value, manga_name: &str) -> Result<(), Error> {
+pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String), Error> {
     let scanlation_group = match array_item.get("relationships").and_then(Value::as_array) {
         Some(group) => group,
         None => {
-            return Ok(());
+            return Ok((String::from("null"), String::from("null")));
         }
     };
     let scanlation_group_id = match get_scanlation_group(scanlation_group) {
@@ -1429,11 +1370,11 @@ pub(crate) async fn resolve_group(array_item: &Value, manga_name: &str) -> Resul
                     }
                 }
             ).push(Error::NotFoundError(String::from("resolve_group")));
-            return Ok(());
+            return Ok((String::from("null"), String::from("null")));
         }
     };
     if scanlation_group_id.is_empty() {
-        return Ok(());
+        return Ok((String::from("null"), String::from("null")));
     }
 
     let (name, website) = match resolve_group_metadata(scanlation_group_id).await {
@@ -1461,20 +1402,30 @@ pub(crate) async fn resolve_group(array_item: &Value, manga_name: &str) -> Resul
                 }
             }
         ).insert(String::from(scanlation_group_id), name.clone());
+    }
+    Ok((name, website))
+}
 
-        let file_name = format!("{}\\_scanlation_groups.txt", get_folder_name(manga_name));
+pub(crate) fn get_scanlation_group_to_file(
+    manga_name: &str,
+    name: String,
+    website: String
+) -> Result<(), Error> {
+    if name == String::from("null") {
+        return Ok(());
+    }
+    let file_name = format!("{}\\_scanlation_groups.txt", get_folder_name(manga_name));
 
-        let mut file_inst = match OpenOptions::new().create(true).append(true).open(&file_name) {
-            Ok(file_inst) => file_inst,
-            Err(err) => {
-                return Err(Error::IoError(err, Some(file_name)));
-            }
-        };
+    let mut file_inst = match OpenOptions::new().create(true).append(true).open(&file_name) {
+        Ok(file_inst) => file_inst,
+        Err(err) => {
+            return Err(Error::IoError(err, Some(file_name)));
+        }
+    };
 
-        match file_inst.write_all(format!("{} - {}\n", name, website).as_bytes()) {
-            Ok(()) => (),
-            Err(err) => eprintln!("Error: writing to {}: {}", name, err),
-        };
+    match file_inst.write_all(format!("{} - {}\n", name, website).as_bytes()) {
+        Ok(()) => (),
+        Err(err) => eprintln!("Error: writing to {}: {}", name, err),
     }
     Ok(())
 }
@@ -1540,12 +1491,7 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
     return Err(Error::NetworkError(response.error_for_status().unwrap_err()));
 }
 
-async fn resolve_manga(
-    id: &str,
-    manga_name: &str,
-    was_rewritten: bool,
-    handle_id: Option<Box<str>>
-) -> Result<(), Error> {
+async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) -> Result<(), Error> {
     let going_offset: u32 = match ARGS.database_offset.as_str().parse() {
         Ok(offset) => offset,
         Err(err) => {
@@ -1560,11 +1506,9 @@ async fn resolve_manga(
             return Err(Error::PoisonError(err.to_string()));
         }
     }) = id.to_owned();
-    match get_manga(id, going_offset, handle_id.clone()).await {
+    match get_manga(id, going_offset).await {
         Ok((json, _offset)) => {
-            let downloaded_temp = match
-                download_manga(json, manga_name, arg_force, handle_id.clone()).await
-            {
+            let downloaded_temp = match download_manga(json, manga_name, arg_force).await {
                 Ok(value) => value,
                 Err(err) => {
                     return Err(err);

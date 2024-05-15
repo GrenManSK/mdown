@@ -6,17 +6,17 @@ use std::{
     thread::sleep,
     time::{ Duration, Instant },
 };
-use tracing::info;
 
 use crate::{
+    ARGS,
     error::mdown::Error,
     getter,
+    IS_END,
+    log,
+    MAXPOINTS,
     resolute::{ self, CURRENT_PAGE },
     string,
-    utils::{ self, clear_screen, process_filename },
-    ARGS,
-    IS_END,
-    MAXPOINTS,
+    utils,
 };
 
 pub(crate) fn get_client() -> Result<reqwest::Client, reqwest::Error> {
@@ -103,17 +103,12 @@ pub(crate) async fn download_cover(
     image_base_url: Arc<str>,
     c_hash: Arc<str>,
     cover_hash: Arc<str>,
-    folder: Arc<str>,
-    handle_id: Option<Box<str>>
+    folder: Arc<str>
 ) -> Result<(), Error> {
-    let handle_id = match handle_id {
-        Some(id) => id,
-        None => String::from("0").into_boxed_str(),
-    };
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{}  Downloading cover", handle_id);
+        log!("Downloading cover");
     }
-    string(1, 0, "Downloading cover_art");
+    string(2, 0, "Downloading cover_art");
 
     let mut response = match get_response(image_base_url, c_hash, cover_hash, "covers").await {
         Ok(res) => res,
@@ -164,7 +159,7 @@ pub(crate) async fn download_cover(
             let perc_string = get_perc(percentage);
             let message = format!("Downloading cover art {}%", perc_string);
             string(
-                1,
+                2,
                 0,
                 &format!(
                     "{} {}",
@@ -177,27 +172,20 @@ pub(crate) async fn download_cover(
                 )
             );
             if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-                info!("@{}  {}", handle_id, message);
+                log!(&message);
             }
         }
     }
-    clear_screen(1);
+    let message = "Downloading cover art DONE";
+    string(2, 0, &format!("{}{}", message, " ".repeat((MAXPOINTS.max_x as usize) - message.len())));
+
     Ok(())
 }
-pub(crate) async fn download_stat(
-    id: &str,
-    folder: &str,
-    manga_name: &str,
-    handle_id: Option<Box<str>>
-) -> Result<(), Error> {
-    let handle_id = match handle_id {
-        Some(id) => id,
-        None => String::from("0").into_boxed_str(),
-    };
+pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> Result<(), Error> {
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{}  Getting statistics", handle_id);
+        log!("Getting statistics");
     }
-    string(1, 0, "Getting statistics");
+    string(3, 0, "Getting statistics ...");
 
     let response = match getter::get_statistic_json(id).await {
         Ok(response) => response,
@@ -288,7 +276,9 @@ pub(crate) async fn download_stat(
                 replies_count
             );
         }
-        _ => todo!(),
+        _ => {
+            return Err(Error::JsonError(String::from("Could not parse statistics json")));
+        }
     }
 
     match file.write_all(data.as_bytes()) {
@@ -298,6 +288,7 @@ pub(crate) async fn download_stat(
         }
     }
 
+    string(3, 0, "Getting statistics DONE");
     Ok(())
 }
 
@@ -313,53 +304,28 @@ pub(crate) async fn download_image(
     image_base_url: Arc<str>,
     c_hash: Arc<str>,
     f_name: Arc<str>,
-    manga_name: Arc<str>,
-    name: Arc<str>,
-    vol: Arc<str>,
-    chapter: Arc<str>,
     page: usize,
+    page_str: String,
+    folder_name: String,
+    file_name_brief: String,
+    lock_file: String,
+    full_path: String,
+    saver: Arc<str>,
     start: u32,
     iter: usize,
-    times: usize,
-    handle_id: Box<str>
+    times: usize
 ) -> Result<(), Error> {
-    let mut pr_title = "".to_string();
-    if name != "".into() {
-        pr_title = format!(" - {}", name);
-    }
-    let page = page + 1;
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{} Starting image download {}", handle_id, page);
+        log!(&format!("Starting image download {}", page));
     }
-    let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
-    let folder_name = process_filename(
-        &format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title)
-    );
-    let file_name = process_filename(
-        &format!("{} - {}Ch.{}{} - {}.jpg", manga_name, vol, chapter, pr_title, page)
-    );
-    let file_name_brief = process_filename(&format!("{}Ch.{} - {}.jpg", vol, chapter, page));
-
-    let lock_file = process_filename(&format!(".cache\\{}.lock", folder_name));
 
     string(3 + 1, start + (page as u32) - 1, "|");
-    string(3 + 1 + (page as u32), 0, "   Sleeping");
+    string(3 + 1 + (page as u32), 0, "  Sleeping");
     sleep(Duration::from_millis(((page - iter * times) * 50) as u64));
     string(3 + 1 + (page as u32), 0, &format!("   {} Downloading {}", page_str, file_name_brief));
     string(3 + 1, start + (page as u32) - 1, "/");
-    let full_path = format!(".cache/{}/{}", folder_name, file_name);
 
-    let saver = match resolute::SAVER.lock() {
-        Ok(saver) =>
-            match *saver {
-                true => "data-saver",
-                false => "data",
-            }
-        Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
-        }
-    };
-    let mut response = match get_response(image_base_url, c_hash, f_name, saver).await {
+    let mut response = match get_response(image_base_url, c_hash, f_name, &saver).await {
         Ok(res) => res,
         Err(err) => {
             return Err(err);
@@ -501,9 +467,9 @@ pub(crate) async fn download_image(
                 (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
             );
             if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-                info!("@{} {}", handle_id, message.to_string());
+                log!(&message);
             }
-            if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+            if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update || !ARGS.log {
                 string(
                     3 + 1 + (page as u32),
                     0,
@@ -529,7 +495,7 @@ pub(crate) async fn download_image(
         }
     }) += 1;
 
-    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update || !ARGS.log {
         let message = format!(
             "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
             page_str,
@@ -579,7 +545,7 @@ pub(crate) async fn download_image(
     }
 
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{} Finished image download {}", handle_id, page);
+        log!(&format!("Finished image download {}", page));
     }
     Ok(())
 }

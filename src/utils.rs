@@ -1,6 +1,8 @@
+use chrono::prelude::*;
 use crosscurses::*;
+use rand::{ Rng, distributions::Alphanumeric };
 use regex::Regex;
-use serde_json::Value;
+use serde_json::{ Value, json };
 use std::{
     cmp::Ordering,
     fs::{ self, File, OpenOptions },
@@ -10,17 +12,19 @@ use std::{
     thread::sleep,
     time::{ Duration, Instant },
 };
-use tracing::info;
 use uuid::Uuid;
 
 use crate::{
+    ARGS,
+    download,
+    error::{ mdown::Error, handle_error },
+    getter,
+    IS_END,
+    log,
+    MAXPOINTS,
+    metadata,
     resolute::{ self, resolve_move, CURRENT_PERCENT, CURRENT_SIZE, CURRENT_SIZE_MAX },
     string,
-    ARGS,
-    IS_END,
-    MAXPOINTS,
-    error::{ mdown::Error, handle_error },
-    download,
 };
 
 pub(crate) fn setup_requirements(file_path_tm: String) {
@@ -30,6 +34,204 @@ pub(crate) fn setup_requirements(file_path_tm: String) {
     let file_path_temp = file_path_tm.clone();
     tokio::spawn(async move { print_version(file_path_tm).await });
     tokio::spawn(async move { ctrl_handler(file_path_temp).await });
+}
+
+pub(crate) fn log_handler() {
+    let path = match getter::get_log_path() {
+        Ok(path) => path,
+        Err(_err) => {
+            return;
+        }
+    };
+    let lock_path = match getter::get_log_lock_path() {
+        Ok(path) => path,
+        Err(_err) => {
+            return;
+        }
+    };
+
+    if fs::metadata(&lock_path).is_ok() {
+        remove_log_lock_file();
+    }
+
+    while
+        !(match resolute::ENDED.lock() {
+            Ok(value) => { *value }
+            Err(_err) => {
+                sleep(Duration::from_millis(100));
+                false
+            }
+        })
+    {
+        sleep(Duration::from_millis(100));
+
+        let _ = if fs::metadata(&path).is_err() {
+            let mut file = match fs::File::create(&path) {
+                Ok(file) => file,
+                Err(_err) => {
+                    continue;
+                }
+            };
+
+            let content = String::from("{}");
+
+            match file.write_all(content.as_bytes()) {
+                Ok(()) => (),
+                Err(_err) => (),
+            };
+        };
+
+        while fs::metadata(&lock_path).is_ok() {
+            sleep(Duration::from_millis(10));
+        }
+        let _ = File::create(&lock_path);
+        let mut json = match resolute::get_dat_content(path.as_str()) {
+            Ok(value) => value,
+            Err(_err) => {
+                continue;
+            }
+        };
+
+        let mut messages_lock = match resolute::LOGS.lock() {
+            Ok(value) => value,
+            Err(_err) => {
+                continue;
+            }
+        };
+        let mut handle_id_lock = match resolute::HANDLE_ID_END.lock() {
+            Ok(value) => value,
+            Err(_err) => {
+                continue;
+            }
+        };
+
+        let char = vec!["\\n", "\\r", "\\t", "\\\\", "\\'", "\\\"", "\\0"];
+
+        let messages: Vec<metadata::LOG> = messages_lock
+            .clone()
+            .iter()
+            .map(|message| {
+                let mut message = message.clone();
+                for c in char.iter() {
+                    message.message = message.message.replace(c, "").to_string();
+                }
+                message
+            })
+            .collect();
+
+        if let Some(data) = json.as_object_mut() {
+            for message in messages.iter() {
+                let handle_id = message.handle_id.to_string();
+                let chap_num = message.name.to_string();
+                if handle_id == String::new() {
+                    continue;
+                }
+                let mut inst: Vec<Value> = Vec::new();
+                let mut map: serde_json::Map<String, Value> = serde_json::Map::new();
+                if
+                    let Some(value) = data
+                        .get_mut(&handle_id.to_string())
+                        .and_then(|value| value.get_mut("logs"))
+                        .and_then(|value| value.get_mut(chap_num.clone()))
+                        .and_then(Value::as_array_mut)
+                {
+                    inst.extend_from_slice(value);
+                }
+                if
+                    let Some(value) = data
+                        .get_mut(&handle_id.to_string())
+                        .and_then(|value| value.get_mut("logs"))
+                        .and_then(Value::as_object_mut)
+                {
+                    map = value.clone();
+                }
+                let start_time = {
+                    if
+                        let Some(time) = data
+                            .get(&handle_id.to_string())
+                            .and_then(|value| value.get("time_start"))
+                            .and_then(Value::as_str)
+                    {
+                        time.to_string()
+                    } else {
+                        Utc::now().to_rfc3339()
+                    }
+                };
+                inst.push(
+                    Value::String(format!("{}  {}", message.time.clone(), message.message.clone()))
+                );
+
+                map.insert(chap_num.clone(), serde_json::Value::Array(inst.clone()));
+
+                match handle_id.len() {
+                    10 => {
+                        data.insert(
+                            handle_id.to_string(),
+                            json!({"logs":map, "type":"web", "time_start": start_time, "time_end": null})
+                        );
+                    }
+                    16 => {
+                        let manga_name = match resolute::MANGA_NAME.lock() {
+                            Ok(value) => Value::String(value.clone()),
+                            Err(_err) => Value::Null,
+                        };
+                        let manga_id = match resolute::MANGA_ID.lock() {
+                            Ok(value) => Value::String(value.clone()),
+                            Err(_err) => Value::Null,
+                        };
+                        let mwd = match resolute::MWD.lock() {
+                            Ok(value) => Value::String(value.clone()),
+                            Err(_err) => Value::Null,
+                        };
+                        data.insert(
+                            handle_id.to_string(),
+                            json!({"logs":map, "type":"downloader", "time_start": start_time, "time_end": null, "name": manga_name, "id": manga_id, "mwd": mwd})
+                        );
+                    }
+                    _ => {
+                        data.insert(
+                            handle_id.to_string(),
+                            json!({"logs":map, "type":"unknown", "time_start": start_time, "time_end": null})
+                        );
+                    }
+                }
+            }
+            for handle_id in handle_id_lock.iter() {
+                if handle_id == &String::new().into_boxed_str() {
+                    continue;
+                }
+                let end_time = Utc::now().to_rfc3339();
+                if
+                    let Some(handle) = data
+                        .get_mut(&handle_id.to_string())
+                        .and_then(|value| value.get_mut("time_end"))
+                {
+                    *handle = Value::String(end_time);
+                }
+            }
+        }
+        let mut file = match File::create(&path) {
+            Ok(file) => file,
+            Err(_err) => {
+                continue;
+            }
+        };
+
+        let json_string = match serde_json::to_string_pretty(&json) {
+            Ok(value) => value,
+            Err(_err) => {
+                continue;
+            }
+        };
+
+        let _ = writeln!(file, "{}", json_string);
+        *messages_lock = vec![];
+        *handle_id_lock = vec![];
+        drop(messages_lock);
+        drop(handle_id_lock);
+
+        remove_log_lock_file();
+    }
 }
 
 pub(crate) fn remove_cache() -> Result<(), Error> {
@@ -217,7 +419,7 @@ pub(crate) async fn wait_for_end(file_path: String, images_length: usize) -> Res
                 percent,
                 size,
                 full_size,
-                full_size - size,
+                (full_size - size).abs(),
                 (Instant::now() - start).as_secs_f64().abs()
             )
         );
@@ -236,7 +438,7 @@ pub(crate) async fn wait_for_end(file_path: String, images_length: usize) -> Res
 }
 
 pub(crate) fn progress_bar_preparation(start: u32, images_length: usize, line: u32) {
-    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update && !ARGS.server {
         string(line, 0, &format!("{}|", &"-".repeat((start as usize) - 1)));
         string(
             line,
@@ -274,6 +476,16 @@ pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
     });
 
     data_array
+}
+
+pub(crate) fn remove_log_lock_file() {
+    let lock_path = match getter::get_log_lock_path() {
+        Ok(path) => path,
+        Err(_err) => {
+            return;
+        }
+    };
+    let _ = fs::remove_file(lock_path);
 }
 
 pub(crate) fn get_json(manga_name_json: &str) -> Result<Value, Error> {
@@ -361,7 +573,7 @@ pub(crate) fn resolve_start() -> Result<(String, String), Error> {
                 match remove_cache() {
                     Ok(()) => (),
                     Err(err) => eprintln!("Error: removing cache {}", err),
-                };
+                }
                 exit(0);
             }
         }
@@ -448,6 +660,10 @@ pub(crate) async fn ctrl_handler(file: String) {
                     continue;
                 }
             }) = true;
+            if ARGS.log {
+                log!("CTRL+C received");
+                log!("CTRL+C received", "", false);
+            }
             break;
         }
     }
@@ -669,7 +885,7 @@ pub(crate) fn resolve_end(
             0,
             0,
             &format!(
-                "Either --url was not specified or website is not in pattern of https://mangadex.org/title/[id]/"
+                "Either --url or --search was not specified or website is not in pattern of https://mangadex.org/title/[id]/"
             )
         );
         string(1, 0, "See readme.md for more information");
@@ -757,12 +973,11 @@ pub(crate) fn skip_didnt_match(
     attr: &str,
     item: usize,
     moves: u32,
-    mut hist: Vec<String>,
-    handle_id: Box<str>
+    mut hist: Vec<String>
 ) -> (u32, Vec<String>) {
     let message = format!("({}) Skipping because supplied {} doesn't match", item as u32, attr);
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{}   {}", handle_id, message);
+        log!(&message);
     }
     hist.push(message);
     resolve_move(moves, hist.clone(), 3, 0)
@@ -772,12 +987,11 @@ pub(crate) fn skip_custom(
     attr: &str,
     item: usize,
     moves: u32,
-    mut hist: Vec<String>,
-    handle_id: Box<str>
+    mut hist: Vec<String>
 ) -> (u32, Vec<String>) {
     let message = format!("({}) Skipping because {}", item as u32, attr);
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{}   {}", handle_id, message);
+        log!(&message);
     }
     hist.push(message);
     resolve_move(moves, hist.clone(), 3, 0)
@@ -787,25 +1001,19 @@ pub(crate) fn skip(
     attr: String,
     item: usize,
     moves: u32,
-    mut hist: Vec<String>,
-    handle_id: Box<str>
+    mut hist: Vec<String>
 ) -> (u32, Vec<String>) {
     let al_dow = format!("({}) Skipping because file is already downloaded {}", item, attr);
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{}   {}", handle_id, al_dow);
+        log!(&al_dow);
     }
     hist.push(al_dow);
     resolve_move(moves, hist.clone(), 3, 0)
 }
-pub(crate) fn skip_offset(
-    item: usize,
-    moves: u32,
-    mut hist: Vec<String>,
-    handle_id: Box<str>
-) -> (u32, Vec<String>) {
+pub(crate) fn skip_offset(item: usize, moves: u32, mut hist: Vec<String>) -> (u32, Vec<String>) {
     let al_dow = format!("({}) Skipping because of offset", item);
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{}   {}", handle_id, al_dow);
+        log!(&al_dow);
     }
     hist.push(al_dow);
     resolve_move(moves, hist.clone(), 3, 0)
@@ -834,6 +1042,12 @@ pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(),
         }
     }
     Ok(())
+}
+
+pub(crate) fn generate_random_id(length: usize) -> Box<str> {
+    let rng = rand::thread_rng();
+    let id: String = rng.sample_iter(&Alphanumeric).take(length).map(char::from).collect();
+    id.into_boxed_str()
 }
 
 // Returns a regex match when given a string containing a valid Mangadex URL.

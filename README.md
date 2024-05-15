@@ -24,8 +24,8 @@ See [site](https://mangadex.org/) for finding manga
 
 `--folder [String]` - will put manga in folder specified
 
-- if folder name is **name** it will put in folder same as manga name
-- if folder name is **name** and title is specified it will make folder same as title
+- if folder name is "**name**" it will put in folder same as manga name
+- if folder name is "**name**" and title is specified it will make folder same as title
 
 `--volume [Integer]` - will download manga which has supplied volume in it
 
@@ -41,7 +41,7 @@ See [site](https://mangadex.org/) for finding manga
 
 `--stat` - will add txt file which contains status information
 
-`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed gradually during download process
+`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; if ctrl+c mid download, program cache will not be automatically cleared, there is button in web to exit program. If program can not be exited with ctrl+c use it to exit program or type "<http://127.0.0.1:8080/end>" in browser, that can happen when you use program without web flag and then again with web flag in same terminal
 
 `--encode` - will print url in program readable format
 
@@ -58,6 +58,8 @@ See [site](https://mangadex.org/) for finding manga
 `--show` - will show current manga in database
 
 `--show-all` - will show current chapters in database
+
+`--server` - will start server from which you can download manga through local internet
 
 ---
 

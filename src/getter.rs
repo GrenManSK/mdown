@@ -1,18 +1,18 @@
 use serde_json::Value;
 use std::process::exit;
-use tracing::info;
 
 use crate::{
+    ARGS,
     download::get_response_client,
+    error::mdown::Error,
     getter,
+    log,
+    resolute,
     string,
     utils,
-    ARGS,
-    error::mdown::Error,
-    resolute,
 };
 
-pub(crate) fn get_dat_path() -> Result<String, Error> {
+fn get_exe_path() -> Result<String, Error> {
     let current = match std::env::current_exe() {
         Ok(value) => value,
         Err(err) => {
@@ -31,12 +31,40 @@ pub(crate) fn get_dat_path() -> Result<String, Error> {
         }
     };
     let path = match parent.to_str() {
-        Some(value) => value,
+        Some(value) => value.to_string(),
         None => {
             return Err(Error::ConversionError(String::from("Transition to str failed")));
         }
     };
+    Ok(path)
+}
+
+pub(crate) fn get_dat_path() -> Result<String, Error> {
+    let path = match get_exe_path() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(err);
+        }
+    };
     Ok(format!("{}\\dat.json", path))
+}
+pub(crate) fn get_log_path() -> Result<String, Error> {
+    let path: String = match get_exe_path() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    Ok(format!("{}\\log.json", path))
+}
+pub(crate) fn get_log_lock_path() -> Result<String, Error> {
+    let path: String = match get_exe_path() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    Ok(format!("{}\\log.lock", path))
 }
 
 pub(crate) fn get_folder_name(manga_name: &str) -> String {
@@ -303,23 +331,19 @@ pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
     None
 }
 
-pub(crate) async fn get_manga(
-    id: &str,
-    offset: u32,
-    handle_id: Option<Box<str>>
-) -> Result<(String, usize), Error> {
-    let handle_id = match handle_id {
-        Some(id) => id,
-        None => String::new().into_boxed_str(),
-    };
+pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), Error> {
     let mut times = 0;
     let mut json: String;
     let mut json_2: String = String::new();
     let mut times_offset: u32;
+    let stat = match ARGS.stat {
+        true => 1,
+        false => 0,
+    };
     loop {
         times_offset = offset + 500 * times;
         string(
-            1,
+            3 + times + stat,
             0,
             &format!(
                 "{} {} {}   ",
@@ -388,9 +412,9 @@ pub(crate) async fn get_manga(
                             times.to_string(),
                             offset.to_string()
                         );
-                        string(1, 0, &message);
+                        string(3 + times + stat, 0, &message);
                         if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-                            info!("@{} {}", handle_id, message);
+                            log!(&message);
                         }
                         offset_temp = data_array.len();
                         if offset_temp >= 500 {
@@ -498,7 +522,9 @@ pub(crate) async fn get_manga(
                         }
                     }
                 }
-                _ => todo!(),
+                _ => {
+                    return Err(Error::JsonError(String::from("Could not parse manga json")));
+                }
             }
 
             return Ok((json, offset_temp));
@@ -570,17 +596,6 @@ pub(crate) fn get_arg(arg: String) -> String {
     match arg.as_str() {
         "" => String::from("*"),
         x => String::from(x),
-    }
-}
-
-pub(crate) fn get_saver() -> String {
-    match resolute::SAVER.lock() {
-        Ok(value) =>
-            match *value {
-                true => String::from("dataSaver"),
-                false => String::from("data"),
-            }
-        Err(_err) => { String::from("data") }
     }
 }
 

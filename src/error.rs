@@ -23,10 +23,9 @@ pub(crate) mod mdown {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 Error::IoError(msg, name) => {
-                    if let Some(name) = name {
-                        write!(f, "Error: IO Error {} for file {}", msg, name)
-                    } else {
-                        write!(f, "Error: IO Error {}", msg)
+                    match name {
+                        Some(name) => write!(f, "Error: IO Error {} for file {}", msg, name),
+                        None => write!(f, "Error: IO Error {}", msg),
                     }
                 }
                 Error::StatusError(msg) => write!(f, "Error: {}", msg),
@@ -78,10 +77,9 @@ pub(crate) mod mdown {
 pub(crate) fn handle_error(err: &mdown::Error, from: String) {
     match err {
         mdown::Error::IoError(err, name) => {
-            if let Some(name) = name {
-                eprintln!("Error: IO Error {} in file {} ({})", err, name, from)
-            } else {
-                eprintln!("Error: IO Error {} ({})", err, from)
+            match name {
+                Some(name) => eprintln!("Error: IO Error {} in file {} ({})", err, name, from),
+                None => eprintln!("Error: IO Error {} ({})", err, from),
             }
         }
         mdown::Error::StatusError(err) => eprintln!("Error: Network Error {} ({})", err, from),
@@ -98,8 +96,7 @@ pub(crate) fn handle_error(err: &mdown::Error, from: String) {
 }
 
 pub(crate) fn handle_suspended() {
-    let locked_suspended = SUSPENDED.lock();
-    match locked_suspended {
+    match SUSPENDED.lock() {
         Ok(suspended) => {
             if !suspended.is_empty() {
                 println!("Suspended errors:");
@@ -114,7 +111,7 @@ pub(crate) fn handle_suspended() {
     }
 }
 
-pub(crate) fn handle_final(err: mdown::Final) {
+pub(crate) fn handle_final(err: &mdown::Final) {
     eprintln!("{}", err);
     handle_suspended();
 }

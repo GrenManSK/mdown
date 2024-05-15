@@ -8,9 +8,8 @@ _description.txt
 _cover.png
 _scanlation_groups.txt
 github_info.txt
-convert.html
 convert.py
-final.html
+*.html
 _statistics.md
 .cache/
 src/_*

@@ -1,9 +1,8 @@
 use std::{ fs::File, io::{ Read, Seek, Write }, path::Path };
-use tracing::info;
 use walkdir::{ DirEntry, WalkDir };
 use zip::{ result::ZipError, write::FileOptions, ZipArchive };
 
-use crate::{ string, utils::progress_bar_preparation, ARGS, MAXPOINTS, error };
+use crate::{ ARGS, error, log, MAXPOINTS, string, utils::progress_bar_preparation };
 
 fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
@@ -104,16 +103,16 @@ fn doit(src_dir: &str, dst_file: &str) -> Result<(), error::mdown::Error> {
     Ok(())
 }
 
-pub(crate) async fn to_zip(src_dir: &str, dst_file: &str, handle_id: Box<str>) {
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{} Zipping files to: {} ...", handle_id, dst_file);
+pub(crate) fn to_zip(src_dir: &str, dst_file: &str) {
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log || ARGS.server {
+        log!(&format!("Zipping files to: {} ...", dst_file));
     }
     match doit(src_dir, dst_file) {
         Ok(_) => string(7, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str()),
         Err(e) => eprintln!("  Error: {e:?}"),
     }
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        info!("@{} Zipping files to: {} Done", handle_id, dst_file);
+    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log || ARGS.server {
+        log!(&format!("Zipping files to: {} Done", dst_file));
     }
 }
 
