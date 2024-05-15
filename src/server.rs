@@ -198,7 +198,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
             };
 
             let content = match file_path.as_str() {
-                "image" => ERROR_404_JPG,
+                "error_404" => ERROR_404_JPG,
                 _ => {
                     return Err(
                         Error::CustomError(

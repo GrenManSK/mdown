@@ -27,7 +27,9 @@ fn main() {
 
                     let out_dir = std::env::var("OUT_DIR").unwrap();
                     let file_stem = file_name.to_string_lossy().replace(".", "_");
-                    let dest_path = Path::new(&out_dir).join(format!("{}.rs", file_stem));
+                    let dest_path = Path::new(&out_dir).join(
+                        format!("{}.rs", file_stem.to_lowercase())
+                    );
                     let mut dest_file = File::create(&dest_path).expect("Failed to create file");
 
                     dest_file

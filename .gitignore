@@ -15,3 +15,5 @@ _statistics.md
 src/_*
 .sync/
 *.psd
+item.py
+item.json
