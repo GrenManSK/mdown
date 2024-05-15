@@ -67,6 +67,31 @@ pub(crate) fn get_log_lock_path() -> Result<String, Error> {
     Ok(format!("{}\\log.lock", path))
 }
 
+
+pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, String> {
+    (
+        match parts[1].split('?').nth(1) {
+            Some(value) => value,
+            None => "",
+        }
+    )
+        .split('&')
+        .filter_map(|param| {
+            let mut iter = param.split('=');
+            let key = match iter.next() {
+                Some(key) => key.to_string(),
+                None => String::from(""),
+            };
+            let value = match iter.next() {
+                Some(key) => key.to_string(),
+                None => String::from(""),
+            };
+            Some((key, value))
+        })
+        .collect()
+}
+
+
 pub(crate) fn get_folder_name(manga_name: &str) -> String {
     if ARGS.folder == "name" { manga_name.to_owned() } else { ARGS.folder.as_str().to_string() }
 }

@@ -373,7 +373,9 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
 
 fn get_html() -> String {
     if ARGS.dev {
-        let err_404 = String::from("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>404 Error - Page Not Found</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            background-color: #f7f7f7;\n            color: #333;\n            margin: 0;\n            padding: 0;\n            text-align: center;\n        }\n        .container {\n            position: absolute;\n            top: 50%;\n            left: 50%;\n            transform: translate(-50%, -50%);\n        }\n        h1 {\n            font-size: 36px;\n            margin-bottom: 20px;\n        }\n        p {\n            font-size: 18px;\n            margin-bottom: 20px;\n        }\n        a {\n            color: #007bff;\n            text-decoration: none;\n        }\n        a:hover {\n            text-decoration: underline;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <h1>404 Error - Page Not Found</h1>\n        <p>The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>\n        <p>Go back to <a href=\"/\">home page</a>.</p>\n    </div>\n</body>\n</html>\n");
+        let err_404 = String::from(
+            "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>404 Error - Page Not Found</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            background-color: #f7f7f7;\n            color: #333;\n            margin: 0;\n            padding: 0;\n            text-align: center;\n        }\n        .container {\n            position: absolute;\n            top: 50%;\n            left: 50%;\n            transform: translate(-50%, -50%);\n        }\n        h1 {\n            font-size: 36px;\n            margin-bottom: 20px;\n        }\n        p {\n            font-size: 18px;\n            margin-bottom: 20px;\n        }\n        a {\n            color: #007bff;\n            text-decoration: none;\n        }\n        a:hover {\n            text-decoration: underline;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <h1>404 Error - Page Not Found</h1>\n        <p>The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>\n        <p>Go back to <a href=\"/\">home page</a>.</p>\n    </div>\n</body>\n</html>\n"
+        );
         let mut file = match File::open("web.html") {
             Ok(file) => file,
             Err(_err) => {
@@ -407,26 +409,8 @@ fn parse_request(
         if parts[1].starts_with("/manga?") && parts[1].contains(&url_param) {
             log!("REQUEST RECEIVED");
             log!("REQUEST Type: download");
-            let query_params: HashMap<_, _> = (
-                match parts[1].split('?').nth(1) {
-                    Some(value) => value,
-                    None => "",
-                }
-            )
-                .split('&')
-                .filter_map(|param| {
-                    let mut iter = param.split('=');
-                    let key = match iter.next() {
-                        Some(key) => key.to_string(),
-                        None => String::from(""),
-                    };
-                    let value = match iter.next() {
-                        Some(key) => key.to_string(),
-                        None => String::from(""),
-                    };
-                    Some((key, value))
-                })
-                .collect();
+
+            let query_params = getter::get_query(parts);
             if let Some(manga_url) = query_params.get("url").cloned() {
                 let id = match query_params.get("id").cloned() {
                     Some(id) => id.into_boxed_str(),
@@ -436,20 +420,7 @@ fn parse_request(
                 return Some((Some(decoded_url), Some(query_params), id));
             }
         } else if parts[1].starts_with("/manga-result") {
-            let query_params: HashMap<_, _> = (
-                match parts[1].split('?').nth(1) {
-                    Some(value) => value,
-                    None => "",
-                }
-            )
-                .split('&')
-                .filter_map(|param| {
-                    let mut iter = param.split('=');
-                    let key = iter.next()?.to_owned();
-                    let value = iter.next()?.to_owned();
-                    Some((key, value))
-                })
-                .collect();
+            let query_params = getter::get_query(parts);
             if let Some(id) = query_params.get("id").cloned() {
                 log!("REQUEST RECEIVED", id.clone().into_boxed_str());
                 log!("REQUEST Type: progress", id.clone().into_boxed_str());

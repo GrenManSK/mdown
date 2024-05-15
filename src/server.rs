@@ -1,15 +1,15 @@
 use if_addrs::get_if_addrs;
 use serde_json::{ Value, json };
 use std::{
-    collections::HashMap,
     fs::{ self, File },
     io::{ self, BufRead, BufReader, Write, Read },
     net::{ TcpListener, TcpStream },
     path::Path,
     thread,
 };
+include!(concat!(env!("OUT_DIR"), "/error_404_jpg.rs"));
 
-use crate::{ ARGS, error::{ mdown::Error, handle_error }, log, utils, zip_func };
+use crate::{ ARGS, error::{ mdown::Error, handle_error }, getter::get_query, log, utils, zip_func };
 
 fn get_directory_content(path: &str) -> std::result::Result<Value, Error> {
     let mut result = serde_json::Map::new();
@@ -97,26 +97,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
         if path.starts_with("/__search__") {
             let file_path: String;
             if path.starts_with("/__search__?") {
-                let query_params: HashMap<_, _> = (
-                    match parts[1].split('?').nth(1) {
-                        Some(value) => value,
-                        None => "",
-                    }
-                )
-                    .split('&')
-                    .filter_map(|param| {
-                        let mut iter = param.split('=');
-                        let key = match iter.next() {
-                            Some(key) => key.to_string(),
-                            None => String::from(""),
-                        };
-                        let value = match iter.next() {
-                            Some(key) => key.to_string(),
-                            None => String::from(""),
-                        };
-                        Some((key, value))
-                    })
-                    .collect();
+                let query_params = get_query(parts);
                 file_path = match query_params.get("path").cloned() {
                     Some(value) => value,
                     None => String::from("."),
@@ -149,26 +130,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
                 }
             };
         } else if path.starts_with("/__download__?") {
-            let query_params: HashMap<_, _> = (
-                match parts[1].split('?').nth(1) {
-                    Some(value) => value,
-                    None => "",
-                }
-            )
-                .split('&')
-                .filter_map(|param| {
-                    let mut iter = param.split('=');
-                    let key = match iter.next() {
-                        Some(key) => key.to_string(),
-                        None => String::from(""),
-                    };
-                    let value = match iter.next() {
-                        Some(key) => key.to_string(),
-                        None => String::from(""),
-                    };
-                    Some((key, value))
-                })
-                .collect();
+            let query_params = get_query(parts);
             let file_path = match query_params.get("path").cloned() {
                 Some(value) => value,
                 None => {
@@ -226,6 +188,32 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
                     return Err(Error::IoError(err, Some(dst_file)));
                 }
             };
+        } else if path.starts_with("/__get__?") {
+            let query_params = get_query(parts);
+            let file_path = match query_params.get("path").cloned() {
+                Some(value) => value,
+                None => {
+                    return Ok(());
+                }
+            };
+
+            let content = match file_path.as_str() {
+                "image" => ERROR_404_JPG,
+                _ => {
+                    return Err(
+                        Error::CustomError(
+                            String::from("Didn't find resource"),
+                            String::from("ResourceError")
+                        )
+                    );
+                }
+            };
+            match stream.get_mut().write_all(&content) {
+                Ok(_n) => (),
+                Err(err) => {
+                    return Err(Error::IoError(err, None));
+                }
+            }
         } else if path == "/" {
             let html = get_html();
             let response = format!(
@@ -316,7 +304,7 @@ fn get_html() -> String {
         contents
     } else {
         String::from(
-            "<!DOCTYPE html>\n<html lang=\"en\">\n\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>File Manager</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            margin: 0;\n            padding: 0;\n        }\n\n        .container {\n            width: 80%;\n            margin: 20px auto;\n        }\n\n        .file-list {\n            list-style-type: none;\n            padding: 0;\n        }\n\n        .file-list li {\n            margin-bottom: 5px;\n        }\n\n        .file-list li a {\n            text-decoration: none;\n            color: #007bff;\n            cursor: pointer;\n        }\n\n        .file-info {\n            border: 1px solid #ccc;\n            padding: 10px;\n            margin-top: 20px;\n        }\n    </style>\n</head>\n\n<body>\n\n    <div class=\"container\">\n        <h2>File Manager</h2>\n        <div>\n            <label for=\"ipAddress\">Enter IP Address:</label>\n            <input type=\"text\" id=\"ipAddress\" placeholder=\"Enter IP Address\">\n            <button onclick=\"fetchFiles()\">Connect</button>\n            <button onclick=\"goToParentDirectory()\">Parent Directory</button>\n            <button onclick=\"downloadAsZip()\">Download As ZIP</button> <!-- New button -->\n        </div>\n        <ul class=\"file-list\" id=\"fileList\">\n            <!-- File list will be populated dynamically -->\n        </ul>\n        <div class=\"file-info\" id=\"fileInfo\">\n            <!-- File info will be displayed here -->\n        </div>\n    </div>\n    <script>\n        var path_hist = \"\";\n\n        function displayFiles(files) {\n            const fileList = document.getElementById(\'fileList\');\n            fileList.innerHTML = \'\';\n\n            const directories = [];\n            const regularFiles = [];\n\n            for (const key in files) {\n                const file = files[key];\n                if (file.type === \'directory\') {\n                    directories.push(file);\n                } else {\n                    regularFiles.push(file);\n                }\n            }\n\n            // Sort directories and regular files alphabetically by path\n            directories.sort((a, b) => a.path.localeCompare(b.path));\n            regularFiles.sort((a, b) => a.path.localeCompare(b.path));\n\n            // Combine sorted directories and regular files\n            const sortedFiles = [...directories, ...regularFiles];\n\n            sortedFiles.forEach(file => {\n                const listItem = document.createElement(\'li\');\n                const link = document.createElement(\'a\');\n                link.setAttribute(\'data-isDir\', file.type === \'directory\');\n                link.setAttribute(\'data-path\', file.path);\n                link.text = file.path;\n                link.addEventListener(\'click\', () => {\n                    const fileInfo = document.getElementById(\'fileInfo\');\n                    fileInfo.innerHTML = \"\";\n                    console.log(path_hist + file.path);\n                    if (file.type === \'directory\') {\n                        fetchFiles(path_hist + file.path);\n                    } else {\n                        displayFileInfo(file);\n                    }\n                });\n                listItem.appendChild(link);\n                fileList.appendChild(listItem);\n            });\n        }\n\n        function displayFileInfo(file) {\n\n            const fileInfo = document.getElementById(\'fileInfo\');\n\n            const milliseconds = file.modified.secs_since_epoch * 1000 + Math.round(file.modified.nanos_since_epoch / 1000000);\n            let content = `\n                <h3>File Details</h3>\n                <p>Name: ${file.path}</p>\n                <p>Size: ${file.size} bytes</p>\n                <p>Last Modified: ${new Date(milliseconds).toLocaleString()}</p>\n            `;\n            if (file.type !== \'directory\') {\n                content += `<a href=\"http://${document.getElementById(\'ipAddress\').value}:3000/${path_hist + file.path}\" download>Download</a>`;\n            }\n            fileInfo.innerHTML = content;\n        }\n\n        function fetchFiles(path = \'.\') {\n            const encoded_path = encodeURIComponent(path);\n            const ipAddress = document.getElementById(\'ipAddress\').value;\n            console.log(encoded_path);\n            if (!ipAddress) {\n                alert(\'Please enter an IP address.\');\n                return;\n            }\n\n            fetch(`http://${ipAddress}:3000/__search__?path=${encoded_path}`)\n                .then(response => response.json())\n                .then(data => {\n                    displayFiles(data);\n                })\n                .catch(error => {\n                    alert(\'Failed to fetch files. Please try again later.\');\n                    console.error(\'Error:\', error);\n                });\n            path_hist = path + \'/\';\n        }\n\n        function goToParentDirectory() {\n            const ipAddress = document.getElementById(\'ipAddress\').value;\n            var currentPath = path_hist.split(\'/\').slice(0, -2).join(\'/\') + \"/\";\n            if (currentPath == \'/\') {\n                currentPath = \"./\";\n            }\n            path_hist = currentPath;\n            console.log(currentPath);\n            fetch(`http://${ipAddress}:3000/__search__?path=${currentPath}`)\n                .then(response => response.json())\n                .then(data => {\n                    displayFiles(data);\n                })\n                .catch(error => {\n                    alert(\'Failed to fetch files. Please try again later.\');\n                    console.error(\'Error:\', error);\n                });\n        }\n\n        function downloadAsZip() {\n            const ipAddress = document.getElementById(\'ipAddress\').value;\n            const currentPath = path_hist;\n            if (!ipAddress) {\n                alert(\'Please enter an IP address.\');\n                return;\n            }\n\n            fetch(`http://${ipAddress}:3000/__download__?path=${encodeURIComponent(currentPath)}`, {\n                method: \'GET\'\n            })\n                .then(response => response.blob())\n                .then(blob => {\n                    const url = window.URL.createObjectURL(new Blob([blob]));\n                    const link = document.createElement(\'a\');\n                    link.href = url;\n                    link.setAttribute(\'download\', \'download.zip\');\n                    document.body.appendChild(link);\n                    link.click();\n                    link.parentNode.removeChild(link);\n                })\n                .catch(error => {\n                    alert(\'Failed to download files as ZIP. Please try again later.\');\n                    console.error(\'Error:\', error);\n                });\n        }\n    </script>\n</body>\n\n</html>"
+            "<!DOCTYPE html>\n<html lang=\"en\">\n\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>File Manager</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            margin: 0;\n            padding: 0;\n        }\n\n        .container {\n            width: 80%;\n            margin: 20px auto;\n        }\n\n        .file-list {\n            list-style-type: none;\n            padding: 0;\n        }\n\n        .file-list li {\n            margin-bottom: 5px;\n        }\n\n        .file-list li a {\n            text-decoration: none;\n            color: #007bff;\n            cursor: pointer;\n        }\n\n        .file-info {\n            border: 1px solid #ccc;\n            padding: 10px;\n            margin-top: 20px;\n        }\n    </style>\n</head>\n\n<body>\n\n    <div class=\"container\">\n        <img src=\"__get__?path=image\" alt=\"Description of the image\">\n        <h2>File Manager</h2>\n        <div>\n            <label for=\"ipAddress\">Enter IP Address:</label>\n            <input type=\"text\" id=\"ipAddress\" placeholder=\"Enter IP Address\">\n            <button onclick=\"fetchFiles()\">Connect</button>\n            <button onclick=\"goToParentDirectory()\">Parent Directory</button>\n            <button onclick=\"downloadAsZip()\">Download As ZIP</button> <!-- New button -->\n        </div>\n        <ul class=\"file-list\" id=\"fileList\">\n            <!-- File list will be populated dynamically -->\n        </ul>\n        <div class=\"file-info\" id=\"fileInfo\">\n            <!-- File info will be displayed here -->\n        </div>\n    </div>\n    <script>\n        var path_hist = \"\";\n\n        function displayFiles(files) {\n            const fileList = document.getElementById(\'fileList\');\n            fileList.innerHTML = \'\';\n\n            const directories = [];\n            const regularFiles = [];\n\n            for (const key in files) {\n                const file = files[key];\n                if (file.type === \'directory\') {\n                    directories.push(file);\n                } else {\n                    regularFiles.push(file);\n                }\n            }\n\n            // Sort directories and regular files alphabetically by path\n            directories.sort((a, b) => a.path.localeCompare(b.path));\n            regularFiles.sort((a, b) => a.path.localeCompare(b.path));\n\n            // Combine sorted directories and regular files\n            const sortedFiles = [...directories, ...regularFiles];\n\n            sortedFiles.forEach(file => {\n                const listItem = document.createElement(\'li\');\n                const link = document.createElement(\'a\');\n                link.setAttribute(\'data-isDir\', file.type === \'directory\');\n                link.setAttribute(\'data-path\', file.path);\n                link.text = file.path;\n                link.addEventListener(\'click\', () => {\n                    const fileInfo = document.getElementById(\'fileInfo\');\n                    fileInfo.innerHTML = \"\";\n                    console.log(path_hist + file.path);\n                    if (file.type === \'directory\') {\n                        fetchFiles(path_hist + file.path);\n                    } else {\n                        displayFileInfo(file);\n                    }\n                });\n                listItem.appendChild(link);\n                fileList.appendChild(listItem);\n            });\n        }\n\n        function displayFileInfo(file) {\n\n            const fileInfo = document.getElementById(\'fileInfo\');\n\n            const milliseconds = file.modified.secs_since_epoch * 1000 + Math.round(file.modified.nanos_since_epoch / 1000000);\n            let content = `\n                <h3>File Details</h3>\n                <p>Name: ${file.path}</p>\n                <p>Size: ${file.size} bytes</p>\n                <p>Last Modified: ${new Date(milliseconds).toLocaleString()}</p>\n            `;\n            if (file.type !== \'directory\') {\n                content += `<a href=\"http://${document.getElementById(\'ipAddress\').value}:3000/${path_hist + file.path}\" download>Download</a>`;\n            }\n            fileInfo.innerHTML = content;\n        }\n\n        function fetchFiles(path = \'.\') {\n            const encoded_path = encodeURIComponent(path);\n            const ipAddress = document.getElementById(\'ipAddress\').value;\n            console.log(encoded_path);\n            if (!ipAddress) {\n                alert(\'Please enter an IP address.\');\n                return;\n            }\n\n            fetch(`http://${ipAddress}:3000/__search__?path=${encoded_path}`)\n                .then(response => response.json())\n                .then(data => {\n                    displayFiles(data);\n                })\n                .catch(error => {\n                    alert(\'Failed to fetch files. Please try again later.\');\n                    console.error(\'Error:\', error);\n                });\n            path_hist = path + \'/\';\n        }\n\n        function goToParentDirectory() {\n            const ipAddress = document.getElementById(\'ipAddress\').value;\n            var currentPath = path_hist.split(\'/\').slice(0, -2).join(\'/\') + \"/\";\n            if (currentPath == \'/\') {\n                currentPath = \"./\";\n            }\n            path_hist = currentPath;\n            console.log(currentPath);\n            fetch(`http://${ipAddress}:3000/__search__?path=${currentPath}`)\n                .then(response => response.json())\n                .then(data => {\n                    displayFiles(data);\n                })\n                .catch(error => {\n                    alert(\'Failed to fetch files. Please try again later.\');\n                    console.error(\'Error:\', error);\n                });\n        }\n\n        function downloadAsZip() {\n            const ipAddress = document.getElementById(\'ipAddress\').value;\n            const currentPath = path_hist;\n            if (!ipAddress) {\n                alert(\'Please enter an IP address.\');\n                return;\n            }\n\n            fetch(`http://${ipAddress}:3000/__download__?path=${encodeURIComponent(currentPath)}`, {\n                method: \'GET\'\n            })\n                .then(response => response.blob())\n                .then(blob => {\n                    const url = window.URL.createObjectURL(new Blob([blob]));\n                    const link = document.createElement(\'a\');\n                    link.href = url;\n                    link.setAttribute(\'download\', \'download.zip\');\n                    document.body.appendChild(link);\n                    link.click();\n                    link.parentNode.removeChild(link);\n                })\n                .catch(error => {\n                    alert(\'Failed to download files as ZIP. Please try again later.\');\n                    console.error(\'Error:\', error);\n                });\n        }\n    </script>\n</body>\n\n</html>"
         )
     }
 }
