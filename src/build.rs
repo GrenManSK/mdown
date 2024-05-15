@@ -12,8 +12,12 @@ fn main() {
             Err(_err) => (),
         };
     }
-    let directory_path = "resources//server";
+    setup("resources//server");
+    setup("resources//web");
+    setup("resources//combined");
+}
 
+fn setup(directory_path: &str) {
     if let Ok(entries) = fs::read_dir(directory_path) {
         for entry in entries {
             if let Ok(entry) = entry {
