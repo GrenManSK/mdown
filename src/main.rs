@@ -232,7 +232,20 @@ async fn main() {
             error::handle_final(&err);
             exit(1);
         }
-    };
+    }
+    if
+        *(match resolute::FINAL_END.lock() {
+            Ok(value) => value,
+            Err(err) => {
+                error::handle_final(
+                    &error::mdown::Final::Final(error::mdown::Error::PoisonError(err.to_string()))
+                );
+                exit(1);
+            }
+        })
+    {
+        exit(0);
+    }
 }
 async fn start() -> Result<(), error::mdown::Final> {
     // cwd

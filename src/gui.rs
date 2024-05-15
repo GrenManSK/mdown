@@ -1,4 +1,4 @@
-use crate::{ error::mdown::Error, utils };
+use crate::{ error::mdown::Error, resolute, utils };
 
 fn app() -> Result<(), eframe::Error> {
     Ok(())
@@ -16,5 +16,11 @@ pub(crate) fn start() -> Result<(), Error> {
             return Err(err);
         }
     }
+    *(match resolute::FINAL_END.lock() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(Error::PoisonError(err.to_string()));
+        }
+    }) = true;
     Ok(())
 }

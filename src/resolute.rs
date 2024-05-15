@@ -47,6 +47,7 @@ lazy_static! {
     pub(crate) static ref COVER: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref SUSPENDED: Mutex<Vec<Error>> = Mutex::new(Vec::new());
     pub(crate) static ref ENDED: Mutex<bool> = Mutex::new(false);
+    pub(crate) static ref FINAL_END: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref SAVER: Mutex<bool> = Mutex::new(ARGS.saver);
     pub(crate) static ref DATE_FETCHED: Mutex<Vec<String>> = Mutex::new(Vec::new());
     pub(crate) static ref LANGUAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
