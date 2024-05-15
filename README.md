@@ -63,7 +63,7 @@ See [site](https://mangadex.org/) for finding manga
 
 ---
 
-- If you get message that about lock file is present and you believe you don't have already program started use `--force-delete` option to force it to delete lock file
+- If you get message that lock file is present, and you believe you don't have already have program started, use `--force-delete` option to force it to delete lock file
 
 - Will download cover image and description even if it did NOT download any more chapters in currently downloaded files AND if it do NOT find any eligible manga chapters it will delete the original
   - e.g. whole manga was in Japanese and didn't find any English chapters which results in 0 downloads
