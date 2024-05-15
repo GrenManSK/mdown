@@ -233,6 +233,7 @@ async fn main() {
             exit(1);
         }
     };
+    exit(0);
 }
 async fn start() -> Result<(), error::mdown::Final> {
     // cwd
