@@ -67,7 +67,6 @@ pub(crate) fn get_log_lock_path() -> Result<String, Error> {
     Ok(format!("{}\\log.lock", path))
 }
 
-
 pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, String> {
     (
         match parts[1].split('?').nth(1) {
@@ -90,7 +89,6 @@ pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, S
         })
         .collect()
 }
-
 
 pub(crate) fn get_folder_name(manga_name: &str) -> String {
     if ARGS.folder == "name" { manga_name.to_owned() } else { ARGS.folder.as_str().to_string() }

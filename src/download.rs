@@ -469,7 +469,7 @@ pub(crate) async fn download_image(
             if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
                 log!(&message);
             }
-            if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update || !ARGS.log {
+            if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
                 string(
                     3 + 1 + (page as u32),
                     0,
@@ -495,7 +495,7 @@ pub(crate) async fn download_image(
         }
     }) += 1;
 
-    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update || !ARGS.log {
+    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
         let message = format!(
             "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
             page_str,
