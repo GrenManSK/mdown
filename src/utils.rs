@@ -54,15 +54,7 @@ pub(crate) fn log_handler() {
         remove_log_lock_file();
     }
 
-    while
-        !(match resolute::ENDED.lock() {
-            Ok(value) => { *value }
-            Err(_err) => {
-                sleep(Duration::from_millis(100));
-                false
-            }
-        })
-    {
+    loop {
         sleep(Duration::from_millis(100));
 
         let _ = if fs::metadata(&path).is_err() {
@@ -80,6 +72,18 @@ pub(crate) fn log_handler() {
                 Err(_err) => (),
             };
         };
+        // prettier-ignore or #[rustfmt::skip]
+        if match resolute::ENDED.lock() {
+                Ok(value) => { *value }
+                Err(_err) => {
+                    sleep(Duration::from_millis(100));
+                    false
+                }
+            }
+        {
+            remove_log_lock_file();
+            return;
+        }
 
         while fs::metadata(&lock_path).is_ok() {
             sleep(Duration::from_millis(10));
@@ -87,9 +91,7 @@ pub(crate) fn log_handler() {
         let _ = File::create(&lock_path);
         let mut json = match resolute::get_dat_content(path.as_str()) {
             Ok(value) => value,
-            Err(_err) => {
-                continue;
-            }
+            Err(_err) => json!({}),
         };
 
         let mut messages_lock = match resolute::LOGS.lock() {
