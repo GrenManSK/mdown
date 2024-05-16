@@ -36,17 +36,18 @@ fn setup(directory_path: &str) {
                     );
                     let mut dest_file = File::create(&dest_path).expect("Failed to create file");
 
-                    dest_file
-                        .write_all(
-                            format!("pub const {}: &[u8] = &[", file_stem.to_uppercase()).as_bytes()
-                        )
-                        .expect("Failed to write to file");
-                    for byte in &binary_data {
-                        dest_file
-                            .write_all(format!("{},", byte).as_bytes())
-                            .expect("Failed to write to file");
-                    }
-                    dest_file.write_all(b"];").expect("Failed to write to file");
+                    let data = binary_data
+                        .iter()
+                        .map(|byte| byte.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",");
+
+                    write!(
+                        &mut dest_file,
+                        "pub const {}: &[u8] = &[{}];",
+                        file_stem.to_uppercase(),
+                        data
+                    ).expect("Failed to write to file");
 
                     println!("cargo:rerun-if-changed={}", file_path.to_string_lossy());
                 }
