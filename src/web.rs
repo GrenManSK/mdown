@@ -24,6 +24,9 @@ use crate::{
     },
     utils,
 };
+
+include!(concat!(env!("OUT_DIR"), "/error_404_jpg.rs"));
+
 fn decode(url: &str) -> String {
     percent_decode_str(&url).decode_utf8_lossy().to_string()
 }
@@ -141,8 +144,6 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
 
     let request = String::from_utf8_lossy(&buffer[..]);
 
-    let response;
-
     let url_param = "url=";
 
     let parts: Vec<&str> = request.split_whitespace().collect();
@@ -150,6 +151,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
     let path = parts[1];
 
     if parts.len() >= 2 {
+        let response;
         if path.starts_with("/manga?") && path.contains(&url_param) {
             log!("REQUEST RECEIVED");
             log!("REQUEST Type: download");
@@ -194,6 +196,34 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
                 );
             }
+            match stream.write_all(response.as_bytes()) {
+                Ok(()) => (),
+                Err(_err) => (),
+            }
+        } else if path.starts_with("/__get__?") {
+            let query_params = getter::get_query(parts);
+            let file_path = match query_params.get("path").cloned() {
+                Some(value) => value,
+                None => {
+                    return Ok(());
+                }
+            };
+
+            let content = match file_path.as_str() {
+                "error_404" => ERROR_404_JPG,
+                _ => {
+                    return Err(
+                        Error::CustomError(
+                            String::from("Didn't find resource"),
+                            String::from("ResourceError")
+                        )
+                    );
+                }
+            };
+            match stream.write_all(content) {
+                Ok(()) => (),
+                Err(_err) => (),
+            }
         } else if path.starts_with("/manga-result") {
             let query_params = getter::get_query(parts);
             if let Some(id) = query_params.get("id").cloned() {
@@ -215,18 +245,30 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
                 );
             }
+            match stream.write_all(response.as_bytes()) {
+                Ok(()) => (),
+                Err(_err) => (),
+            }
         } else if path.starts_with("/__version__") {
             response = format!(
                 "{}{}",
                 "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n",
                 env!("CARGO_PKG_VERSION")
             );
+            match stream.write_all(response.as_bytes()) {
+                Ok(()) => (),
+                Err(_err) => (),
+            }
         } else if path.starts_with("/end") {
             log!("REQUEST Type: end");
             end = true;
             response = String::from(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"ok\"}"
             );
+            match stream.write_all(response.as_bytes()) {
+                Ok(()) => (),
+                Err(_err) => (),
+            }
         } else if path.eq("/") {
             log!("REQUEST Type: main");
             match parse_request(String::from("main")) {
@@ -239,21 +281,31 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
                         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
                     );
                 }
-            };
+            }
+            match stream.write_all(response.as_bytes()) {
+                Ok(()) => (),
+                Err(_err) => (),
+            }
         } else {
             response = String::from(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
             );
+            match stream.write_all(response.as_bytes()) {
+                Ok(()) => (),
+                Err(_err) => (),
+            }
         }
     } else {
-        response = String::from(
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
-        );
-    }
-
-    match stream.write_all(response.as_bytes()) {
-        Ok(()) => (),
-        Err(_err) => (),
+        match
+            stream.write_all(
+                String::from(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
+                ).as_bytes()
+            )
+        {
+            Ok(()) => (),
+            Err(_err) => (),
+        }
     }
     match stream.flush() {
         Ok(()) => (),
