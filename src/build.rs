@@ -6,15 +6,15 @@ use std::path::Path;
 fn main() {
     if cfg!(target_os = "windows") {
         let mut res = winres::WindowsResource::new();
-        res.set_icon("resources\\icon.ico");
-        match res.compile() {
-            Ok(_) => (),
-            Err(_err) => (),
-        };
+        res.set_icon("resources/icon.ico");
+        if let Err(err) = res.compile() {
+            eprintln!("Failed to compile Windows resources: {}", err);
+        }
     }
-    setup("resources//server");
-    setup("resources//web");
-    setup("resources//combined");
+
+    for directory in ["resources/server", "resources/web", "resources/combined"] {
+        setup(directory);
+    }
 }
 
 fn setup(directory_path: &str) {
