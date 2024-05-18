@@ -1,10 +1,10 @@
-use crate::{ error::mdown::Error, resolute, utils };
+use crate::{ error::MdownError, resolute, utils };
 
 fn app() -> Result<(), eframe::Error> {
     Ok(())
 }
 
-pub(crate) fn start() -> Result<(), Error> {
+pub(crate) fn start() -> Result<(), MdownError> {
     match app() {
         Ok(()) => (),
         Err(err) => eprintln!("Error gui: {}", err),
@@ -19,7 +19,7 @@ pub(crate) fn start() -> Result<(), Error> {
     *(match resolute::FINAL_END.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = true;
     Ok(())

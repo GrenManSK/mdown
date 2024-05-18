@@ -9,42 +9,42 @@ use std::{
 };
 include!(concat!(env!("OUT_DIR"), "/error_404_jpg.rs"));
 
-use crate::{ ARGS, error::{ mdown::Error, handle_error }, getter::get_query, log, utils, zip_func };
+use crate::{ ARGS, error::{ MdownError, handle_error }, getter::get_query, log, utils, zip_func };
 
-fn get_directory_content(path: &str) -> std::result::Result<Value, Error> {
+fn get_directory_content(path: &str) -> std::result::Result<Value, MdownError> {
     let mut result = serde_json::Map::new();
     let decoded_str = match percent_encoding::percent_decode_str(path).decode_utf8() {
         Ok(decoded_str) => decoded_str.to_string(),
         Err(err) => {
-            return Err(Error::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string()));
         }
     };
 
     let dir = match fs::read_dir(&decoded_str) {
         Ok(dir) => dir,
         Err(err) => {
-            return Err(Error::IoError(err, Some(decoded_str)));
+            return Err(MdownError::IoError(err, Some(decoded_str)));
         }
     };
     for entry in dir {
         let entry = match entry {
             Ok(entry) => entry,
             Err(err) => {
-                return Err(Error::IoError(err, Some(decoded_str)));
+                return Err(MdownError::IoError(err, Some(decoded_str)));
             }
         };
         let file_name = match entry.file_name().into_string() {
             Ok(file_name) => file_name,
             Err(_err) => {
                 return Err(
-                    Error::ConversionError(String::from("Failed to convert file name to string"))
+                    MdownError::ConversionError(String::from("Failed to convert file name to string"))
                 );
             }
         };
         let metadata = match entry.metadata() {
             Ok(metadata) => metadata,
             Err(err) => {
-                return Err(Error::IoError(err, Some(file_name)));
+                return Err(MdownError::IoError(err, Some(file_name)));
             }
         };
         let mut file_info =
@@ -53,7 +53,7 @@ fn get_directory_content(path: &str) -> std::result::Result<Value, Error> {
             "modified": match metadata.modified() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::IoError(err, Some(file_name)));
+                    return Err(MdownError::IoError(err, Some(file_name)));
                 }
             },
             "path": file_name,
@@ -66,7 +66,7 @@ fn get_directory_content(path: &str) -> std::result::Result<Value, Error> {
                     Some(value) => value.insert("content".to_string(), sub_dir_content),
                     None => {
                         return Err(
-                            Error::NotFoundError(
+                            MdownError::NotFoundError(
                                 String::from("Could not get file_info as mutable object")
                             )
                         );
@@ -81,13 +81,13 @@ fn get_directory_content(path: &str) -> std::result::Result<Value, Error> {
     Ok(Value::Object(result))
 }
 
-fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
+fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
     let mut stream = BufReader::new(stream);
     let mut request_line = String::new();
     match stream.read_line(&mut request_line) {
         Ok(_n) => (),
         Err(err) => {
-            return Err(Error::IoError(err, None));
+            return Err(MdownError::IoError(err, None));
         }
     }
 
@@ -108,13 +108,13 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
             let json_response = match get_directory_content(&file_path) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::JsonError(err.to_string()));
+                    return Err(MdownError::JsonError(err.to_string()));
                 }
             };
             let response_body = match serde_json::to_string(&json_response) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::JsonError(err.to_string()));
+                    return Err(MdownError::JsonError(err.to_string()));
                 }
             };
             let mut response = String::new();
@@ -126,7 +126,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(Error::IoError(err, None));
+                    return Err(MdownError::IoError(err, None));
                 }
             };
         } else if path.starts_with("/__download__?") {
@@ -141,7 +141,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
             let decoded_str = match percent_encoding::percent_decode_str(&file_path).decode_utf8() {
                 Ok(decoded_str) => decoded_str.to_string().replace("./", "").replace("/", ""),
                 Err(err) => {
-                    return Err(Error::ConversionError(err.to_string()));
+                    return Err(MdownError::ConversionError(err.to_string()));
                 }
             };
 
@@ -157,7 +157,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
             let contents = match fs::read(&dst_file) {
                 Ok(contents) => contents,
                 Err(err) => {
-                    return Err(Error::IoError(err, Some(dst_file)));
+                    return Err(MdownError::IoError(err, Some(dst_file)));
                 }
             };
             let mut response = String::new();
@@ -172,20 +172,20 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(Error::IoError(err, None));
+                    return Err(MdownError::IoError(err, None));
                 }
             }
             match stream.get_mut().write_all(&contents) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(Error::IoError(err, None));
+                    return Err(MdownError::IoError(err, None));
                 }
             }
 
             match fs::remove_file(&dst_file) {
                 Ok(_) => {}
                 Err(err) => {
-                    return Err(Error::IoError(err, Some(dst_file)));
+                    return Err(MdownError::IoError(err, Some(dst_file)));
                 }
             };
         } else if path.starts_with("/__version__") {
@@ -197,7 +197,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(Error::IoError(err, None));
+                    return Err(MdownError::IoError(err, None));
                 }
             };
         } else if path.starts_with("/__get__?") {
@@ -213,7 +213,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
                 "error_404" => ERROR_404_JPG,
                 _ => {
                     return Err(
-                        Error::CustomError(
+                        MdownError::CustomError(
                             String::from("Didn't find resource"),
                             String::from("ResourceError")
                         )
@@ -223,7 +223,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
             match stream.get_mut().write_all(&content) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(Error::IoError(err, None));
+                    return Err(MdownError::IoError(err, None));
                 }
             }
         } else if path == "/" {
@@ -236,14 +236,14 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(Error::IoError(err, None));
+                    return Err(MdownError::IoError(err, None));
                 }
             };
         } else {
             let decoded_str = match percent_encoding::percent_decode_str(path).decode_utf8() {
                 Ok(decoded_str) => decoded_str.to_string(),
                 Err(err) => {
-                    return Err(Error::ConversionError(err.to_string()));
+                    return Err(MdownError::ConversionError(err.to_string()));
                 }
             };
             let file_path = format!(".{}", decoded_str);
@@ -251,7 +251,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
                 let contents = match fs::read(&file_path) {
                     Ok(contents) => contents,
                     Err(err) => {
-                        return Err(Error::IoError(err, None));
+                        return Err(MdownError::IoError(err, None));
                     }
                 };
                 let mut response = String::new();
@@ -270,13 +270,13 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
                 match stream.get_mut().write_all(response.as_bytes()) {
                     Ok(_n) => (),
                     Err(err) => {
-                        return Err(Error::IoError(err, None));
+                        return Err(MdownError::IoError(err, None));
                     }
                 }
                 match stream.get_mut().write_all(&contents) {
                     Ok(_n) => (),
                     Err(err) => {
-                        return Err(Error::IoError(err, None));
+                        return Err(MdownError::IoError(err, None));
                     }
                 };
             } else {
@@ -284,7 +284,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), Error> {
                 match stream.get_mut().write_all(response.as_bytes()) {
                     Ok(_n) => (),
                     Err(err) => {
-                        return Err(Error::IoError(err, None));
+                        return Err(MdownError::IoError(err, None));
                     }
                 };
             }
@@ -321,7 +321,7 @@ fn get_html() -> String {
     }
 }
 
-pub(crate) fn start() -> std::result::Result<(), Error> {
+pub(crate) fn start() -> std::result::Result<(), MdownError> {
     let mut ips = vec![];
     if let Ok(interfaces) = get_if_addrs() {
         for (times, interface) in interfaces.iter().enumerate() {
@@ -336,7 +336,7 @@ pub(crate) fn start() -> std::result::Result<(), Error> {
     match io::stdout().flush() {
         Ok(_) => (),
         Err(err) => {
-            return Err(Error::IoError(err, None));
+            return Err(MdownError::IoError(err, None));
         }
     }
 
@@ -345,14 +345,14 @@ pub(crate) fn start() -> std::result::Result<(), Error> {
     match io::stdin().read_line(&mut input) {
         Ok(_) => (),
         Err(err) => {
-            return Err(Error::IoError(err, None));
+            return Err(MdownError::IoError(err, None));
         }
     }
 
     let number: usize = match input.trim().parse() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string()));
         }
     };
 
@@ -360,7 +360,7 @@ pub(crate) fn start() -> std::result::Result<(), Error> {
         Some(value) => value,
         None => {
             return Err(
-                Error::CustomError(String::from("Invalid IP address"), String::from("IP address"))
+                MdownError::CustomError(String::from("Invalid IP address"), String::from("IP address"))
             );
         }
     };
@@ -382,7 +382,7 @@ pub(crate) fn start() -> std::result::Result<(), Error> {
         Ok(()) => (),
         Err(err) => {
             return Err(
-                Error::CustomError(
+                MdownError::CustomError(
                     format!("Failed setting up ctrl handler, {}", err.to_string()),
                     String::from("CTRL handler")
                 )
@@ -393,7 +393,7 @@ pub(crate) fn start() -> std::result::Result<(), Error> {
     let listener = match TcpListener::bind(format!("{}:3000", ip_address)) {
         Ok(listener) => listener,
         Err(err) => {
-            return Err(Error::IoError(err, None));
+            return Err(MdownError::IoError(err, None));
         }
     };
     println!("Server listening on {}:3000 ...", ip_address);

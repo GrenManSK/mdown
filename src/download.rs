@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     ARGS,
-    error::mdown::Error,
+    error::MdownError,
     getter,
     IS_END,
     log,
@@ -40,17 +40,17 @@ pub(crate) async fn get_response(
     c_hash: Arc<str>,
     cover_hash: Arc<str>,
     mode: &str
-) -> Result<reqwest::Response, Error> {
+) -> Result<reqwest::Response, MdownError> {
     let client = match get_client() {
         Ok(client) => client,
         Err(err) => {
-            return Err(Error::NetworkError(err));
+            return Err(MdownError::NetworkError(err));
         }
     };
     let base_url = match url::Url::parse(&base_url.to_string()) {
         Ok(url) => url,
         Err(err) => {
-            return Err(Error::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string()));
         }
     };
     let url = format!("\\{}\\{}\\{}", mode, c_hash, cover_hash);
@@ -58,7 +58,7 @@ pub(crate) async fn get_response(
     let full_url = match base_url.join(&url) {
         Ok(url) => url,
         Err(err) => {
-            return Err(Error::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string()));
         }
     };
 
@@ -67,7 +67,7 @@ pub(crate) async fn get_response(
             return Ok(response);
         }
         Err(err) => {
-            return Err(Error::NetworkError(err));
+            return Err(MdownError::NetworkError(err));
         }
     }
 }
@@ -83,18 +83,18 @@ pub(crate) fn get_perc(percentage: i64) -> String {
     format!("{:>3}", percentage)
 }
 
-pub(crate) async fn get_response_client(full_url: &str) -> Result<reqwest::Response, Error> {
+pub(crate) async fn get_response_client(full_url: &str) -> Result<reqwest::Response, MdownError> {
     let client = match get_client() {
         Ok(client) => client,
         Err(err) => {
-            return Err(Error::NetworkError(err));
+            return Err(MdownError::NetworkError(err));
         }
     };
 
     match client.get(full_url).send().await {
         Ok(response) => Ok(response),
         Err(err) => {
-            return Err(Error::NetworkError(err));
+            return Err(MdownError::NetworkError(err));
         }
     }
 }
@@ -104,7 +104,7 @@ pub(crate) async fn download_cover(
     c_hash: Arc<str>,
     cover_hash: Arc<str>,
     folder: Arc<str>
-) -> Result<(), Error> {
+) -> Result<(), MdownError> {
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         log!("Downloading cover");
     }
@@ -121,7 +121,7 @@ pub(crate) async fn download_cover(
     let mut file = match File::create(format!("{}\\_cover.png", folder)) {
         Ok(file) => file,
         Err(err) => {
-            return Err(Error::IoError(err, Some(format!("{}\\_cover.png", folder))));
+            return Err(MdownError::IoError(err, Some(format!("{}\\_cover.png", folder))));
         }
     };
 
@@ -134,7 +134,7 @@ pub(crate) async fn download_cover(
         let Some(chunk) = match response.chunk().await {
             Ok(size) => size,
             Err(err) => {
-                return Err(Error::NetworkError(err));
+                return Err(MdownError::NetworkError(err));
             }
         }
     {
@@ -145,10 +145,10 @@ pub(crate) async fn download_cover(
                     match resolute::SUSPENDED.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(Error::PoisonError(err.to_string()));
+                            return Err(MdownError::PoisonError(err.to_string()));
                         }
                     }
-                ).push(Error::IoError(err, Some(format!("{}\\_cover.png", folder))));
+                ).push(MdownError::IoError(err, Some(format!("{}\\_cover.png", folder))));
             }
         }
         downloaded += chunk.len() as u64;
@@ -181,7 +181,7 @@ pub(crate) async fn download_cover(
 
     Ok(())
 }
-pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> Result<(), Error> {
+pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> Result<(), MdownError> {
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         log!("Getting statistics");
     }
@@ -197,7 +197,7 @@ pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> R
     let mut file = match File::create(format!("{}\\_statistics.md", folder)) {
         Ok(file) => file,
         Err(err) => {
-            return Err(Error::IoError(err, Some(format!("{}\\_statistics.md", folder))));
+            return Err(MdownError::IoError(err, Some(format!("{}\\_statistics.md", folder))));
         }
     };
 
@@ -210,10 +210,10 @@ pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> R
                 match resolute::SUSPENDED.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }
-            ).push(Error::JsonError(err.to_string()));
+            ).push(MdownError::JsonError(err.to_string()));
             return Ok(());
         }
     };
@@ -222,13 +222,13 @@ pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> R
             let statistics = match obj.get("statistics").and_then(|stat| stat.get(id)) {
                 Some(stat) => stat,
                 None => {
-                    return Err(Error::JsonError(String::from("Didn't find statistics")));
+                    return Err(MdownError::JsonError(String::from("Didn't find statistics")));
                 }
             };
             let comments = match statistics.get("comments") {
                 Some(comm) => comm,
                 None => {
-                    return Err(Error::JsonError(String::from("Didn't find comments")));
+                    return Err(MdownError::JsonError(String::from("Didn't find comments")));
                 }
             };
             let thread_id = match comments.get("threadId").and_then(Value::as_i64) {
@@ -242,7 +242,7 @@ pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> R
             let rating = match statistics.get("rating") {
                 Some(rating) => rating,
                 None => {
-                    return Err(Error::JsonError(String::from("Didn't find rating")));
+                    return Err(MdownError::JsonError(String::from("Didn't find rating")));
                 }
             };
             let average = match rating.get("average").and_then(Value::as_f64) {
@@ -256,7 +256,7 @@ pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> R
             let distribution = match rating.get("distribution") {
                 Some(dist) => dist,
                 None => {
-                    return Err(Error::JsonError(String::from("Didn't find distribution")));
+                    return Err(MdownError::JsonError(String::from("Didn't find distribution")));
                 }
             };
             let follows = match statistics.get("follows").and_then(Value::as_i64) {
@@ -277,14 +277,14 @@ pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> R
             );
         }
         _ => {
-            return Err(Error::JsonError(String::from("Could not parse statistics json")));
+            return Err(MdownError::JsonError(String::from("Could not parse statistics json")));
         }
     }
 
     match file.write_all(data.as_bytes()) {
         Ok(()) => (),
         Err(err) => {
-            return Err(Error::IoError(err, Some(format!("{}\\_statistics.md", folder))));
+            return Err(MdownError::IoError(err, Some(format!("{}\\_statistics.md", folder))));
         }
     }
 
@@ -314,7 +314,7 @@ pub(crate) async fn download_image(
     start: u32,
     iter: usize,
     times: usize
-) -> Result<(), Error> {
+) -> Result<(), MdownError> {
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         log!(&format!("Starting image download {}", page));
     }
@@ -338,7 +338,7 @@ pub(crate) async fn download_image(
     let mut file = match File::create(full_path.clone()) {
         Ok(file) => file,
         Err(err) => {
-            return Err(Error::IoError(err, Some(full_path.clone())));
+            return Err(MdownError::IoError(err, Some(full_path.clone())));
         }
     };
 
@@ -359,7 +359,7 @@ pub(crate) async fn download_image(
         Ok(lock_file) => lock_file,
         Err(err) => {
             return Err(
-                Error::IoError(err, Some(format!(".cache\\{}_{}_final.lock", folder_name, page)))
+                MdownError::IoError(err, Some(format!(".cache\\{}_{}_final.lock", folder_name, page)))
             );
         }
     };
@@ -370,11 +370,11 @@ pub(crate) async fn download_image(
                 match resolute::SUSPENDED.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }
             ).push(
-                Error::IoError(err, Some(format!(".cache\\{}_{}_final.lock", folder_name, page)))
+                MdownError::IoError(err, Some(format!(".cache\\{}_{}_final.lock", folder_name, page)))
             );
         }
     }
@@ -385,7 +385,7 @@ pub(crate) async fn download_image(
             Ok(Some(chunk)) => Some(chunk),
             Ok(None) => None,
             Err(err) => {
-                return Err(Error::NetworkError(err));
+                return Err(MdownError::NetworkError(err));
             }
         }
     {
@@ -393,7 +393,7 @@ pub(crate) async fn download_image(
         if match IS_END.lock() {
             Ok(value) => *value,
             Err(err) => {
-                return Err(Error::PoisonError(err.to_string()));
+                return Err(MdownError::PoisonError(err.to_string()));
             }
         }
         {
@@ -406,10 +406,10 @@ pub(crate) async fn download_image(
                     match resolute::SUSPENDED.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(Error::PoisonError(err.to_string()));
+                            return Err(MdownError::PoisonError(err.to_string()));
                         }
                     }
-                ).push(Error::IoError(err, Some(full_path.clone())));
+                ).push(MdownError::IoError(err, Some(full_path.clone())));
             }
         }
         downloaded += chunk.len() as u64;
@@ -426,7 +426,7 @@ pub(crate) async fn download_image(
                     Ok(file) => file,
                     Err(err) => {
                         return Err(
-                            Error::IoError(
+                            MdownError::IoError(
                                 err,
                                 Some(format!(".cache\\{}_{}.lock", folder_name, page))
                             )
@@ -442,11 +442,11 @@ pub(crate) async fn download_image(
                             match resolute::SUSPENDED.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(Error::PoisonError(err.to_string()));
+                                    return Err(MdownError::PoisonError(err.to_string()));
                                 }
                             }
                         ).push(
-                            Error::IoError(
+                            MdownError::IoError(
                                 err,
                                 Some(format!(".cache\\{}_{}.lock", folder_name, page))
                             )
@@ -491,7 +491,7 @@ pub(crate) async fn download_image(
     *(match CURRENT_PAGE.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) += 1;
 
@@ -527,7 +527,7 @@ pub(crate) async fn download_image(
     {
         Ok(file) => file,
         Err(err) => {
-            return Err(Error::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page))));
+            return Err(MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page))));
         }
     };
     match lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes()) {
@@ -537,10 +537,10 @@ pub(crate) async fn download_image(
                 match resolute::SUSPENDED.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }
-            ).push(Error::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page))));
+            ).push(MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page))));
         }
     }
 

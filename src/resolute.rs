@@ -11,7 +11,7 @@ use crate::{
     ARGS,
     download,
     download_manga,
-    error::{ mdown::Error, handle_error },
+    error::{ MdownError, handle_error },
     getter::{ self, get_folder_name, get_manga, get_manga_name, get_scanlation_group },
     log,
     log_end,
@@ -45,7 +45,7 @@ lazy_static! {
     pub(crate) static ref CURRENT_CHAPTER_PARSED_MAX: Mutex<u64> = Mutex::new(0);
     pub(crate) static ref DOWNLOADING: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref COVER: Mutex<bool> = Mutex::new(false);
-    pub(crate) static ref SUSPENDED: Mutex<Vec<Error>> = Mutex::new(Vec::new());
+    pub(crate) static ref SUSPENDED: Mutex<Vec<MdownError>> = Mutex::new(Vec::new());
     pub(crate) static ref ENDED: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref FINAL_END: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref SAVER: Mutex<bool> = Mutex::new(ARGS.saver);
@@ -58,7 +58,7 @@ lazy_static! {
     pub(crate) static ref THEMES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
 }
 
-pub(crate) fn args_delete() -> Result<(), Error> {
+pub(crate) fn args_delete() -> Result<(), MdownError> {
     let path = match getter::get_dat_path() {
         Ok(path) => path,
         Err(err) => {
@@ -68,11 +68,11 @@ pub(crate) fn args_delete() -> Result<(), Error> {
     };
     match fs::remove_file(path.clone()) {
         Ok(()) => Ok(()),
-        Err(err) => Err(Error::IoError(err, Some(path))),
+        Err(err) => Err(MdownError::IoError(err, Some(path))),
     }
 }
 
-pub(crate) async fn show() -> Result<(), Error> {
+pub(crate) async fn show() -> Result<(), MdownError> {
     let dat_path = match getter::get_dat_path() {
         Ok(path) => path,
         Err(err) => {
@@ -82,7 +82,7 @@ pub(crate) async fn show() -> Result<(), Error> {
     match fs::metadata(&dat_path) {
         Ok(_metadata) => (),
         Err(err) => {
-            return Err(Error::IoError(err, Some(dat_path)));
+            return Err(MdownError::IoError(err, Some(dat_path)));
         }
     }
     let mut json = match get_dat_content(dat_path.as_str()) {
@@ -307,7 +307,7 @@ pub(crate) async fn show() -> Result<(), Error> {
     Ok(())
 }
 
-pub(crate) fn check_for_metadata_saver(file_path: &str) -> Result<bool, Error> {
+pub(crate) fn check_for_metadata_saver(file_path: &str) -> Result<bool, MdownError> {
     let obj = match check_for_metadata(file_path) {
         Ok(metadata) => metadata,
         Err(err) => {
@@ -331,7 +331,7 @@ pub(crate) fn check_for_metadata_saver(file_path: &str) -> Result<bool, Error> {
         (match SAVER.lock() {
             Ok(value) => { *value != saver }
             Err(err) => {
-                return Err(Error::PoisonError(err.to_string()));
+                return Err(MdownError::PoisonError(err.to_string()));
             }
         }) &&
         true
@@ -341,7 +341,7 @@ pub(crate) fn check_for_metadata_saver(file_path: &str) -> Result<bool, Error> {
     Ok(false)
 }
 
-pub(crate) fn check_for_metadata(file_path: &str) -> Result<Map<String, Value>, Error> {
+pub(crate) fn check_for_metadata(file_path: &str) -> Result<Map<String, Value>, MdownError> {
     let metadata_file_name = "_metadata";
 
     match zip_func::extract_metadata_from_zip(file_path, metadata_file_name) {
@@ -357,17 +357,17 @@ pub(crate) fn check_for_metadata(file_path: &str) -> Result<Map<String, Value>, 
                     return Ok(obj);
                 }
                 _ => {
-                    return Err(Error::NotFoundError(String::from("")));
+                    return Err(MdownError::NotFoundError(String::from("")));
                 }
             }
         }
         Err(_err) => {
-            return Err(Error::NotFoundError(String::from("")));
+            return Err(MdownError::NotFoundError(String::from("")));
         }
     }
 }
 
-pub(crate) async fn resolve_check() -> Result<(), Error> {
+pub(crate) async fn resolve_check() -> Result<(), MdownError> {
     let dat_path = match getter::get_dat_path() {
         Ok(path) => path,
         Err(err) => {
@@ -377,7 +377,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
     match fs::metadata(&dat_path) {
         Ok(_metadata) => (),
         Err(err) => {
-            return Err(Error::IoError(err, Some(dat_path.clone())));
+            return Err(MdownError::IoError(err, Some(dat_path.clone())));
         }
     }
     let mut json = match get_dat_content(dat_path.as_str()) {
@@ -405,7 +405,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                             Some(s) => s,
                             None => {
                                 return Err(
-                                    Error::ConversionError(
+                                    MdownError::ConversionError(
                                         String::from("cwd conversion to string slice failed")
                                     )
                                 );
@@ -413,25 +413,25 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                         }
                     ).to_string(),
                 Err(err) => {
-                    return Err(Error::IoError(err, None));
+                    return Err(MdownError::IoError(err, None));
                 }
             };
             let mwd = match item.get("mwd").and_then(Value::as_str) {
                 Some(val) => val,
                 None => {
-                    return Err(Error::NotFoundError(String::from("Didn't find ID property")));
+                    return Err(MdownError::NotFoundError(String::from("Didn't find ID property")));
                 }
             };
 
             *(match LANGUAGE.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             }) = match item.get("current_language").and_then(Value::as_str) {
                 Some(val) => val.to_string(),
                 None => {
-                    return Err(Error::NotFoundError(String::from("Didn't find ID property")));
+                    return Err(MdownError::NotFoundError(String::from("Didn't find ID property")));
                 }
             };
             if std::env::set_current_dir(mwd).is_err() {
@@ -449,7 +449,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
             let id = match item.get("id").and_then(Value::as_str) {
                 Some(id) => id,
                 None => {
-                    return Err(Error::NotFoundError(String::from("Didn't find ID property")));
+                    return Err(MdownError::NotFoundError(String::from("Didn't find ID property")));
                 }
             };
             let cover_file = format!("{}\\_cover.png", mwd);
@@ -495,7 +495,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                             Some(name) => name,
                             None => {
                                 return Err(
-                                    Error::NotFoundError(String::from("Didn't find ID property"))
+                                    MdownError::NotFoundError(String::from("Didn't find ID property"))
                                 );
                             }
                         };
@@ -506,7 +506,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                             Some(name_data) => name_data,
                             None => {
                                 return Err(
-                                    Error::NotFoundError(
+                                    MdownError::NotFoundError(
                                         String::from("Didn't find attributes property (title_data)")
                                     )
                                 );
@@ -522,7 +522,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                             let mut chapter_da = match CHAPTER_DATES.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(Error::PoisonError(err.to_string()));
+                                    return Err(MdownError::PoisonError(err.to_string()));
                                 }
                             };
                             for i in chapters_temp.iter() {
@@ -548,7 +548,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                             *(match COVER.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(Error::PoisonError(err.to_string()));
+                                    return Err(MdownError::PoisonError(err.to_string()));
                                 }
                             }) = match
                                 download::download_cover(
@@ -571,7 +571,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                         *(match MANGA_NAME.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }) = get_manga_name(title_data);
                         match resolve_manga(&id, get_manga_name(title_data).as_str(), false).await {
@@ -581,7 +581,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                             }
                         }
                     } else {
-                        return Err(Error::JsonError(String::from("Failed to parse")));
+                        return Err(MdownError::JsonError(String::from("Failed to parse")));
                     }
                 }
                 Err(_) => (),
@@ -592,7 +592,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                         if !cover { Value::Bool(*value) } else { Value::Bool(true) }
                     }
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 };
             }
@@ -605,7 +605,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                 let chapters_remove = match CHAPTERS_TO_REMOVE.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 };
                 for i in chapters_remove.iter() {
@@ -627,7 +627,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                 let chapters_lock = match CHAPTERS.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(format!("Failed to lock CHAPTERS: {}", err)));
+                        return Err(MdownError::PoisonError(format!("Failed to lock CHAPTERS: {}", err)));
                     }
                 };
 
@@ -643,7 +643,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                     match item["chapters"].as_array() {
                         Some(chapters) => chapters,
                         None => {
-                            return Err(Error::NotFoundError(String::from("")));
+                            return Err(MdownError::NotFoundError(String::from("")));
                         }
                     }
                 ).len() == 0 &&
@@ -662,7 +662,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                         match TO_DOWNLOAD.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).is_empty() ||
@@ -670,7 +670,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                         match TO_DOWNLOAD_DATE.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).is_empty()
@@ -681,7 +681,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                         match TO_DOWNLOAD.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).iter() {
@@ -691,7 +691,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                         match TO_DOWNLOAD_DATE.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).iter() {
@@ -701,7 +701,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                     (match FIXED_DATES.lock() {
                         Ok(value) => !value.is_empty(),
                         Err(err) => {
-                            return Err(Error::PoisonError(err.to_string()));
+                            return Err(MdownError::PoisonError(err.to_string()));
                         }
                     }) &&
                     true
@@ -712,7 +712,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                         match FIXED_DATES.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).iter() {
@@ -732,7 +732,7 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
                 match CHAPTERS.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }
             ).clear();
@@ -743,25 +743,25 @@ pub(crate) async fn resolve_check() -> Result<(), Error> {
         let mut file = match File::create(&dat_path) {
             Ok(path) => path,
             Err(err) => {
-                return Err(Error::IoError(err, Some(dat_path)));
+                return Err(MdownError::IoError(err, Some(dat_path)));
             }
         };
 
         let json_string = match serde_json::to_string_pretty(&json) {
             Ok(value) => value,
             Err(err) => {
-                return Err(Error::JsonError(String::from(err.to_string())));
+                return Err(MdownError::JsonError(String::from(err.to_string())));
             }
         };
 
         if let Err(err) = writeln!(file, "{}", json_string) {
-            return Err(Error::IoError(err, Some(dat_path)));
+            return Err(MdownError::IoError(err, Some(dat_path)));
         }
     }
     Ok(())
 }
 
-pub(crate) fn resolve_dat() -> Result<(), Error> {
+pub(crate) fn resolve_dat() -> Result<(), MdownError> {
     let dat_path = match getter::get_dat_path() {
         Ok(path) => path,
         Err(err) => {
@@ -772,7 +772,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
         let mut file = match fs::File::create(&dat_path) {
             Ok(file) => file,
             Err(err) => {
-                return Err(Error::IoError(err, Some(dat_path)));
+                return Err(MdownError::IoError(err, Some(dat_path)));
             }
         };
 
@@ -804,7 +804,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                     match MANGA_NAME.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(Error::PoisonError(err.to_string()));
+                            return Err(MdownError::PoisonError(err.to_string()));
                         }
                     }
                 ).as_str()
@@ -818,7 +818,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                             match MANGA_NAME.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(Error::PoisonError(err.to_string()));
+                                    return Err(MdownError::PoisonError(err.to_string()));
                                 }
                             }
                         ).as_str()
@@ -829,7 +829,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                             Some(value) => value,
                             None => {
                                 return Err(
-                                    Error::NotFoundError(String::from("mut chapters in dat.json"))
+                                    MdownError::NotFoundError(String::from("mut chapters in dat.json"))
                                 );
                             }
                         };
@@ -845,7 +845,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                             match CHAPTERS.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(Error::PoisonError(err.to_string()));
+                                    return Err(MdownError::PoisonError(err.to_string()));
                                 }
                             }
                         )
@@ -889,13 +889,13 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
             let mwd = format!("{}", match MWD.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             });
             let cover = match COVER.lock() {
                 Ok(value) => *value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             };
             let mut chapters = Vec::new();
@@ -903,7 +903,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                 match CHAPTERS.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }
             ).clone();
@@ -915,7 +915,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                 match GENRES.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }
             ).clone();
@@ -927,7 +927,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                 match THEMES.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }
             ).clone();
@@ -940,7 +940,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                                     Ok(value) => value,
                                     Err(err) => {
                                         return Err(
-                                            Error::PoisonError(err.to_string())
+                                            MdownError::PoisonError(err.to_string())
                                         );
                                     }
                                 }.clone(),
@@ -948,7 +948,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                                     Ok(value) => value,
                                     Err(err) => {
                                         return Err(
-                                            Error::PoisonError(err.to_string())
+                                            MdownError::PoisonError(err.to_string())
                                         );
                                     }
                                 }.to_string(),
@@ -959,7 +959,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                         Ok(value) => value,
                         Err(err) => {
                             return Err(
-                                Error::PoisonError(err.to_string())
+                                MdownError::PoisonError(err.to_string())
                             );
                         }
                     }.clone(),
@@ -967,7 +967,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                         Ok(value) => value,
                         Err(err) => {
                             return Err(
-                                Error::PoisonError(err.to_string())
+                                MdownError::PoisonError(err.to_string())
                             );
                         }
                     }.clone(),
@@ -975,7 +975,7 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
                         Ok(value) => value,
                         Err(err) => {
                             return Err(
-                                Error::PoisonError(err.to_string())
+                                MdownError::PoisonError(err.to_string())
                             );
                         }
                     }.clone(),
@@ -989,52 +989,52 @@ pub(crate) fn resolve_dat() -> Result<(), Error> {
         let mut file = match File::create(&dat_path) {
             Ok(file) => file,
             Err(err) => {
-                return Err(Error::IoError(err, Some(dat_path)));
+                return Err(MdownError::IoError(err, Some(dat_path)));
             }
         };
 
         let json_string = match serde_json::to_string_pretty(&json) {
             Ok(value) => value,
             Err(err) => {
-                return Err(Error::JsonError(String::from(err.to_string())));
+                return Err(MdownError::JsonError(String::from(err.to_string())));
             }
         };
 
         if let Err(err) = writeln!(file, "{}", json_string) {
-            return Err(Error::JsonError(String::from(err.to_string())));
+            return Err(MdownError::JsonError(String::from(err.to_string())));
         }
     }
 
     Ok(())
 }
 
-pub(crate) fn get_dat_content(dat_path: &str) -> Result<Value, Error> {
+pub(crate) fn get_dat_content(dat_path: &str) -> Result<Value, MdownError> {
     let file = File::open(&dat_path);
     let mut file = match file {
         Ok(file) => file,
         Err(err) => {
-            return Err(Error::IoError(err, Some(dat_path.to_string())));
+            return Err(MdownError::IoError(err, Some(dat_path.to_string())));
         }
     };
     let mut contents = String::new();
     if let Err(err) = file.read_to_string(&mut contents) {
-        return Err(Error::IoError(err, Some(dat_path.to_string())));
+        return Err(MdownError::IoError(err, Some(dat_path.to_string())));
     }
     utils::get_json(&contents)
 }
 
-pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String, Error> {
+pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String, MdownError> {
     let handle_id = utils::generate_random_id(16);
     *(match HANDLE_ID.lock() {
         Ok(id) => id,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = handle_id.clone();
     let title_data = match obj.get("data").and_then(|name_data| name_data.get("attributes")) {
         Some(value) => value,
         None => {
-            return Err(Error::NotFoundError(String::from("resolve")));
+            return Err(MdownError::NotFoundError(String::from("resolve")));
         }
     };
 
@@ -1046,7 +1046,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *(match MANGA_NAME.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = manga_name.clone();
     let folder = get_folder_name(&manga_name);
@@ -1054,14 +1054,14 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     let orig_lang = match title_data.get("originalLanguage").and_then(Value::as_str) {
         Some(value) => value,
         None => {
-            return Err(Error::NotFoundError(String::from("Didn't find originalLanguage")));
+            return Err(MdownError::NotFoundError(String::from("Didn't find originalLanguage")));
         }
     };
     let languages = match title_data.get("availableTranslatedLanguages").and_then(Value::as_array) {
         Some(value) => value,
         None => {
             return Err(
-                Error::NotFoundError(String::from("Didn't find availableTranslatedLanguages"))
+                MdownError::NotFoundError(String::from("Didn't find availableTranslatedLanguages"))
             );
         }
     };
@@ -1071,7 +1071,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             Some(value) => value,
             None => {
                 return Err(
-                    Error::ConversionError(
+                    MdownError::ConversionError(
                         String::from("final_lang could not convert to string slice ?")
                     )
                 );
@@ -1082,7 +1082,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         match LANGUAGE.lock() {
             Ok(value) => value,
             Err(err) => {
-                return Err(Error::PoisonError(err.to_string()));
+                return Err(MdownError::PoisonError(err.to_string()));
             }
         }
     ).to_string();
@@ -1097,7 +1097,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
                 Some(value) => value,
                 None => {
                     return Err(
-                        Error::ConversionError(
+                        MdownError::ConversionError(
                             String::from("final_lang could not convert to string slice ?")
                         )
                     );
@@ -1117,7 +1117,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             &format!("Language is not available\nSelected language: {}", match LANGUAGE.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             })
         );
@@ -1130,7 +1130,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *(match DOWNLOADING.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = true;
 
@@ -1151,7 +1151,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *(match MWD.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = match std::fs::canonicalize(&folder) {
         Ok(value) =>
@@ -1159,14 +1159,14 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
                 Some(value) => value.to_string(),
                 None => {
                     return Err(
-                        Error::ConversionError(
+                        MdownError::ConversionError(
                             String::from("final_lang could not convert to string slice ?")
                         )
                     );
                 }
             }
         Err(err) => {
-            return Err(Error::IoError(err, Some(folder)));
+            return Err(MdownError::IoError(err, Some(folder)));
         }
     };
     let desc = match
@@ -1187,7 +1187,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::IoError(err, Some(format!("{}\\_description.txt", folder))));
+            return Err(MdownError::IoError(err, Some(format!("{}\\_description.txt", folder))));
         }
     };
     match write!(desc_file, "{}", desc) {
@@ -1242,13 +1242,13 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *(match GENRES.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = genre;
     *(match THEMES.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = theme;
 
@@ -1288,7 +1288,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         *(match COVER.lock() {
             Ok(value) => value,
             Err(err) => {
-                return Err(Error::PoisonError(err.to_string()));
+                return Err(MdownError::PoisonError(err.to_string()));
             }
         }) = match
             download::download_cover(
@@ -1318,13 +1318,13 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *(match LANGUAGES.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = {
         let langs = match title_data.get("availableTranslatedLanguages").and_then(Value::as_array) {
             Some(value) => value,
             None => {
-                return Err(Error::NotFoundError(String::from("resolve")));
+                return Err(MdownError::NotFoundError(String::from("resolve")));
             }
         };
         let mut langs_final: Vec<String> = Vec::new();
@@ -1347,13 +1347,13 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *(match DOWNLOADING.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = false;
     Ok(manga_name)
 }
 
-pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String), Error> {
+pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String), MdownError> {
     let scanlation_group = match array_item.get("relationships").and_then(Value::as_array) {
         Some(group) => group,
         None => {
@@ -1367,10 +1367,10 @@ pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String)
                 match SUSPENDED.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }
-            ).push(Error::NotFoundError(String::from("resolve_group")));
+            ).push(MdownError::NotFoundError(String::from("resolve_group")));
             return Ok((String::from("null"), String::from("null")));
         }
     };
@@ -1390,7 +1390,7 @@ pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String)
             match SCANLATION_GROUPS.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             }
         ).contains_key(scanlation_group_id)
@@ -1399,7 +1399,7 @@ pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String)
             match SCANLATION_GROUPS.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             }
         ).insert(String::from(scanlation_group_id), name.clone());
@@ -1411,7 +1411,7 @@ pub(crate) fn get_scanlation_group_to_file(
     manga_name: &str,
     name: String,
     website: String
-) -> Result<(), Error> {
+) -> Result<(), MdownError> {
     if name == String::from("null") {
         return Ok(());
     }
@@ -1420,7 +1420,7 @@ pub(crate) fn get_scanlation_group_to_file(
     let mut file_inst = match OpenOptions::new().create(true).append(true).open(&file_name) {
         Ok(file_inst) => file_inst,
         Err(err) => {
-            return Err(Error::IoError(err, Some(file_name)));
+            return Err(MdownError::IoError(err, Some(file_name)));
         }
     };
 
@@ -1431,7 +1431,7 @@ pub(crate) fn get_scanlation_group_to_file(
     Ok(())
 }
 
-pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String), Error> {
+pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String), MdownError> {
     let base_url = "https://api.mangadex.org/group/";
     let full_url = format!("{}\\{}", base_url, id);
 
@@ -1445,7 +1445,7 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
         let json = match response.text().await {
             Ok(json) => json,
             Err(err) => {
-                return Err(Error::JsonError(err.to_string()));
+                return Err(MdownError::JsonError(err.to_string()));
             }
         };
         let json_value = match utils::get_json(&json) {
@@ -1459,14 +1459,14 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
                 let data = match obj.get("data") {
                     Some(value) => value,
                     None => {
-                        return Err(Error::NotFoundError(format!("data in resolve_group_metadata")));
+                        return Err(MdownError::NotFoundError(format!("data in resolve_group_metadata")));
                     }
                 };
                 let attr = match data.get("attributes") {
                     Some(value) => value,
                     None => {
                         return Err(
-                            Error::NotFoundError(format!("attributes in resolve_group_metadata"))
+                            MdownError::NotFoundError(format!("attributes in resolve_group_metadata"))
                         );
                     }
                 };
@@ -1489,14 +1489,14 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
             }
         }
     }
-    return Err(Error::NetworkError(response.error_for_status().unwrap_err()));
+    return Err(MdownError::NetworkError(response.error_for_status().unwrap_err()));
 }
 
-async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) -> Result<(), Error> {
+async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) -> Result<(), MdownError> {
     let going_offset: u32 = match ARGS.database_offset.as_str().parse() {
         Ok(offset) => offset,
         Err(err) => {
-            return Err(Error::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string()));
         }
     };
     let arg_force = ARGS.force;
@@ -1504,7 +1504,7 @@ async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) -> Resul
     *(match MANGA_ID.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = id.to_owned();
     match get_manga(id, going_offset).await {

@@ -4,7 +4,7 @@ use std::{ collections::HashMap, fs::File, io::{ Read, Write }, net::TcpListener
 
 use crate::{
     ARGS,
-    error::{ mdown::Error, handle_error },
+    error::{ MdownError, handle_error },
     getter,
     log,
     log_end,
@@ -35,11 +35,11 @@ pub(crate) fn encode(url: &str) -> String {
     percent_encode(url.as_bytes(), NON_ALPHANUMERIC).to_string()
 }
 
-async fn resolve_web_download(url: &str) -> Result<String, Error> {
+async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
     let handle_id = match resolute::HANDLE_ID.lock() {
         Ok(value) => value.clone(),
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     };
     let mut manga_name = String::from("!");
@@ -55,7 +55,7 @@ async fn resolve_web_download(url: &str) -> Result<String, Error> {
     *(match resolute::MANGA_ID.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(Error::PoisonError(err.to_string()));
+            return Err(MdownError::PoisonError(err.to_string()));
         }
     }) = id.to_string();
     log!(&format!("@{} Found {}", handle_id, id), handle_id);
@@ -77,7 +77,7 @@ async fn resolve_web_download(url: &str) -> Result<String, Error> {
                     };
                 }
                 _ => {
-                    return Err(Error::JsonError(String::from("Could not parse manga json")));
+                    return Err(MdownError::JsonError(String::from("Could not parse manga json")));
                 }
             }
         }
@@ -91,7 +91,7 @@ async fn resolve_web_download(url: &str) -> Result<String, Error> {
             match WEB_DOWNLOADED.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             }
         ).clone();
@@ -99,7 +99,7 @@ async fn resolve_web_download(url: &str) -> Result<String, Error> {
             match SCANLATION_GROUPS.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             }
         ).clone();
@@ -126,17 +126,17 @@ async fn resolve_web_download(url: &str) -> Result<String, Error> {
 
         match serde_json::to_string(&response_map) {
             Ok(value) => Ok(value),
-            Err(err) => { Err(Error::JsonError(err.to_string())) }
+            Err(err) => { Err(MdownError::JsonError(err.to_string())) }
         }
     }
 }
 
-async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
+async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError> {
     let mut buffer = [0; 1024];
     match stream.read(&mut buffer) {
         Ok(_n) => (),
         Err(err) => {
-            return Err(Error::IoError(err, None));
+            return Err(MdownError::IoError(err, None));
         }
     }
 
@@ -167,7 +167,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
                 *(match resolute::HANDLE_ID.lock() {
                     Ok(id) => id,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }) = handle_id.clone();
                 let json = match resolve_web_download(&decoded_url).await {
@@ -187,7 +187,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
                 *(match resolute::HANDLE_ID.lock() {
                     Ok(id) => id,
                     Err(err) => {
-                        return Err(Error::PoisonError(err.to_string()));
+                        return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }) = String::new().into_boxed_str();
                 response = json;
@@ -213,7 +213,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
                 "error_404" => ERROR_404_JPG,
                 _ => {
                     return Err(
-                        Error::CustomError(
+                        MdownError::CustomError(
                             String::from("Didn't find resource"),
                             String::from("ResourceError")
                         )
@@ -327,7 +327,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), Error> {
     Ok(())
 }
 
-fn parse_request(url: String) -> std::result::Result<String, Error> {
+fn parse_request(url: String) -> std::result::Result<String, MdownError> {
     if url == String::from("main") {
         let html = get_html();
         Ok(format!("{}{}", "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n", html))
@@ -336,7 +336,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
             match WEB_DOWNLOADED.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             }
         ).clone();
@@ -344,7 +344,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
             match SCANLATION_GROUPS.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::PoisonError(err.to_string()));
+                    return Err(MdownError::PoisonError(err.to_string()));
                 }
             }
         ).clone();
@@ -357,7 +357,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
                         match MANGA_NAME.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).to_string()
@@ -370,7 +370,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
                         match CURRENT_CHAPTER.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).to_string()
@@ -383,7 +383,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
                         match CURRENT_PAGE.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).to_string()
@@ -396,7 +396,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
                         match CURRENT_PAGE_MAX.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).to_string()
@@ -408,7 +408,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
                     format!("{:.2}", match CURRENT_PERCENT.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(Error::PoisonError(err.to_string()));
+                            return Err(MdownError::PoisonError(err.to_string()));
                         }
                     })
                 ),
@@ -419,7 +419,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
                     format!("{:.2}", match CURRENT_SIZE.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(Error::PoisonError(err.to_string()));
+                            return Err(MdownError::PoisonError(err.to_string()));
                         }
                     })
                 ),
@@ -430,7 +430,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
                     format!("{:.2}", match CURRENT_SIZE_MAX.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(Error::PoisonError(err.to_string()));
+                            return Err(MdownError::PoisonError(err.to_string()));
                         }
                     })
                 ),
@@ -442,7 +442,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
                         match CURRENT_CHAPTER_PARSED.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).to_string()
@@ -455,7 +455,7 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
                         match CURRENT_CHAPTER_PARSED_MAX.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(Error::PoisonError(err.to_string()));
+                                return Err(MdownError::PoisonError(err.to_string()));
                             }
                         }
                     ).to_string()
@@ -480,12 +480,12 @@ fn parse_request(url: String) -> std::result::Result<String, Error> {
         let json = match serde_json::to_string(&response_map) {
             Ok(value) => value,
             Err(err) => {
-                return Err(Error::JsonError(err.to_string()));
+                return Err(MdownError::JsonError(err.to_string()));
             }
         };
         Ok(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}", json))
     } else {
-        Err(Error::NotFoundError(String::from("")))
+        Err(MdownError::NotFoundError(String::from("")))
     }
 }
 
@@ -516,11 +516,11 @@ fn get_html() -> String {
     }
 }
 
-async fn web() -> Result<(), Error> {
+async fn web() -> Result<(), MdownError> {
     let listener = match TcpListener::bind("127.0.0.1:8080") {
         Ok(listener) => listener,
         Err(err) => {
-            return Err(Error::IoError(err, None));
+            return Err(MdownError::IoError(err, None));
         }
     };
     log!("Server listening on 127.0.0.1:8080");
@@ -542,7 +542,7 @@ async fn web() -> Result<(), Error> {
     }
 }
 
-pub(crate) async fn start() -> Result<(), Error> {
+pub(crate) async fn start() -> Result<(), MdownError> {
     match
         ctrlc::set_handler(|| {
             log!("[user] Ctrl+C received! Exiting...");
@@ -560,7 +560,7 @@ pub(crate) async fn start() -> Result<(), Error> {
         Ok(()) => (),
         Err(err) => {
             return Err(
-                Error::CustomError(
+                MdownError::CustomError(
                     format!("Failed setting up ctrl handler, {}", err.to_string()),
                     String::from("CTRL handler")
                 )

@@ -238,7 +238,7 @@ async fn main() {
             Ok(value) => value,
             Err(err) => {
                 error::handle_final(
-                    &error::mdown::Final::Final(error::mdown::Error::PoisonError(err.to_string()))
+                    &error::Final::Final(error::MdownError::PoisonError(err.to_string()))
                 );
                 exit(1);
             }
@@ -247,28 +247,28 @@ async fn main() {
         exit(0);
     }
 }
-async fn start() -> Result<(), error::mdown::Final> {
+async fn start() -> Result<(), error::Final> {
     // cwd
     match env::set_current_dir(ARGS.cwd.as_str()) {
         Ok(()) => (),
         Err(err) => {
-            let err = error::mdown::Error::IoError(err, Some(ARGS.cwd.to_string()));
+            let err = error::MdownError::IoError(err, Some(ARGS.cwd.to_string()));
             error::handle_error(&err, String::from("program"));
-            return Err(error::mdown::Final::Final(err));
+            return Err(error::Final::Final(err));
         }
     }
 
     if ARGS.delete {
         return match resolute::args_delete() {
             Ok(()) => Ok(()),
-            Err(err) => Err(error::mdown::Final::Final(err)),
+            Err(err) => Err(error::Final::Final(err)),
         };
     }
 
     match utils::create_cache_folder() {
         Ok(()) => (),
         Err(err) => {
-            return Err(error::mdown::Final::Final(err));
+            return Err(error::Final::Final(err));
         }
     }
 
@@ -277,7 +277,7 @@ async fn start() -> Result<(), error::mdown::Final> {
         match utils::setup_subscriber() {
             Ok(()) => (),
             Err(err) => {
-                return Err(error::mdown::Final::Final(err));
+                return Err(error::Final::Final(err));
             }
         }
     }
@@ -285,9 +285,7 @@ async fn start() -> Result<(), error::mdown::Final> {
     *(match resolute::LANGUAGE.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(
-                error::mdown::Final::Final(error::mdown::Error::PoisonError(err.to_string()))
-            );
+            return Err(error::Final::Final(error::MdownError::PoisonError(err.to_string())));
         }
     }) = ARGS.lang.clone();
 
@@ -295,13 +293,13 @@ async fn start() -> Result<(), error::mdown::Final> {
         match resolute::show().await {
             Ok(()) => (),
             Err(err) => {
-                return Err(error::mdown::Final::Final(err));
+                return Err(error::Final::Final(err));
             }
         }
         match utils::remove_cache() {
             Ok(()) => (),
             Err(err) => {
-                return Err(error::mdown::Final::Final(err));
+                return Err(error::Final::Final(err));
             }
         }
         return Ok(());
@@ -310,13 +308,13 @@ async fn start() -> Result<(), error::mdown::Final> {
         match resolute::show().await {
             Ok(()) => (),
             Err(err) => {
-                return Err(error::mdown::Final::Final(err));
+                return Err(error::Final::Final(err));
             }
         }
         match utils::remove_cache() {
             Ok(()) => (),
             Err(err) => {
-                return Err(error::mdown::Final::Final(err));
+                return Err(error::Final::Final(err));
             }
         }
         return Ok(());
@@ -326,14 +324,14 @@ async fn start() -> Result<(), error::mdown::Final> {
         match resolute::resolve_check().await {
             Ok(()) => (),
             Err(err) => {
-                return Err(error::mdown::Final::Final(err));
+                return Err(error::Final::Final(err));
             }
         }
 
         match utils::remove_cache() {
             Ok(()) => (),
             Err(err) => {
-                return Err(error::mdown::Final::Final(err));
+                return Err(error::Final::Final(err));
             }
         }
         return Ok(());
@@ -344,7 +342,7 @@ async fn start() -> Result<(), error::mdown::Final> {
     if ARGS.server {
         return match server::start() {
             Ok(()) => Ok(()),
-            Err(err) => Err(error::mdown::Final::Final(err)),
+            Err(err) => Err(error::Final::Final(err)),
         };
     }
 
@@ -352,7 +350,7 @@ async fn start() -> Result<(), error::mdown::Final> {
     if ARGS.gui {
         return match gui::start() {
             Ok(()) => Ok(()),
-            Err(err) => Err(error::mdown::Final::Final(err)),
+            Err(err) => Err(error::Final::Final(err)),
         };
     }
 
@@ -360,13 +358,13 @@ async fn start() -> Result<(), error::mdown::Final> {
     if ARGS.web {
         return match web::start().await {
             Ok(()) => Ok(()),
-            Err(err) => Err(error::mdown::Final::Final(err)),
+            Err(err) => Err(error::Final::Final(err)),
         };
     }
     let (file_path, file_path_tm) = match utils::resolve_start() {
         Ok((file_path, file_path_tm)) => (file_path, file_path_tm),
         Err(err) => {
-            return Err(error::mdown::Final::Final(err));
+            return Err(error::Final::Final(err));
         }
     };
 
@@ -377,8 +375,8 @@ async fn start() -> Result<(), error::mdown::Final> {
         Ok(code) => code,
         Err(err) => {
             return Err(
-                error::mdown::Final::Final(
-                    error::mdown::Error::CustomError(
+                error::Final::Final(
+                    error::MdownError::CustomError(
                         err.to_string(),
                         String::from("InvalidStatusCode")
                     )
@@ -393,7 +391,7 @@ async fn start() -> Result<(), error::mdown::Final> {
         id = match utils::search().await {
             Ok(id) => id,
             Err(err) => {
-                return Err(error::mdown::Final::Final(err));
+                return Err(error::Final::Final(err));
             }
         };
     } else if let Some(id_temp) = utils::resolve_regex(&ARGS.url) {
@@ -408,7 +406,7 @@ async fn start() -> Result<(), error::mdown::Final> {
             Ok(value) => value,
             Err(err) => {
                 error::handle_error(
-                    &error::mdown::Error::PoisonError(err.to_string()),
+                    &error::MdownError::PoisonError(err.to_string()),
                     String::from("program")
                 );
                 exit(1);
@@ -422,7 +420,7 @@ async fn start() -> Result<(), error::mdown::Final> {
                 let json_value = match utils::get_json(&manga_name_json) {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(error::mdown::Final::Final(err));
+                        return Err(error::Final::Final(err));
                     }
                 };
                 if let Value::Object(obj) = json_value {
@@ -435,8 +433,8 @@ async fn start() -> Result<(), error::mdown::Final> {
                     };
                 } else {
                     return Err(
-                        error::mdown::Final::Final(
-                            error::mdown::Error::JsonError(String::from("Unexpected JSON value"))
+                        error::Final::Final(
+                            error::MdownError::JsonError(String::from("Unexpected JSON value"))
                         )
                     );
                 }
@@ -452,8 +450,8 @@ async fn start() -> Result<(), error::mdown::Final> {
                             Ok(code) => code,
                             Err(err) => {
                                 return Err(
-                                    error::mdown::Final::Final(
-                                        error::mdown::Error::ConversionError(
+                                    error::Final::Final(
+                                        error::MdownError::ConversionError(
                                             format!("status_code {}", err.to_string())
                                         )
                                     )
@@ -464,8 +462,8 @@ async fn start() -> Result<(), error::mdown::Final> {
                         Ok(code) => code,
                         Err(err) => {
                             return Err(
-                                error::mdown::Final::Final(
-                                    error::mdown::Error::CustomError(
+                                error::Final::Final(
+                                    error::MdownError::CustomError(
                                         err.to_string(),
                                         String::from("InvalidStatusCode")
                                     )
@@ -490,9 +488,7 @@ async fn start() -> Result<(), error::mdown::Final> {
     *(match resolute::ENDED.lock() {
         Ok(value) => value,
         Err(err) => {
-            return Err(
-                error::mdown::Final::Final(error::mdown::Error::PoisonError(err.to_string()))
-            );
+            return Err(error::Final::Final(error::MdownError::PoisonError(err.to_string())));
         }
     }) = true;
 
@@ -504,7 +500,7 @@ pub(crate) async fn download_manga(
     manga_json: String,
     manga_name: &str,
     arg_force: bool
-) -> Result<Vec<String>, error::mdown::Error> {
+) -> Result<Vec<String>, error::MdownError> {
     let folder = getter::get_folder_name(manga_name);
     let arg_volume = getter::get_arg(ARGS.volume.to_string());
     let arg_chapter = getter::get_arg(ARGS.chapter.to_string());
@@ -517,7 +513,7 @@ pub(crate) async fn download_manga(
     let language_inst = match resolute::LANGUAGE.lock() {
         Ok(value) => value.to_string(),
         Err(err) => {
-            return Err(error::mdown::Error::PoisonError(err.to_string()));
+            return Err(error::MdownError::PoisonError(err.to_string()));
         }
     };
     let language = language_inst.clone();
@@ -534,14 +530,14 @@ pub(crate) async fn download_manga(
             let data_array = utils::sort(match obj.get("data").and_then(Value::as_array) {
                 Some(value) => value,
                 None => {
-                    return Err(error::mdown::Error::NotFoundError(String::from("download_manga")));
+                    return Err(error::MdownError::NotFoundError(String::from("download_manga")));
                 }
             });
             let data_len = data_array.len();
             *(match resolute::CURRENT_CHAPTER_PARSED_MAX.lock() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                    return Err(error::MdownError::PoisonError(err.to_string()));
                 }
             }) = data_len as u64;
             for item in 0..data_len {
@@ -551,13 +547,13 @@ pub(crate) async fn download_manga(
                     match resolute::CURRENT_CHAPTER_PARSED.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                            return Err(error::MdownError::PoisonError(err.to_string()));
                         }
                     },
                     match resolute::CURRENT_CHAPTER_PARSED_MAX.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                            return Err(error::MdownError::PoisonError(err.to_string()));
                         }
                     }
                 );
@@ -617,7 +613,7 @@ pub(crate) async fn download_manga(
                             let mut dates = match resolute::CHAPTER_DATES.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(error::MdownError::PoisonError(err.to_string()));
                                 }
                             };
                             let empty = String::new();
@@ -639,7 +635,7 @@ pub(crate) async fn download_manga(
                                                     Ok(value) => value,
                                                     Err(err) => {
                                                         return Err(
-                                                            error::mdown::Error::PoisonError(
+                                                            error::MdownError::PoisonError(
                                                                 err.to_string()
                                                             )
                                                         );
@@ -659,7 +655,7 @@ pub(crate) async fn download_manga(
                                                 Ok(value) => value,
                                                 Err(err) => {
                                                     return Err(
-                                                        error::mdown::Error::PoisonError(
+                                                        error::MdownError::PoisonError(
                                                             err.to_string()
                                                         )
                                                     );
@@ -671,7 +667,7 @@ pub(crate) async fn download_manga(
                                                 Ok(value) => value,
                                                 Err(err) => {
                                                     return Err(
-                                                        error::mdown::Error::PoisonError(
+                                                        error::MdownError::PoisonError(
                                                             err.to_string()
                                                         )
                                                     );
@@ -695,7 +691,7 @@ pub(crate) async fn download_manga(
                     *(match resolute::CURRENT_CHAPTER_PARSED.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                            return Err(error::MdownError::PoisonError(err.to_string()));
                         }
                     }) += 1;
                     if
@@ -707,7 +703,7 @@ pub(crate) async fn download_manga(
                             match resolute::CHAPTERS.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(error::MdownError::PoisonError(err.to_string()));
                                 }
                             }
                         ).push(metadata::ChapterMetadata::new(&chapter_num, update_date, id));
@@ -739,7 +735,7 @@ pub(crate) async fn download_manga(
                     (match resolute::CHAPTERS.lock() {
                         Ok(value) => !value.iter().any(|item| item.number == chapter_num),
                         Err(err) => {
-                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                            return Err(error::MdownError::PoisonError(err.to_string()));
                         }
                     })
                 {
@@ -747,7 +743,7 @@ pub(crate) async fn download_manga(
                         let dates = match resolute::CHAPTER_DATES.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                return Err(error::MdownError::PoisonError(err.to_string()));
                             }
                         };
                         let empty = String::new();
@@ -760,7 +756,7 @@ pub(crate) async fn download_manga(
                             match resolute::CHAPTERS_TO_REMOVE.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(error::MdownError::PoisonError(err.to_string()));
                                 }
                             }
                         ).push(metadata::ChapterMetadata::new(chapter_num, &cur_date, id));
@@ -770,7 +766,7 @@ pub(crate) async fn download_manga(
                     *(match resolute::CURRENT_CHAPTER_PARSED.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                            return Err(error::MdownError::PoisonError(err.to_string()));
                         }
                     }) += 1;
                     if arg_offset > times {
@@ -779,7 +775,7 @@ pub(crate) async fn download_manga(
                         *(match resolute::CURRENT_CHAPTER_PARSED.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                return Err(error::MdownError::PoisonError(err.to_string()));
                             }
                         }) += 1;
                         continue;
@@ -808,7 +804,7 @@ pub(crate) async fn download_manga(
                             match resolute::CHAPTERS.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(error::MdownError::PoisonError(err.to_string()));
                                 }
                             }
                         )
@@ -823,9 +819,7 @@ pub(crate) async fn download_manga(
                                             Ok(value) => value,
                                             Err(err) => {
                                                 return Err(
-                                                    error::mdown::Error::PoisonError(
-                                                        err.to_string()
-                                                    )
+                                                    error::MdownError::PoisonError(err.to_string())
                                                 );
                                             }
                                         }
@@ -837,9 +831,7 @@ pub(crate) async fn download_manga(
                                             Ok(value) => value,
                                             Err(err) => {
                                                 return Err(
-                                                    error::mdown::Error::PoisonError(
-                                                        err.to_string()
-                                                    )
+                                                    error::MdownError::PoisonError(err.to_string())
                                                 );
                                             }
                                         }
@@ -884,7 +876,7 @@ pub(crate) async fn download_manga(
                                         Ok(value) => value,
                                         Err(err) => {
                                             return Err(
-                                                error::mdown::Error::PoisonError(err.to_string())
+                                                error::MdownError::PoisonError(err.to_string())
                                             );
                                         }
                                     }
@@ -895,7 +887,7 @@ pub(crate) async fn download_manga(
                         if match IS_END.lock() {
                                 Ok(value) => *value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(error::MdownError::PoisonError(err.to_string()));
                                 }
                             } {
                             return Ok(downloaded);
@@ -921,7 +913,7 @@ pub(crate) async fn download_manga(
                             Ok(()) => (),
                             Err(err) => {
                                 return Err(
-                                    error::mdown::Error::IoError(err, Some(folder_path.clone()))
+                                    error::MdownError::IoError(err, Some(folder_path.clone()))
                                 );
                             }
                         }
@@ -932,9 +924,7 @@ pub(crate) async fn download_manga(
                                 match resolute::WEB_DOWNLOADED.lock() {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::mdown::Error::PoisonError(err.to_string())
-                                        );
+                                        return Err(error::MdownError::PoisonError(err.to_string()));
                                     }
                                 }
                             ).push(file_name);
@@ -944,7 +934,7 @@ pub(crate) async fn download_manga(
                         let mut current_chapter = match resolute::CURRENT_CHAPTER.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                return Err(error::MdownError::PoisonError(err.to_string()));
                             }
                         };
                         current_chapter.clear();
@@ -966,7 +956,7 @@ pub(crate) async fn download_manga(
                     *(match resolute::CURRENT_CHAPTER_PARSED_MAX.lock() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(error::mdown::Error::PoisonError(err.to_string()));
+                            return Err(error::MdownError::PoisonError(err.to_string()));
                         }
                     }) -= 1;
                 }
@@ -997,13 +987,13 @@ pub(crate) async fn download_chapter(
     update_date: &str,
     name: &str,
     website: &str
-) -> Result<(), error::mdown::Error> {
+) -> Result<(), error::MdownError> {
     string(3, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         let mut current_chapter = match resolute::CURRENT_CHAPTER.lock() {
             Ok(value) => value,
             Err(err) => {
-                return Err(error::mdown::Error::PoisonError(err.to_string()));
+                return Err(error::MdownError::PoisonError(err.to_string()));
             }
         };
         current_chapter.clear();
@@ -1036,7 +1026,7 @@ pub(crate) async fn download_chapter(
                         *(match resolute::CURRENT_PAGE_MAX.lock() {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                return Err(error::MdownError::PoisonError(err.to_string()));
                             }
                         }) = images_length.clone() as u64;
 
@@ -1046,7 +1036,7 @@ pub(crate) async fn download_chapter(
                                 Ok(file) => file,
                                 Err(err) => {
                                     return Err(
-                                        error::mdown::Error::IoError(err, Some(lock_file.clone()))
+                                        error::MdownError::IoError(err, Some(lock_file.clone()))
                                     );
                                 }
                             };
@@ -1072,7 +1062,7 @@ pub(crate) async fn download_chapter(
                                 Ok(file) => file,
                                 Err(err) => {
                                     return Err(
-                                        error::mdown::Error::IoError(err, Some(lock_file.clone()))
+                                        error::MdownError::IoError(err, Some(lock_file.clone()))
                                     );
                                 }
                             };
@@ -1080,7 +1070,7 @@ pub(crate) async fn download_chapter(
                                 Some(attr) => attr,
                                 None => {
                                     return Err(
-                                        error::mdown::Error::NotFoundError(
+                                        error::MdownError::NotFoundError(
                                             String::from("attributes not found")
                                         )
                                     );
@@ -1092,7 +1082,7 @@ pub(crate) async fn download_chapter(
                                     Some(pages) => pages,
                                     None => {
                                         return Err(
-                                            error::mdown::Error::JsonError(
+                                            error::MdownError::JsonError(
                                                 String::from("pages not found")
                                             )
                                         );
@@ -1122,7 +1112,7 @@ pub(crate) async fn download_chapter(
                                                 Ok(value) => value,
                                                 Err(err) => {
                                                     return Err(
-                                                        error::mdown::Error::PoisonError(
+                                                        error::MdownError::PoisonError(
                                                             err.to_string()
                                                         )
                                                     );
@@ -1139,7 +1129,7 @@ pub(crate) async fn download_chapter(
                                                 Ok(value) => value,
                                                 Err(err) => {
                                                     return Err(
-                                                        error::mdown::Error::PoisonError(
+                                                        error::MdownError::PoisonError(
                                                             err.to_string()
                                                         )
                                                     );
@@ -1156,7 +1146,7 @@ pub(crate) async fn download_chapter(
                                                 Ok(value) => value,
                                                 Err(err) => {
                                                     return Err(
-                                                        error::mdown::Error::PoisonError(
+                                                        error::MdownError::PoisonError(
                                                             err.to_string()
                                                         )
                                                     );
@@ -1195,7 +1185,7 @@ pub(crate) async fn download_chapter(
                             let json = match serde_json::to_string_pretty(&response_map) {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::JsonError(err.to_string()));
+                                    return Err(error::MdownError::JsonError(err.to_string()));
                                 }
                             };
                             match write!(metadata_file, "{}", json) {
@@ -1229,14 +1219,12 @@ pub(crate) async fn download_chapter(
                                             Ok(value) => value,
                                             Err(err) => {
                                                 return Err(
-                                                    error::mdown::Error::PoisonError(
-                                                        err.to_string()
-                                                    )
+                                                    error::MdownError::PoisonError(err.to_string())
                                                 );
                                             }
                                         }
                                     ).push(
-                                        error::mdown::Error::ConversionError(
+                                        error::MdownError::ConversionError(
                                             String::from("Failed to parse max_consecutive")
                                         )
                                     );
@@ -1346,7 +1334,7 @@ pub(crate) async fn download_chapter(
                                             Ok(value) => *value,
                                             Err(err) => {
                                                 return Err(
-                                                    error::mdown::Error::PoisonError(
+                                                    error::MdownError::PoisonError(
                                                         err.to_string()
                                                     )
                                                 );
@@ -1358,7 +1346,7 @@ pub(crate) async fn download_chapter(
                                                 Ok(value) => value,
                                                 Err(err) => {
                                                     return Err(
-                                                        error::mdown::Error::PoisonError(
+                                                        error::MdownError::PoisonError(
                                                             err.to_string()
                                                         )
                                                     );
@@ -1371,7 +1359,7 @@ pub(crate) async fn download_chapter(
                             *(match resolute::CURRENT_PAGE.lock() {
                                 Ok(value) => value,
                                 Err(err) => {
-                                    return Err(error::mdown::Error::PoisonError(err.to_string()));
+                                    return Err(error::MdownError::PoisonError(err.to_string()));
                                 }
                             }) = 0;
 
@@ -1384,9 +1372,7 @@ pub(crate) async fn download_chapter(
                                 match resolute::CHAPTERS.lock() {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::mdown::Error::PoisonError(err.to_string())
-                                        );
+                                        return Err(error::MdownError::PoisonError(err.to_string()));
                                     }
                                 }
                             ).push(chapter_met);
