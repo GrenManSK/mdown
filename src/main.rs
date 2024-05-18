@@ -179,6 +179,8 @@ struct Args {
     show_all: bool,
     #[arg(long, next_line_help = true, help = "Starts server")]
     server: bool,
+    #[arg(long, next_line_help = true, help = "Won't use curses window")]
+    quiet: bool,
     #[arg(long, next_line_help = true, help = "Gui version of mdown, does nothing for now")]
     gui: bool,
     #[arg(long, next_line_help = true, help = "debug")]
@@ -188,7 +190,7 @@ struct Args {
 }
 
 fn string(y: u32, x: u32, value: &str) {
-    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update && !ARGS.quiet {
         stdscr().mvaddnstr(y as i32, x as i32, value, (MAXPOINTS.max_x - x) as i32);
         stdscr().refresh();
     }
@@ -289,22 +291,7 @@ async fn start() -> Result<(), error::Final> {
         }
     }) = ARGS.lang.clone();
 
-    if ARGS.show {
-        match resolute::show().await {
-            Ok(()) => (),
-            Err(err) => {
-                return Err(error::Final::Final(err));
-            }
-        }
-        match utils::remove_cache() {
-            Ok(()) => (),
-            Err(err) => {
-                return Err(error::Final::Final(err));
-            }
-        }
-        return Ok(());
-    }
-    if ARGS.show_all {
+    if ARGS.show || ARGS.show_all {
         match resolute::show().await {
             Ok(()) => (),
             Err(err) => {
@@ -368,7 +355,9 @@ async fn start() -> Result<(), error::Final> {
         }
     };
 
-    utils::setup_requirements(file_path_tm);
+    if !ARGS.quiet {
+        utils::setup_requirements(file_path_tm);
+    }
 
     let mut manga_name: String = String::from("!");
     let mut status_code = match reqwest::StatusCode::from_u16(200) {

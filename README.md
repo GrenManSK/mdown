@@ -47,6 +47,8 @@ See [site](https://mangadex.org/) for finding manga
 
 `--log` - will print log
 
+`--quiet` - will not use curses window output
+
 `--check` - check for for any manga updates
 
 `--update` - will download manga updates
