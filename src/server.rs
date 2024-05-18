@@ -131,6 +131,58 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
                     return Err(MdownError::IoError(err, None));
                 }
             };
+        } else if path.starts_with("/__preview__?") {
+            let query_params = get_query(parts);
+            let file_path = match query_params.get("path").cloned() {
+                Some(value) => format!(".\\{}", value),
+                None => {
+                    return Ok(());
+                }
+            };
+
+            let decoded_str = match percent_encoding::percent_decode_str(&file_path).decode_utf8() {
+                Ok(decoded_str) => decoded_str.to_string().replace("./", "").replace("/", ""),
+                Err(err) => {
+                    return Err(MdownError::ConversionError(err.to_string()));
+                }
+            };
+
+            let contents;
+            if decoded_str.ends_with(".cbz") {
+                contents = match zip_func::extract_image_from_zip(&decoded_str) {
+                    Ok(contents) => contents,
+                    Err(err) => {
+                        return Err(err);
+                    }
+                };
+            } else {
+                contents = match fs::read(&decoded_str) {
+                    Ok(contents) => contents,
+                    Err(err) => {
+                        return Err(MdownError::IoError(err, Some(decoded_str)));
+                    }
+                };
+            }
+
+            let mut response = String::new();
+            response.push_str("HTTP/1.1 200 OK\r\n");
+            response.push_str("Content-Type: image/png\r\n");
+            response.push_str("Content-Length: ");
+            response.push_str(&contents.len().to_string());
+            response.push_str("\r\n\r\n");
+
+            match stream.get_mut().write_all(response.as_bytes()) {
+                Ok(_n) => (),
+                Err(err) => {
+                    return Err(MdownError::IoError(err, None));
+                }
+            }
+            match stream.get_mut().write_all(&contents) {
+                Ok(_n) => (),
+                Err(err) => {
+                    return Err(MdownError::IoError(err, None));
+                }
+            }
         } else if path.starts_with("/__download__?") {
             let query_params = get_query(parts);
             let file_path = match query_params.get("path").cloned() {

@@ -161,3 +161,43 @@ pub(crate) fn extract_metadata_from_zip(
         )
     )
 }
+
+pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, error::MdownError> {
+    let file = match File::open(zip_file_path) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(error::MdownError::IoError(err, Some(zip_file_path.to_string())));
+        }
+    };
+    let mut archive = match ZipArchive::new(file) {
+        Ok(archive) => archive,
+        Err(err) => {
+            return Err(error::MdownError::ZipError(err));
+        }
+    };
+
+    for i in 0..archive.len() {
+        let mut file = match archive.by_index(i) {
+            Ok(file) => file,
+            Err(err) => {
+                return Err(error::MdownError::ZipError(err));
+            }
+        };
+        if let Some(file_name) = file.name().to_lowercase().split('.').last() {
+            match file_name {
+                "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => {
+                    let mut content = Vec::new();
+                    if let Err(err) = file.read_to_end(&mut content) {
+                        return Err(error::MdownError::IoError(err, Some(file.name().to_string())));
+                    }
+                    return Ok(content);
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+    }
+
+    Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned()))
+}
