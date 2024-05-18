@@ -236,7 +236,9 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
                         Some(status) => status,
                         None => {
                             return Err(
-                                MdownError::NotFoundError(String::from("StatusCode (get_manga_json)"))
+                                MdownError::NotFoundError(
+                                    String::from("StatusCode (get_manga_json)")
+                                )
                             );
                         }
                     })
@@ -303,7 +305,9 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
                             Some(status) => status,
                             None => {
                                 return Err(
-                                    MdownError::NotFoundError(String::from("StatusCode (get_chapter)"))
+                                    MdownError::NotFoundError(
+                                        String::from("StatusCode (get_chapter)")
+                                    )
                                 );
                             }
                         })
@@ -396,7 +400,9 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                             Some(status) => status,
                             None => {
                                 return Err(
-                                    MdownError::NotFoundError(String::from("StatusCode (get_manga)"))
+                                    MdownError::NotFoundError(
+                                        String::from("StatusCode (get_manga)")
+                                    )
                                 );
                             }
                         })
@@ -514,13 +520,17 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                             let data1_array = match data1.get_mut("data") {
                                 Some(value) => value,
                                 None => {
-                                    return Err(MdownError::JsonError(String::from("Did not find data")));
+                                    return Err(
+                                        MdownError::JsonError(String::from("Did not find data"))
+                                    );
                                 }
                             };
                             let data2_array = match data2.get("data") {
                                 Some(value) => value,
                                 None => {
-                                    return Err(MdownError::JsonError(String::from("Did not find data")));
+                                    return Err(
+                                        MdownError::JsonError(String::from("Did not find data"))
+                                    );
                                 }
                             };
 

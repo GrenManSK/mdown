@@ -181,7 +181,11 @@ pub(crate) async fn download_cover(
 
     Ok(())
 }
-pub(crate) async fn download_stat(id: &str, folder: &str, manga_name: &str) -> Result<(), MdownError> {
+pub(crate) async fn download_stat(
+    id: &str,
+    folder: &str,
+    manga_name: &str
+) -> Result<(), MdownError> {
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         log!("Getting statistics");
     }
@@ -359,7 +363,10 @@ pub(crate) async fn download_image(
         Ok(lock_file) => lock_file,
         Err(err) => {
             return Err(
-                MdownError::IoError(err, Some(format!(".cache\\{}_{}_final.lock", folder_name, page)))
+                MdownError::IoError(
+                    err,
+                    Some(format!(".cache\\{}_{}_final.lock", folder_name, page))
+                )
             );
         }
     };
@@ -374,7 +381,10 @@ pub(crate) async fn download_image(
                     }
                 }
             ).push(
-                MdownError::IoError(err, Some(format!(".cache\\{}_{}_final.lock", folder_name, page)))
+                MdownError::IoError(
+                    err,
+                    Some(format!(".cache\\{}_{}_final.lock", folder_name, page))
+                )
             );
         }
     }
@@ -527,7 +537,9 @@ pub(crate) async fn download_image(
     {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page))));
+            return Err(
+                MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page)))
+            );
         }
     };
     match lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes()) {
@@ -540,7 +552,9 @@ pub(crate) async fn download_image(
                         return Err(MdownError::PoisonError(err.to_string()));
                     }
                 }
-            ).push(MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page))));
+            ).push(
+                MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page)))
+            );
         }
     }
 

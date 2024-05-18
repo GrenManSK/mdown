@@ -329,7 +329,10 @@ pub(crate) fn process_filename(filename: &str) -> String {
         .replace('"', "")
 }
 
-pub(crate) async fn wait_for_end(file_path: String, images_length: usize) -> Result<(), MdownError> {
+pub(crate) async fn wait_for_end(
+    file_path: String,
+    images_length: usize
+) -> Result<(), MdownError> {
     let full_path = format!(".cache\\{}.lock", file_path);
     let mut full_size = 0.0;
     let start = Instant::now();
@@ -532,13 +535,17 @@ pub(crate) async fn search() -> Result<String, MdownError> {
         let data = match manga_data.get("data") {
             Some(data) => data,
             None => {
-                return Err(MdownError::NotFoundError(String::from("data in manga_data in main.rs")));
+                return Err(
+                    MdownError::NotFoundError(String::from("data in manga_data in main.rs"))
+                );
             }
         };
         let manga_array = match data.as_array() {
             Some(data) => data,
             None => {
-                return Err(MdownError::ConversionError(String::from("manga_data to array in main.rs")));
+                return Err(
+                    MdownError::ConversionError(String::from("manga_data to array in main.rs"))
+                );
             }
         };
         let manga_ids: Vec<&serde_json::Value> = manga_array
@@ -674,7 +681,10 @@ pub(crate) async fn ctrl_handler(file: String) {
         (match resolute::ENDED.lock() {
             Ok(value) => *value,
             Err(err) => {
-                handle_error(&MdownError::PoisonError(err.to_string()), String::from("ctrl_handler"));
+                handle_error(
+                    &MdownError::PoisonError(err.to_string()),
+                    String::from("ctrl_handler")
+                );
                 false
             }
         })

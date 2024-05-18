@@ -87,8 +87,7 @@ pub(crate) fn handle_error(err: &MdownError, from: String) {
         MdownError::RegexError(err) => eprintln!("Error: RegexError {} ({})", err, from),
         MdownError::ZipError(err) => eprintln!("Error: ZipError {} ({})", err, from),
         MdownError::NotFoundError(err) => eprintln!("Error: NotFoundError {} ({})", err, from),
-        MdownError::ConversionError(err) =>
-            eprintln!("Error: ConversionError {} ({})", err, from),
+        MdownError::ConversionError(err) => eprintln!("Error: ConversionError {} ({})", err, from),
         MdownError::CustomError(err, name) => eprintln!("Error: {} {} ({})", name, err, from),
     }
 }

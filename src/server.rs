@@ -37,7 +37,9 @@ fn get_directory_content(path: &str) -> std::result::Result<Value, MdownError> {
             Ok(file_name) => file_name,
             Err(_err) => {
                 return Err(
-                    MdownError::ConversionError(String::from("Failed to convert file name to string"))
+                    MdownError::ConversionError(
+                        String::from("Failed to convert file name to string")
+                    )
                 );
             }
         };
@@ -360,7 +362,10 @@ pub(crate) fn start() -> std::result::Result<(), MdownError> {
         Some(value) => value,
         None => {
             return Err(
-                MdownError::CustomError(String::from("Invalid IP address"), String::from("IP address"))
+                MdownError::CustomError(
+                    String::from("Invalid IP address"),
+                    String::from("IP address")
+                )
             );
         }
     };

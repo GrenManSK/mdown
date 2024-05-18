@@ -495,7 +495,9 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                             Some(name) => name,
                             None => {
                                 return Err(
-                                    MdownError::NotFoundError(String::from("Didn't find ID property"))
+                                    MdownError::NotFoundError(
+                                        String::from("Didn't find ID property")
+                                    )
                                 );
                             }
                         };
@@ -627,7 +629,9 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                 let chapters_lock = match CHAPTERS.lock() {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(MdownError::PoisonError(format!("Failed to lock CHAPTERS: {}", err)));
+                        return Err(
+                            MdownError::PoisonError(format!("Failed to lock CHAPTERS: {}", err))
+                        );
                     }
                 };
 
@@ -829,7 +833,9 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
                             Some(value) => value,
                             None => {
                                 return Err(
-                                    MdownError::NotFoundError(String::from("mut chapters in dat.json"))
+                                    MdownError::NotFoundError(
+                                        String::from("mut chapters in dat.json")
+                                    )
                                 );
                             }
                         };
@@ -1459,14 +1465,18 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
                 let data = match obj.get("data") {
                     Some(value) => value,
                     None => {
-                        return Err(MdownError::NotFoundError(format!("data in resolve_group_metadata")));
+                        return Err(
+                            MdownError::NotFoundError(format!("data in resolve_group_metadata"))
+                        );
                     }
                 };
                 let attr = match data.get("attributes") {
                     Some(value) => value,
                     None => {
                         return Err(
-                            MdownError::NotFoundError(format!("attributes in resolve_group_metadata"))
+                            MdownError::NotFoundError(
+                                format!("attributes in resolve_group_metadata")
+                            )
                         );
                     }
                 };
