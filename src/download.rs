@@ -141,14 +141,9 @@ pub(crate) async fn download_cover(
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                (
-                    match resolute::SUSPENDED.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(MdownError::PoisonError(err.to_string()));
-                        }
-                    }
-                ).push(MdownError::IoError(err, Some(format!("{}\\_cover.png", folder))));
+                resolute::SUSPENDED
+                    .lock()
+                    .push(MdownError::IoError(err, Some(format!("{}\\_cover.png", folder))));
             }
         }
         downloaded += chunk.len() as u64;
@@ -210,14 +205,7 @@ pub(crate) async fn download_stat(
     let json_value = match utils::get_json(&response) {
         Ok(value) => value,
         Err(err) => {
-            (
-                match resolute::SUSPENDED.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).push(MdownError::JsonError(err.to_string()));
+            resolute::SUSPENDED.lock().push(MdownError::JsonError(err.to_string()));
             return Ok(());
         }
     };
@@ -373,19 +361,14 @@ pub(crate) async fn download_image(
     match write!(lock_file_inst, "{:.2}", total_size) {
         Ok(()) => (),
         Err(err) => {
-            (
-                match resolute::SUSPENDED.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).push(
-                MdownError::IoError(
-                    err,
-                    Some(format!(".cache\\{}_{}_final.lock", folder_name, page))
-                )
-            );
+            resolute::SUSPENDED
+                .lock()
+                .push(
+                    MdownError::IoError(
+                        err,
+                        Some(format!(".cache\\{}_{}_final.lock", folder_name, page))
+                    )
+                );
         }
     }
 
@@ -399,27 +382,13 @@ pub(crate) async fn download_image(
             }
         }
     {
-        // prettier-ignore
-        if match IS_END.lock() {
-            Ok(value) => *value,
-            Err(err) => {
-                return Err(MdownError::PoisonError(err.to_string()));
-            }
-        }
-        {
+        if *IS_END.lock() {
             return Ok(());
         }
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                (
-                    match resolute::SUSPENDED.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(MdownError::PoisonError(err.to_string()));
-                        }
-                    }
-                ).push(MdownError::IoError(err, Some(full_path.clone())));
+                resolute::SUSPENDED.lock().push(MdownError::IoError(err, Some(full_path.clone())));
             }
         }
         downloaded += chunk.len() as u64;
@@ -448,19 +417,14 @@ pub(crate) async fn download_image(
                 {
                     Ok(_size) => (),
                     Err(err) => {
-                        (
-                            match resolute::SUSPENDED.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(MdownError::PoisonError(err.to_string()));
-                                }
-                            }
-                        ).push(
-                            MdownError::IoError(
-                                err,
-                                Some(format!(".cache\\{}_{}.lock", folder_name, page))
-                            )
-                        );
+                        resolute::SUSPENDED
+                            .lock()
+                            .push(
+                                MdownError::IoError(
+                                    err,
+                                    Some(format!(".cache\\{}_{}.lock", folder_name, page))
+                                )
+                            );
                     }
                 }
             }
@@ -498,12 +462,7 @@ pub(crate) async fn download_image(
         }
     }
 
-    *(match CURRENT_PAGE.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) += 1;
+    *CURRENT_PAGE.lock() += 1;
 
     if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
         let message = format!(
@@ -545,16 +504,11 @@ pub(crate) async fn download_image(
     match lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes()) {
         Ok(_size) => (),
         Err(err) => {
-            (
-                match resolute::SUSPENDED.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).push(
-                MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page)))
-            );
+            resolute::SUSPENDED
+                .lock()
+                .push(
+                    MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page)))
+                );
         }
     }
 

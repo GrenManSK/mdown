@@ -312,14 +312,9 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                (
-                    match resolute::SUSPENDED.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(MdownError::PoisonError(err.to_string()));
-                        }
-                    }
-                ).push(MdownError::IoError(err, Some(full_path.to_string())));
+                resolute::SUSPENDED
+                    .lock()
+                    .push(MdownError::IoError(err, Some(full_path.to_string())));
             }
         }
         downloaded += chunk.len() as u64;

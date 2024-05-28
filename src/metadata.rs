@@ -84,22 +84,9 @@ pub(crate) struct LOG {
 }
 impl LOG {
     pub(crate) fn new(message: &str) -> LOG {
-        let name = match resolute::CURRENT_CHAPTER.lock() {
-            Ok(value) => value.clone(),
-            Err(_err) => String::from("UNDEFINED"),
-        };
+        let name = resolute::CURRENT_CHAPTER.lock().clone();
         LOG {
-            handle_id: match resolute::HANDLE_ID.lock() {
-                Ok(value) => value.clone().into_string(),
-                Err(_err) => {
-                    return LOG {
-                        handle_id: "".to_owned(),
-                        message: "".to_owned(),
-                        time: Utc::now().to_rfc3339(),
-                        name: name,
-                    };
-                }
-            },
+            handle_id: resolute::HANDLE_ID.lock().to_string(),
             message: message.to_owned(),
             time: Utc::now().to_rfc3339(),
             name: name,
@@ -108,17 +95,7 @@ impl LOG {
 
     pub(crate) fn new_with_name(message: &str, name: &str) -> LOG {
         LOG {
-            handle_id: match resolute::HANDLE_ID.lock() {
-                Ok(value) => value.clone().into_string(),
-                Err(_err) => {
-                    return LOG {
-                        handle_id: "".to_owned(),
-                        message: "".to_owned(),
-                        time: Utc::now().to_rfc3339(),
-                        name: name.to_string(),
-                    };
-                }
-            },
+            handle_id: resolute::HANDLE_ID.lock().to_string(),
             message: message.to_owned(),
             time: Utc::now().to_rfc3339(),
             name: name.to_string(),
@@ -129,10 +106,7 @@ impl LOG {
             handle_id: handle_id.into_string(),
             message: message.to_owned(),
             time: Utc::now().to_rfc3339(),
-            name: match resolute::CURRENT_CHAPTER.lock() {
-                Ok(value) => value.clone(),
-                Err(_err) => String::from("UNDEFINED"),
-            },
+            name: resolute::CURRENT_CHAPTER.lock().clone(),
         }
     }
 }

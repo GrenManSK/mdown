@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::{
     ARGS,
     download,
-    error::{ MdownError, handle_error },
+    error::MdownError,
     getter,
     IS_END,
     log,
@@ -72,15 +72,7 @@ pub(crate) fn log_handler() {
                 Err(_err) => (),
             };
         };
-        // prettier-ignore or #[rustfmt::skip]
-        if match resolute::ENDED.lock() {
-                Ok(value) => { *value }
-                Err(_err) => {
-                    sleep(Duration::from_millis(100));
-                    false
-                }
-            }
-        {
+        if *resolute::ENDED.lock() {
             remove_log_lock_file();
             return;
         }
@@ -94,18 +86,8 @@ pub(crate) fn log_handler() {
             Err(_err) => json!({}),
         };
 
-        let mut messages_lock = match resolute::LOGS.lock() {
-            Ok(value) => value,
-            Err(_err) => {
-                continue;
-            }
-        };
-        let mut handle_id_lock = match resolute::HANDLE_ID_END.lock() {
-            Ok(value) => value,
-            Err(_err) => {
-                continue;
-            }
-        };
+        let mut messages_lock = resolute::LOGS.lock();
+        let mut handle_id_lock = resolute::HANDLE_ID_END.lock();
 
         let char = vec!["\\n", "\\r", "\\t", "\\\\", "\\'", "\\\"", "\\0"];
 
@@ -173,18 +155,9 @@ pub(crate) fn log_handler() {
                         );
                     }
                     16 => {
-                        let manga_name = match resolute::MANGA_NAME.lock() {
-                            Ok(value) => Value::String(value.clone()),
-                            Err(_err) => Value::Null,
-                        };
-                        let manga_id = match resolute::MANGA_ID.lock() {
-                            Ok(value) => Value::String(value.clone()),
-                            Err(_err) => Value::Null,
-                        };
-                        let mwd = match resolute::MWD.lock() {
-                            Ok(value) => Value::String(value.clone()),
-                            Err(_err) => Value::Null,
-                        };
+                        let manga_name = Value::String(resolute::MANGA_NAME.lock().clone());
+                        let manga_id = Value::String(resolute::MANGA_ID.lock().clone());
+                        let mwd = Value::String(resolute::MWD.lock().clone());
                         data.insert(
                             handle_id.to_string(),
                             json!({"logs":map, "type":"downloader", "time_start": start_time, "time_end": null, "name": manga_name, "id": manga_id, "mwd": mwd})
@@ -284,14 +257,9 @@ pub(crate) fn remove_cache() -> Result<(), MdownError> {
         match fs::remove_dir_all(".cache") {
             Ok(()) => (),
             Err(err) => {
-                (
-                    match resolute::SUSPENDED.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(MdownError::PoisonError(err.to_string()));
-                        }
-                    }
-                ).push(MdownError::IoError(err, Some(String::from(".cache\\"))));
+                resolute::SUSPENDED
+                    .lock()
+                    .push(MdownError::IoError(err, Some(String::from(".cache\\"))));
             }
         };
     }
@@ -328,19 +296,14 @@ pub(crate) fn setup_subscriber() -> Result<(), MdownError> {
         Ok(()) => Ok(()),
         Err(err) => {
             eprintln!("Error: tracing_subscriber {:?}", err);
-            (
-                match resolute::SUSPENDED.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).push(
-                MdownError::CustomError(
-                    String::from("Failed to set up tracing_subscriber (basically info)"),
-                    String::from("SubscriberError")
-                )
-            );
+            resolute::SUSPENDED
+                .lock()
+                .push(
+                    MdownError::CustomError(
+                        String::from("Failed to set up tracing_subscriber (basically info)"),
+                        String::from("SubscriberError")
+                    )
+                );
             Ok(())
         }
     }
@@ -350,14 +313,9 @@ pub(crate) fn create_cache_folder() -> Result<(), MdownError> {
     match fs::create_dir(".cache") {
         Ok(()) => Ok(()),
         Err(err) => {
-            (
-                match resolute::SUSPENDED.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).push(MdownError::IoError(err, Some(String::from(".cache\\"))));
+            resolute::SUSPENDED
+                .lock()
+                .push(MdownError::IoError(err, Some(String::from(".cache\\"))));
             Ok(())
         }
     }
@@ -460,24 +418,9 @@ pub(crate) async fn wait_for_end(
         } else {
             percent = (100.0 / full_size) * size;
         }
-        *(match CURRENT_PERCENT.lock() {
-            Ok(value) => value,
-            Err(err) => {
-                return Err(MdownError::PoisonError(err.to_string()));
-            }
-        }) = percent;
-        *(match CURRENT_SIZE.lock() {
-            Ok(value) => value,
-            Err(err) => {
-                return Err(MdownError::PoisonError(err.to_string()));
-            }
-        }) = size;
-        *(match CURRENT_SIZE_MAX.lock() {
-            Ok(value) => value,
-            Err(err) => {
-                return Err(MdownError::PoisonError(err.to_string()));
-            }
-        }) = full_size;
+        *CURRENT_PERCENT.lock() = percent;
+        *CURRENT_SIZE.lock() = size;
+        *CURRENT_SIZE_MAX.lock() = full_size;
         string(
             4,
             MAXPOINTS.max_x - 60,
@@ -691,16 +634,7 @@ pub(crate) async fn ctrl_handler(file: String) {
             None => Input::Character('a'),
         };
         if key == Input::from(crosscurses::Input::Character('\u{3}')) {
-            *(match IS_END.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    handle_error(
-                        &MdownError::PoisonError(err.to_string()),
-                        String::from("ctrl_handler")
-                    );
-                    continue;
-                }
-            }) = true;
+            *IS_END.lock() = true;
             if ARGS.log {
                 log!("CTRL+C received");
                 log!("CTRL+C received", "", false);
@@ -708,19 +642,7 @@ pub(crate) async fn ctrl_handler(file: String) {
             break;
         }
     }
-    if
-        resolve_final_end() ||
-        (match resolute::ENDED.lock() {
-            Ok(value) => *value,
-            Err(err) => {
-                handle_error(
-                    &MdownError::PoisonError(err.to_string()),
-                    String::from("ctrl_handler")
-                );
-                false
-            }
-        })
-    {
+    if resolve_final_end() || *resolute::ENDED.lock() {
         return;
     }
     clear_screen(0);
@@ -731,20 +653,7 @@ pub(crate) async fn ctrl_handler(file: String) {
         Err(_err) => (),
     }
 
-    delete_dir_if_unfinished(
-        &getter::get_folder_name(
-            &(match resolute::MANGA_NAME.lock() {
-                Ok(path) => path.clone(),
-                Err(err) => {
-                    handle_error(
-                        &MdownError::PoisonError(err.to_string()),
-                        String::from("delete_dir")
-                    );
-                    return;
-                }
-            })
-        )
-    );
+    delete_dir_if_unfinished(&getter::get_folder_name(&resolute::MANGA_NAME.lock()));
     delete_dir();
 
     if is_directory_empty(".cache\\") {
@@ -845,14 +754,7 @@ pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match> {
     let re = match regex::Regex::new(r"https://mangadex.org/title/([\w-]+)/?") {
         Ok(value) => value,
         Err(err) => {
-            (
-                match resolute::SUSPENDED.lock() {
-                    Ok(value) => value,
-                    Err(_err) => {
-                        return None;
-                    }
-                }
-            ).push(MdownError::RegexError(err));
+            resolute::SUSPENDED.lock().push(MdownError::RegexError(err));
             return None;
         }
     };
@@ -1047,14 +949,7 @@ pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(),
     match write!(file_inst, "{:?}", item) {
         Ok(()) => (),
         Err(err) => {
-            (
-                match resolute::SUSPENDED.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).push(MdownError::IoError(err, Some(String::from(file))));
+            resolute::SUSPENDED.lock().push(MdownError::IoError(err, Some(String::from(file))));
         }
     }
     Ok(())

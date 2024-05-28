@@ -3,14 +3,8 @@ use crosscurses::stdscr;
 use lazy_static::lazy_static;
 use chrono::DateTime;
 use serde_json::Value;
-use std::{
-    collections::HashMap,
-    env,
-    fs::{ self, File },
-    io::Write,
-    process::exit,
-    sync::{ Arc, Mutex },
-};
+use std::{ collections::HashMap, env, fs::{ self, File }, io::Write, process::exit, sync::Arc };
+use parking_lot::Mutex;
 
 mod db;
 mod download;
@@ -230,14 +224,7 @@ fn string(y: u32, x: u32, value: &str) {
 }
 
 fn log_end(handle_id: Box<str>) {
-    (
-        match resolute::HANDLE_ID_END.lock() {
-            Ok(value) => value,
-            Err(_err) => {
-                exit(1);
-            }
-        }
-    ).push(handle_id);
+    resolute::HANDLE_ID_END.lock().push(handle_id);
 }
 
 lazy_static! {
@@ -268,17 +255,7 @@ async fn main() {
         crosscurses::echo();
         crosscurses::cbreak();
     }
-    if
-        *(match resolute::FINAL_END.lock() {
-            Ok(value) => value,
-            Err(err) => {
-                error::handle_final(
-                    &error::Final::Final(error::MdownError::PoisonError(err.to_string()))
-                );
-                exit(1);
-            }
-        })
-    {
+    if *resolute::FINAL_END.lock() {
         exit(0);
     }
 }
@@ -337,12 +314,7 @@ async fn start() -> Result<(), error::Final> {
         }
     }
 
-    *(match resolute::LANGUAGE.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(error::Final::Final(error::MdownError::PoisonError(err.to_string())));
-        }
-    }) = ARGS.lang.clone();
+    *resolute::LANGUAGE.lock() = ARGS.lang.clone();
 
     if ARGS.show || ARGS.show_all {
         match resolute::show().await {
@@ -444,16 +416,7 @@ async fn start() -> Result<(), error::Final> {
         id = String::from("*");
     }
     if id != String::from("*") {
-        *(match resolute::MANGA_ID.lock() {
-            Ok(value) => value,
-            Err(err) => {
-                error::handle_error(
-                    &error::MdownError::PoisonError(err.to_string()),
-                    String::from("program")
-                );
-                exit(1);
-            }
-        }) = id.to_string();
+        *resolute::MANGA_ID.lock() = id.to_string();
         string(0, 0, &format!("Extracted ID: {}", id));
         string(1, 0, &format!("Getting manga information ..."));
         match getter::get_manga_json(&id).await {
@@ -527,12 +490,7 @@ async fn start() -> Result<(), error::Final> {
 
     utils::resolve_final_end();
 
-    *(match resolute::ENDED.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(error::Final::Final(error::MdownError::PoisonError(err.to_string())));
-        }
-    }) = true;
+    *resolute::ENDED.lock() = true;
 
     // Final key input is in utils::ctrl_handler
     Ok(())
@@ -552,12 +510,7 @@ pub(crate) async fn download_manga(
     };
     let (mut downloaded, mut hist) = (vec![], vec![]);
     let (mut times, mut moves) = (0, 0);
-    let language_inst = match resolute::LANGUAGE.lock() {
-        Ok(value) => value.to_string(),
-        Err(err) => {
-            return Err(error::MdownError::PoisonError(err.to_string()));
-        }
-    };
+    let language_inst = resolute::LANGUAGE.lock().clone();
     let language = language_inst.clone();
     drop(language_inst);
     let mut filename;
@@ -576,28 +529,13 @@ pub(crate) async fn download_manga(
                 }
             });
             let data_len = data_array.len();
-            *(match resolute::CURRENT_CHAPTER_PARSED_MAX.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(error::MdownError::PoisonError(err.to_string()));
-                }
-            }) = data_len as u64;
+            *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() = data_len as u64;
             for item in 0..data_len {
                 let mut date_change = false;
                 let parsed = format!(
                     "   Parsed chapters: {}/{}",
-                    match resolute::CURRENT_CHAPTER_PARSED.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(error::MdownError::PoisonError(err.to_string()));
-                        }
-                    },
-                    match resolute::CURRENT_CHAPTER_PARSED_MAX.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(error::MdownError::PoisonError(err.to_string()));
-                        }
-                    }
+                    resolute::CURRENT_CHAPTER_PARSED.lock(),
+                    resolute::CURRENT_CHAPTER_PARSED_MAX.lock()
                 );
                 if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
                     string(0, MAXPOINTS.max_x - (parsed.len() as u32), &parsed);
@@ -652,12 +590,7 @@ pub(crate) async fn download_manga(
                     let update_date = getter::get_attr_as_str(chapter_attr, "updatedAt");
                     match DateTime::parse_from_rfc3339(update_date) {
                         Ok(datetime) => {
-                            let mut dates = match resolute::CHAPTER_DATES.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(error::MdownError::PoisonError(err.to_string()));
-                                }
-                            };
+                            let mut dates = resolute::CHAPTER_DATES.lock();
                             let empty = String::new();
 
                             let cur_date = match dates.get(chapter_num) {
@@ -672,56 +605,27 @@ pub(crate) async fn download_manga(
                                         cont = false;
                                         dates.remove(chapter_num);
                                         if ARGS.update {
-                                            (
-                                                match resolute::CHAPTERS_TO_REMOVE.lock() {
-                                                    Ok(value) => value,
-                                                    Err(err) => {
-                                                        return Err(
-                                                            error::MdownError::PoisonError(
-                                                                err.to_string()
-                                                            )
-                                                        );
-                                                    }
-                                                }
-                                            ).push(
+                                            resolute::CHAPTERS_TO_REMOVE
+                                                .lock()
+                                                .push(
+                                                    metadata::ChapterMetadata::new(
+                                                        chapter_num,
+                                                        &cur_date,
+                                                        id
+                                                    )
+                                                );
+                                        }
+                                    } else if datetime_cur > datetime {
+                                        resolute::FIXED_DATES.lock().push(chapter_num.to_string());
+                                        resolute::CHAPTERS_TO_REMOVE
+                                            .lock()
+                                            .push(
                                                 metadata::ChapterMetadata::new(
                                                     chapter_num,
                                                     &cur_date,
                                                     id
                                                 )
                                             );
-                                        }
-                                    } else if datetime_cur > datetime {
-                                        (
-                                            match resolute::FIXED_DATES.lock() {
-                                                Ok(value) => value,
-                                                Err(err) => {
-                                                    return Err(
-                                                        error::MdownError::PoisonError(
-                                                            err.to_string()
-                                                        )
-                                                    );
-                                                }
-                                            }
-                                        ).push(chapter_num.to_string());
-                                        (
-                                            match resolute::CHAPTERS_TO_REMOVE.lock() {
-                                                Ok(value) => value,
-                                                Err(err) => {
-                                                    return Err(
-                                                        error::MdownError::PoisonError(
-                                                            err.to_string()
-                                                        )
-                                                    );
-                                                }
-                                            }
-                                        ).push(
-                                            metadata::ChapterMetadata::new(
-                                                chapter_num,
-                                                &cur_date,
-                                                id
-                                            )
-                                        );
                                     }
                                 }
                                 Err(_err) => (),
@@ -730,25 +634,15 @@ pub(crate) async fn download_manga(
                         }
                         Err(_err) => (),
                     }
-                    *(match resolute::CURRENT_CHAPTER_PARSED.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(error::MdownError::PoisonError(err.to_string()));
-                        }
-                    }) += 1;
+                    *resolute::CURRENT_CHAPTER_PARSED.lock() += 1;
                     if
                         cont &&
                         (lang == language || language == "*") &&
                         chapter_num != "This is test"
                     {
-                        (
-                            match resolute::CHAPTERS.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(error::MdownError::PoisonError(err.to_string()));
-                                }
-                            }
-                        ).push(metadata::ChapterMetadata::new(&chapter_num, update_date, id));
+                        resolute::CHAPTERS
+                            .lock()
+                            .push(metadata::ChapterMetadata::new(&chapter_num, update_date, id));
                         (moves, hist) = utils::skip(
                             utils::process_filename(&folder_path),
                             item,
@@ -774,52 +668,30 @@ pub(crate) async fn download_manga(
                 if
                     (lang == language || language == "*") &&
                     chapter_num != "This is test" &&
-                    (match resolute::CHAPTERS.lock() {
-                        Ok(value) => !value.iter().any(|item| item.number == chapter_num),
-                        Err(err) => {
-                            return Err(error::MdownError::PoisonError(err.to_string()));
-                        }
-                    })
+                    !resolute::CHAPTERS
+                        .lock()
+                        .iter()
+                        .any(|item| item.number == chapter_num)
                 {
                     if ARGS.check {
-                        let dates = match resolute::CHAPTER_DATES.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(error::MdownError::PoisonError(err.to_string()));
-                            }
-                        };
+                        let dates = resolute::CHAPTER_DATES.lock();
                         let empty = String::new();
 
                         let cur_date = match dates.get(chapter_num) {
                             Some(date) => date.to_owned(),
                             None => empty,
                         };
-                        (
-                            match resolute::CHAPTERS_TO_REMOVE.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(error::MdownError::PoisonError(err.to_string()));
-                                }
-                            }
-                        ).push(metadata::ChapterMetadata::new(chapter_num, &cur_date, id));
+                        resolute::CHAPTERS_TO_REMOVE
+                            .lock()
+                            .push(metadata::ChapterMetadata::new(chapter_num, &cur_date, id));
                         drop(dates);
                     }
                     let update_date = getter::get_attr_as_str(chapter_attr, "updatedAt");
-                    *(match resolute::CURRENT_CHAPTER_PARSED.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(error::MdownError::PoisonError(err.to_string()));
-                        }
-                    }) += 1;
+                    *resolute::CURRENT_CHAPTER_PARSED.lock() += 1;
                     if arg_offset > times {
                         (moves, hist) = utils::skip_offset(item, moves, hist);
                         times += 1;
-                        *(match resolute::CURRENT_CHAPTER_PARSED.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(error::MdownError::PoisonError(err.to_string()));
-                            }
-                        }) += 1;
+                        *resolute::CURRENT_CHAPTER_PARSED.lock() += 1;
                         continue;
                     }
                     utils::clear_screen(2);
@@ -842,42 +714,18 @@ pub(crate) async fn download_manga(
                     string(2, 0, &message);
                     if
                         !ARGS.check ||
-                        !(
-                            match resolute::CHAPTERS.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(error::MdownError::PoisonError(err.to_string()));
-                                }
-                            }
-                        )
+                        !resolute::CHAPTERS
+                            .lock()
                             .iter()
                             .any(|chapter| chapter.number == chapter_num.to_string())
                     {
                         if ARGS.check {
                             match date_change {
                                 true => {
-                                    (
-                                        match resolute::TO_DOWNLOAD_DATE.lock() {
-                                            Ok(value) => value,
-                                            Err(err) => {
-                                                return Err(
-                                                    error::MdownError::PoisonError(err.to_string())
-                                                );
-                                            }
-                                        }
-                                    ).push(chapter_num.to_string());
+                                    resolute::TO_DOWNLOAD_DATE.lock().push(chapter_num.to_string());
                                 }
                                 false => {
-                                    (
-                                        match resolute::TO_DOWNLOAD.lock() {
-                                            Ok(value) => value,
-                                            Err(err) => {
-                                                return Err(
-                                                    error::MdownError::PoisonError(err.to_string())
-                                                );
-                                            }
-                                        }
-                                    ).push(chapter_num.to_string());
+                                    resolute::TO_DOWNLOAD.lock().push(chapter_num.to_string());
                                 }
                             }
                             continue;
@@ -913,25 +761,11 @@ pub(crate) async fn download_manga(
                                 };
                             }
                             Err(err) => {
-                                (
-                                    match resolute::SUSPENDED.lock() {
-                                        Ok(value) => value,
-                                        Err(err) => {
-                                            return Err(
-                                                error::MdownError::PoisonError(err.to_string())
-                                            );
-                                        }
-                                    }
-                                ).push(err);
+                                resolute::SUSPENDED.lock().push(err);
                             }
                         }
                         // prettier-ignore or #[rustfmt::skip]
-                        if match IS_END.lock() {
-                                Ok(value) => *value,
-                                Err(err) => {
-                                    return Err(error::MdownError::PoisonError(err.to_string()));
-                                }
-                            } {
+                        if  *IS_END.lock() {
                             return Ok(downloaded);
                         }
                         match resolute::get_scanlation_group_to_file(manga_name, name, website) {
@@ -962,23 +796,11 @@ pub(crate) async fn download_manga(
 
                         utils::clear_screen(2);
                         if ARGS.web || ARGS.gui || ARGS.check || ARGS.update {
-                            (
-                                match resolute::WEB_DOWNLOADED.lock() {
-                                    Ok(value) => value,
-                                    Err(err) => {
-                                        return Err(error::MdownError::PoisonError(err.to_string()));
-                                    }
-                                }
-                            ).push(file_name);
+                            resolute::WEB_DOWNLOADED.lock().push(file_name);
                         } else {
                             downloaded.push(filename.get_file_w_folder_w_cwd());
                         }
-                        let mut current_chapter = match resolute::CURRENT_CHAPTER.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(error::MdownError::PoisonError(err.to_string()));
-                            }
-                        };
+                        let mut current_chapter = resolute::CURRENT_CHAPTER.lock();
                         current_chapter.clear();
                         std::thread::sleep(std::time::Duration::from_millis(100));
                     }
@@ -995,12 +817,7 @@ pub(crate) async fn download_manga(
                         log!(&format!("({}) {}", item, message));
                     }
 
-                    *(match resolute::CURRENT_CHAPTER_PARSED_MAX.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(error::MdownError::PoisonError(err.to_string()));
-                        }
-                    }) -= 1;
+                    *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() -= 1;
                 }
             }
         }
@@ -1032,12 +849,7 @@ pub(crate) async fn download_chapter(
 ) -> Result<(), error::MdownError> {
     string(3, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
-        let mut current_chapter = match resolute::CURRENT_CHAPTER.lock() {
-            Ok(value) => value,
-            Err(err) => {
-                return Err(error::MdownError::PoisonError(err.to_string()));
-            }
-        };
+        let mut current_chapter = resolute::CURRENT_CHAPTER.lock();
         current_chapter.clear();
         current_chapter.push_str(&filename.get_folder_name());
         drop(current_chapter);
@@ -1065,12 +877,7 @@ pub(crate) async fn download_chapter(
                     if let Some(images1) = images1 {
                         let images_length = images1.len();
 
-                        *(match resolute::CURRENT_PAGE_MAX.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(error::MdownError::PoisonError(err.to_string()));
-                            }
-                        }) = images_length.clone() as u64;
+                        *resolute::CURRENT_PAGE_MAX.lock() = images_length.clone() as u64;
 
                         if let Some(images) = data_array.get(saver.clone()) {
                             let lock_file = filename.get_lock();
@@ -1149,53 +956,18 @@ pub(crate) async fn download_chapter(
                                 (
                                     "name",
                                     serde_json::Value::String(
-                                        (
-                                            match resolute::MANGA_NAME.lock() {
-                                                Ok(value) => value,
-                                                Err(err) => {
-                                                    return Err(
-                                                        error::MdownError::PoisonError(
-                                                            err.to_string()
-                                                        )
-                                                    );
-                                                }
-                                            }
-                                        ).to_string()
+                                        resolute::MANGA_NAME.lock().to_string()
                                     ),
                                 ),
                                 (
                                     "id",
                                     serde_json::Value::String(
-                                        (
-                                            match resolute::MANGA_ID.lock() {
-                                                Ok(value) => value,
-                                                Err(err) => {
-                                                    return Err(
-                                                        error::MdownError::PoisonError(
-                                                            err.to_string()
-                                                        )
-                                                    );
-                                                }
-                                            }
-                                        ).to_string()
+                                        resolute::MANGA_ID.lock().to_string()
                                     ),
                                 ),
                                 (
                                     "saver",
-                                    serde_json::Value::String(
-                                        (
-                                            match resolute::SAVER.lock() {
-                                                Ok(value) => value,
-                                                Err(err) => {
-                                                    return Err(
-                                                        error::MdownError::PoisonError(
-                                                            err.to_string()
-                                                        )
-                                                    );
-                                                }
-                                            }
-                                        ).to_string()
-                                    ),
+                                    serde_json::Value::String(resolute::SAVER.lock().to_string()),
                                 ),
                                 (
                                     "title",
@@ -1256,20 +1028,13 @@ pub(crate) async fn download_chapter(
                             let iter = match ARGS.max_consecutive.parse() {
                                 Ok(x) => x,
                                 Err(_err) => {
-                                    (
-                                        match resolute::SUSPENDED.lock() {
-                                            Ok(value) => value,
-                                            Err(err) => {
-                                                return Err(
-                                                    error::MdownError::PoisonError(err.to_string())
-                                                );
-                                            }
-                                        }
-                                    ).push(
-                                        error::MdownError::ConversionError(
-                                            String::from("Failed to parse max_consecutive")
-                                        )
-                                    );
+                                    resolute::SUSPENDED
+                                        .lock()
+                                        .push(
+                                            error::MdownError::ConversionError(
+                                                String::from("Failed to parse max_consecutive")
+                                            )
+                                        );
                                     40 as usize
                                 }
                             };
@@ -1372,52 +1137,23 @@ pub(crate) async fn download_chapter(
                                     .into_iter()
                                     .collect();
                                 // prettier-ignore
-                                if match IS_END.lock() {
-                                            Ok(value) => *value,
-                                            Err(err) => {
-                                                return Err(
-                                                    error::MdownError::PoisonError(
-                                                        err.to_string()
-                                                    )
-                                                );
-                                            }
-                                        }
+                                if  *IS_END.lock() 
                                         {
                                             std::thread::sleep(std::time::Duration::from_millis(1000));
-                                            *(match IS_END.lock() {
-                                                Ok(value) => value,
-                                                Err(err) => {
-                                                    return Err(
-                                                        error::MdownError::PoisonError(
-                                                            err.to_string()
-                                                        )
-                                                    );
-                                                }
-                                            }) = false;
+                                            *( IS_END.lock() 
+                                            ) = false;
                                             return Ok(());
                                         }
                             }
 
-                            *(match resolute::CURRENT_PAGE.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(error::MdownError::PoisonError(err.to_string()));
-                                }
-                            }) = 0;
+                            *resolute::CURRENT_PAGE.lock() = 0;
 
                             let chapter_met = metadata::ChapterMetadata::new(
                                 chapter,
                                 update_date,
                                 id
                             );
-                            (
-                                match resolute::CHAPTERS.lock() {
-                                    Ok(value) => value,
-                                    Err(err) => {
-                                        return Err(error::MdownError::PoisonError(err.to_string()));
-                                    }
-                                }
-                            ).push(chapter_met);
+                            resolute::CHAPTERS.lock().push(chapter_met);
 
                             match resolute::resolve_dat() {
                                 Ok(()) => (),

@@ -16,11 +16,6 @@ pub(crate) fn start() -> Result<(), MdownError> {
             return Err(err);
         }
     }
-    *(match resolute::FINAL_END.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = true;
+    *resolute::FINAL_END.lock() = true;
     Ok(())
 }

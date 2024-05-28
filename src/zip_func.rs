@@ -205,12 +205,7 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
 
 pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownError> {
     let mut images = Vec::new();
-    let mut files = match resolute::WEB_DOWNLOADED.lock() {
-        Ok(file) => file.clone(),
-        Err(err) => {
-            return Err(error::MdownError::PoisonError(err.to_string()));
-        }
-    };
+    let mut files = resolute::WEB_DOWNLOADED.lock().clone();
     files.truncate(10);
 
     for zip_file_path in files.iter() {

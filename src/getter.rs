@@ -104,12 +104,7 @@ pub(crate) fn get_folder_name(manga_name: &str) -> String {
 }
 
 pub(crate) fn get_manga_name(title_data: &Value) -> String {
-    let lang = match resolute::LANGUAGE.lock() {
-        Ok(value) => value,
-        Err(_err) => {
-            return String::from("Poison Error");
-        }
-    };
+    let lang = resolute::LANGUAGE.lock();
     let name = (
         match
             title_data
@@ -166,15 +161,7 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                             }
                         }
                         for (lang, title) in &get_final {
-                            if
-                                *lang ==
-                                *(match resolute::LANGUAGE.lock() {
-                                    Ok(value) => value,
-                                    Err(_err) => {
-                                        return String::from("Poison Error");
-                                    }
-                                })
-                            {
+                            if *lang == *resolute::LANGUAGE.lock() {
                                 return_title = title.to_string();
                                 break;
                             }
@@ -437,14 +424,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                             .format("%Y-%m-%d %H:%M:%S")
                             .to_string();
 
-                        (
-                            match resolute::DATE_FETCHED.lock() {
-                                Ok(d) => d,
-                                Err(err) => {
-                                    return Err(MdownError::PoisonError(err.to_string()));
-                                }
-                            }
-                        ).push(naive_time_str);
+                        resolute::DATE_FETCHED.lock().push(naive_time_str);
                         let message = format!(
                             "{} Data fetched with offset {}   ",
                             times.to_string(),

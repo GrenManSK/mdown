@@ -79,12 +79,7 @@ pub(crate) fn encode(url: &str) -> String {
 }
 
 async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
-    let handle_id = match resolute::HANDLE_ID.lock() {
-        Ok(value) => value.clone(),
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    };
+    let handle_id = resolute::HANDLE_ID.lock().clone();
     let mut manga_name = String::from("!");
     let id;
     if let Some(id_temp) = utils::resolve_regex(&url) {
@@ -95,12 +90,7 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
         log!(&format!("@{} Didn't find any id", handle_id), handle_id);
         return Ok(String::from("!"));
     }
-    *(match resolute::MANGA_ID.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = id.to_string();
+    *resolute::MANGA_ID.lock() = id.to_string();
     log!(&format!("@{} Found {}", handle_id, id), handle_id);
     match getter::get_manga_json(id).await {
         Ok(manga_name_json) => {
@@ -130,22 +120,8 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
     if manga_name.eq("!") {
         Ok(String::from("!"))
     } else {
-        let downloaded_files = (
-            match WEB_DOWNLOADED.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            }
-        ).clone();
-        let scanlation = (
-            match SCANLATION_GROUPS.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            }
-        ).clone();
+        let downloaded_files = WEB_DOWNLOADED.lock().clone();
+        let scanlation = SCANLATION_GROUPS.lock().clone();
 
         let response_map: HashMap<&str, serde_json::Value> = [
             ("status", serde_json::Value::String("ok".to_string())),
@@ -207,12 +183,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
                 };
                 let decoded_url = decode(&manga_url);
 
-                *(match resolute::HANDLE_ID.lock() {
-                    Ok(id) => id,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }) = handle_id.clone();
+                *resolute::HANDLE_ID.lock() = handle_id.clone();
                 let json = match resolve_web_download(&decoded_url).await {
                     Ok(response) =>
                         format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}", response),
@@ -227,12 +198,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
                 };
 
                 log_end(handle_id);
-                *(match resolute::HANDLE_ID.lock() {
-                    Ok(id) => id,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }) = String::new().into_boxed_str();
+                *resolute::HANDLE_ID.lock() = String::new().into_boxed_str();
                 response = json;
             } else {
                 response = String::from(
@@ -402,134 +368,30 @@ fn parse_request(url: String) -> std::result::Result<String, MdownError> {
         let html = get_html();
         Ok(format!("{}{}", "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n", html))
     } else if url == String::from("progress") {
-        let downloaded_files = (
-            match WEB_DOWNLOADED.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            }
-        ).clone();
-        let scanlation = (
-            match SCANLATION_GROUPS.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            }
-        ).clone();
+        let downloaded_files = WEB_DOWNLOADED.lock().clone();
+        let scanlation = SCANLATION_GROUPS.lock().clone();
         let response_map: HashMap<&str, serde_json::Value> = [
             ("status", serde_json::Value::String("ok".to_string())),
-            (
-                "name",
-                serde_json::Value::String(
-                    (
-                        match MANGA_NAME.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).to_string()
-                ),
-            ),
-            (
-                "current",
-                serde_json::Value::String(
-                    (
-                        match CURRENT_CHAPTER.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).to_string()
-                ),
-            ),
-            (
-                "current_page",
-                serde_json::Value::String(
-                    (
-                        match CURRENT_PAGE.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).to_string()
-                ),
-            ),
-            (
-                "current_page_max",
-                serde_json::Value::String(
-                    (
-                        match CURRENT_PAGE_MAX.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).to_string()
-                ),
-            ),
+            ("name", serde_json::Value::String(MANGA_NAME.lock().to_string())),
+            ("current", serde_json::Value::String(CURRENT_CHAPTER.lock().to_string())),
+            ("current_page", serde_json::Value::String(CURRENT_PAGE.lock().to_string())),
+            ("current_page_max", serde_json::Value::String(CURRENT_PAGE_MAX.lock().to_string())),
             (
                 "current_percent",
-                serde_json::Value::String(
-                    format!("{:.2}", match CURRENT_PERCENT.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(MdownError::PoisonError(err.to_string()));
-                        }
-                    })
-                ),
+                serde_json::Value::String(format!("{:.2}", CURRENT_PERCENT.lock())),
             ),
-            (
-                "current_size",
-                serde_json::Value::String(
-                    format!("{:.2}", match CURRENT_SIZE.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(MdownError::PoisonError(err.to_string()));
-                        }
-                    })
-                ),
-            ),
+            ("current_size", serde_json::Value::String(format!("{:.2}", CURRENT_SIZE.lock()))),
             (
                 "current_size_max",
-                serde_json::Value::String(
-                    format!("{:.2}", match CURRENT_SIZE_MAX.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(MdownError::PoisonError(err.to_string()));
-                        }
-                    })
-                ),
+                serde_json::Value::String(format!("{:.2}", CURRENT_SIZE_MAX.lock())),
             ),
             (
                 "current_chapter_parsed",
-                serde_json::Value::String(
-                    (
-                        match CURRENT_CHAPTER_PARSED.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).to_string()
-                ),
+                serde_json::Value::String(CURRENT_CHAPTER_PARSED.lock().to_string()),
             ),
             (
                 "current_chapter_parsed_max",
-                serde_json::Value::String(
-                    (
-                        match CURRENT_CHAPTER_PARSED_MAX.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).to_string()
-                ),
+                serde_json::Value::String(CURRENT_CHAPTER_PARSED_MAX.lock().to_string()),
             ),
             (
                 "files",

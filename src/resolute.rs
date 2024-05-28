@@ -1,11 +1,7 @@
 use lazy_static::lazy_static;
 use serde_json::{ json, Map, Value };
-use std::{
-    collections::HashMap,
-    fs::{ self, File, OpenOptions },
-    io::{ Read, Write },
-    sync::{ Arc, Mutex },
-};
+use std::{ collections::HashMap, fs::{ self, File, OpenOptions }, io::{ Read, Write }, sync::Arc };
+use parking_lot::Mutex;
 
 use crate::{
     ARGS,
@@ -327,15 +323,7 @@ pub(crate) fn check_for_metadata_saver(file_path: &str) -> Result<bool, MdownErr
             return Ok(false);
         }
     };
-    if
-        (match SAVER.lock() {
-            Ok(value) => { *value != saver }
-            Err(err) => {
-                return Err(MdownError::PoisonError(err.to_string()));
-            }
-        }) &&
-        true
-    {
+    if *SAVER.lock() != saver && true {
         return Ok(true);
     }
     Ok(false)
@@ -423,12 +411,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                 }
             };
 
-            *(match LANGUAGE.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            }) = match item.get("current_language").and_then(Value::as_str) {
+            *LANGUAGE.lock() = match item.get("current_language").and_then(Value::as_str) {
                 Some(val) => val.to_string(),
                 None => {
                     return Err(MdownError::NotFoundError(String::from("Didn't find ID property")));
@@ -521,12 +504,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                                 .get("chapters")
                                 .and_then(Value::as_array)
                         {
-                            let mut chapter_da = match CHAPTER_DATES.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(MdownError::PoisonError(err.to_string()));
-                                }
-                            };
+                            let mut chapter_da = CHAPTER_DATES.lock();
                             for i in chapters_temp.iter() {
                                 let number = (
                                     match i.get("number").and_then(Value::as_str) {
@@ -547,12 +525,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
 
                         if ARGS.update && !cover {
                             let folder = get_folder_name(&get_manga_name(title_data));
-                            *(match COVER.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(MdownError::PoisonError(err.to_string()));
-                                }
-                            }) = match
+                            *COVER.lock() = match
                                 download::download_cover(
                                     Arc::from("https://uploads.mangadex.org/"),
                                     Arc::from(id),
@@ -570,12 +543,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                                 }
                             };
                         }
-                        *(match MANGA_NAME.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }) = get_manga_name(title_data);
+                        *MANGA_NAME.lock() = get_manga_name(title_data);
                         match resolve_manga(&id, get_manga_name(title_data).as_str(), false).await {
                             Ok(()) => (),
                             Err(err) => {
@@ -589,14 +557,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                 Err(_) => (),
             }
             if ARGS.update {
-                item["cover"] = match COVER.lock() {
-                    Ok(value) => {
-                        if !cover { Value::Bool(*value) } else { Value::Bool(true) }
-                    }
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                };
+                item["cover"] = if !cover { Value::Bool(*COVER.lock()) } else { Value::Bool(true) };
             }
             if
                 let Some(chapters_temp) = item
@@ -604,12 +565,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                     .get_mut("chapters")
                     .and_then(Value::as_array_mut)
             {
-                let chapters_remove = match CHAPTERS_TO_REMOVE.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                };
+                let chapters_remove = CHAPTERS_TO_REMOVE.lock();
                 for i in chapters_remove.iter() {
                     chapters_temp.retain(|value| {
                         let number = getter::get_attr_as_str(value, "number");
@@ -626,14 +582,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                     let id = getter::get_attr_as_str(i, "id");
                     chapters.push(ChapterMetadata::new(number, date, id).value());
                 }
-                let chapters_lock = match CHAPTERS.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(
-                            MdownError::PoisonError(format!("Failed to lock CHAPTERS: {}", err))
-                        );
-                    }
-                };
+                let chapters_lock = CHAPTERS.lock();
 
                 for i in chapters_lock.iter() {
                     if !chapters.contains(&i.value()) {
@@ -661,65 +610,19 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
             if ARGS.check {
                 println!("Checked {} ({})", &manga_name, item["id"]);
                 let to_dow;
-                if
-                    !(
-                        match TO_DOWNLOAD.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).is_empty() ||
-                    !(
-                        match TO_DOWNLOAD_DATE.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).is_empty()
-                {
+                if !TO_DOWNLOAD.lock().is_empty() || !TO_DOWNLOAD_DATE.lock().is_empty() {
                     to_dow = true;
                     println!("Chapters available");
-                    for chapter in (
-                        match TO_DOWNLOAD.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).iter() {
+                    for chapter in TO_DOWNLOAD.lock().iter() {
                         println!(" {}", chapter);
                     }
-                    for chapter in (
-                        match TO_DOWNLOAD_DATE.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).iter() {
+                    for chapter in TO_DOWNLOAD_DATE.lock().iter() {
                         println!(" {} (OUTDATED CHAPTER)", chapter);
                     }
-                } else if
-                    (match FIXED_DATES.lock() {
-                        Ok(value) => !value.is_empty(),
-                        Err(err) => {
-                            return Err(MdownError::PoisonError(err.to_string()));
-                        }
-                    }) &&
-                    true
-                {
+                } else if !FIXED_DATES.lock().is_empty() && true {
                     to_dow = false;
                     println!("Chapters ERROR");
-                    for date in (
-                        match FIXED_DATES.lock() {
-                            Ok(value) => value,
-                            Err(err) => {
-                                return Err(MdownError::PoisonError(err.to_string()));
-                            }
-                        }
-                    ).iter() {
+                    for date in FIXED_DATES.lock().iter() {
                         println!(" {} (CORRUPT DATE) (FIXED)", date);
                     }
                 } else {
@@ -732,14 +635,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                     println!("Up to-date");
                 }
             }
-            (
-                match CHAPTERS.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).clear();
+            CHAPTERS.lock().clear();
         }
         for &index in to_remove.iter().rev() {
             data.remove(index as usize);
@@ -802,31 +698,10 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
             .filter_map(|item| item.get("name").and_then(Value::as_str))
             .collect();
 
-        if
-            manga_names.contains(
-                &(
-                    match MANGA_NAME.lock() {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(MdownError::PoisonError(err.to_string()));
-                        }
-                    }
-                ).as_str()
-            )
-        {
+        if manga_names.contains(&MANGA_NAME.lock().as_str()) {
             for item in data.iter_mut() {
                 if let Some(name) = item.get("name").and_then(Value::as_str) {
-                    if
-                        name ==
-                        (
-                            match MANGA_NAME.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(MdownError::PoisonError(err.to_string()));
-                                }
-                            }
-                        ).as_str()
-                    {
+                    if name == MANGA_NAME.lock().as_str() {
                         let existing_chapters = match
                             item.get_mut("chapters").and_then(Value::as_array_mut)
                         {
@@ -847,14 +722,7 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
                             existing_chapters_temp.push(number);
                         }
 
-                        let mut new_chapters: Vec<_> = (
-                            match CHAPTERS.lock() {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(MdownError::PoisonError(err.to_string()));
-                                }
-                            }
-                        )
+                        let mut new_chapters: Vec<_> = CHAPTERS.lock()
                             .iter()
                             .cloned()
                             .filter(|chapter| {
@@ -892,99 +760,33 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
                 }
             }
         } else {
-            let mwd = format!("{}", match MWD.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            });
-            let cover = match COVER.lock() {
-                Ok(value) => *value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            };
+            let mwd = format!("{}", MWD.lock());
+            let cover = COVER.lock();
             let mut chapters = Vec::new();
-            let chapters_data = (
-                match CHAPTERS.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).clone();
+            let chapters_data = CHAPTERS.lock().clone();
             for i in chapters_data.iter() {
                 chapters.push(i.json());
             }
             let mut genres = Vec::new();
-            let genres_data = (
-                match GENRES.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).clone();
+            let genres_data = GENRES.lock().clone();
             for i in genres_data.iter() {
                 genres.push(i.json());
             }
             let mut themes = Vec::new();
-            let themes_data = (
-                match THEMES.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).clone();
+            let themes_data = THEMES.lock().clone();
             for i in themes_data.iter() {
                 themes.push(i.json());
             }
             let manga_data =
                 json!({
-                    "name": match MANGA_NAME.lock(){
-                                    Ok(value) => value,
-                                    Err(err) => {
-                                        return Err(
-                                            MdownError::PoisonError(err.to_string())
-                                        );
-                                    }
-                                }.clone(),
-                    "id": match MANGA_ID.lock(){
-                                    Ok(value) => value,
-                                    Err(err) => {
-                                        return Err(
-                                            MdownError::PoisonError(err.to_string())
-                                        );
-                                    }
-                                }.to_string(),
+                    "name":  MANGA_NAME.lock().clone(),
+                    "id":  MANGA_ID.lock().to_string(),
                     "chapters": chapters.clone(),
                     "mwd": mwd,
-                    "cover": cover,
-                    "date":  match DATE_FETCHED.lock(){
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(
-                                MdownError::PoisonError(err.to_string())
-                            );
-                        }
-                    }.clone(),
-                    "available_languages":  match LANGUAGES.lock(){
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(
-                                MdownError::PoisonError(err.to_string())
-                            );
-                        }
-                    }.clone(),
-                    "current_language":  match LANGUAGE.lock(){
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(
-                                MdownError::PoisonError(err.to_string())
-                            );
-                        }
-                    }.clone(),
+                    "cover": cover.clone(),
+                    "date":   DATE_FETCHED.lock().clone(),
+                    "available_languages":   LANGUAGES.lock().clone(),
+                    "current_language":   LANGUAGE.lock().clone(),
                     "theme":  themes.clone(),
                     "genre":  genres.clone(),
                     });
@@ -1031,12 +833,7 @@ pub(crate) fn get_dat_content(dat_path: &str) -> Result<Value, MdownError> {
 
 pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String, MdownError> {
     let handle_id = utils::generate_random_id(16);
-    *(match HANDLE_ID.lock() {
-        Ok(id) => id,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = handle_id.clone();
+    *HANDLE_ID.lock() = handle_id.clone();
     let title_data = match obj.get("data").and_then(|name_data| name_data.get("attributes")) {
         Some(value) => value,
         None => {
@@ -1049,12 +846,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     } else {
         ARGS.title.to_string()
     };
-    *(match MANGA_NAME.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = manga_name.clone();
+    *MANGA_NAME.lock() = manga_name.clone();
     let folder = get_folder_name(&manga_name);
 
     let orig_lang = match title_data.get("originalLanguage").and_then(Value::as_str) {
@@ -1084,14 +876,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             }
         });
     }
-    let current_lang = (
-        match LANGUAGE.lock() {
-            Ok(value) => value,
-            Err(err) => {
-                return Err(MdownError::PoisonError(err.to_string()));
-            }
-        }
-    ).to_string();
+    let current_lang = LANGUAGE.lock().to_string();
     if
         current_lang != orig_lang &&
         !final_lang.contains(&current_lang.as_str()) &&
@@ -1117,28 +902,14 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             lang_range += 1 + lang.to_string().replace("\"", "").len();
         }
         lang_range -= 1;
-        string(
-            1,
-            0,
-            &format!("Language is not available\nSelected language: {}", match LANGUAGE.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            })
-        );
+        string(1, 0, &format!("Language is not available\nSelected language: {}", LANGUAGE.lock()));
         string(3, 0, &format!("Original language: {}", orig_lang));
         string(4, 0, &format!("Available languages: {}", langs));
         string(5, 0, &format!("Choose from these    {}", "^".repeat(lang_range)));
         return Ok(manga_name);
     }
     drop(current_lang);
-    *(match DOWNLOADING.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = true;
+    *DOWNLOADING.lock() = true;
 
     let was_rewritten = fs::metadata(folder.clone()).is_ok();
     match fs::create_dir(&folder) {
@@ -1154,12 +925,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             }
         }
     }
-    *(match MWD.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = match std::fs::canonicalize(&folder) {
+    *MWD.lock() = match std::fs::canonicalize(&folder) {
         Ok(value) =>
             match value.to_str() {
                 Some(value) => value.to_string(),
@@ -1245,18 +1011,8 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         }
     }
 
-    *(match GENRES.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = genre;
-    *(match THEMES.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = theme;
+    *GENRES.lock() = genre;
+    *THEMES.lock() = theme;
 
     let folder = get_folder_name(&manga_name);
     let cover = match
@@ -1291,12 +1047,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         None => "",
     };
     if cover != "" {
-        *(match COVER.lock() {
-            Ok(value) => value,
-            Err(err) => {
-                return Err(MdownError::PoisonError(err.to_string()));
-            }
-        }) = match
+        *COVER.lock() = match
             download::download_cover(
                 Arc::from("https://uploads.mangadex.org/"),
                 Arc::from(id),
@@ -1321,12 +1072,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         };
     }
 
-    *(match LANGUAGES.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = {
+    *LANGUAGES.lock() = {
         let langs = match title_data.get("availableTranslatedLanguages").and_then(Value::as_array) {
             Some(value) => value,
             None => {
@@ -1350,12 +1096,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
         log!("Downloaded manga");
     }
-    *(match DOWNLOADING.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = false;
+    *DOWNLOADING.lock() = false;
     Ok(manga_name)
 }
 
@@ -1369,14 +1110,7 @@ pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String)
     let scanlation_group_id = match get_scanlation_group(scanlation_group) {
         Some(value) => value,
         None => {
-            (
-                match SUSPENDED.lock() {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(MdownError::PoisonError(err.to_string()));
-                    }
-                }
-            ).push(MdownError::NotFoundError(String::from("resolve_group")));
+            SUSPENDED.lock().push(MdownError::NotFoundError(String::from("resolve_group")));
             return Ok((String::from("null"), String::from("null")));
         }
     };
@@ -1390,25 +1124,8 @@ pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String)
             return Err(err);
         }
     };
-    if
-        name != "Unknown" &&
-        !(
-            match SCANLATION_GROUPS.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            }
-        ).contains_key(scanlation_group_id)
-    {
-        (
-            match SCANLATION_GROUPS.lock() {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(MdownError::PoisonError(err.to_string()));
-                }
-            }
-        ).insert(String::from(scanlation_group_id), name.clone());
+    if name != "Unknown" && !SCANLATION_GROUPS.lock().contains_key(scanlation_group_id) {
+        SCANLATION_GROUPS.lock().insert(String::from(scanlation_group_id), name.clone());
     }
     Ok((name, website))
 }
@@ -1511,12 +1228,7 @@ async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) -> Resul
     };
     let arg_force = ARGS.force;
     let mut downloaded: Vec<String> = vec![];
-    *(match MANGA_ID.lock() {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::PoisonError(err.to_string()));
-        }
-    }) = id.to_owned();
+    *MANGA_ID.lock() = id.to_owned();
     match get_manga(id, going_offset).await {
         Ok((json, _offset)) => {
             let downloaded_temp = match download_manga(json, manga_name, arg_force).await {
