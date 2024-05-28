@@ -50,7 +50,7 @@ fn setup(directory_path: &str) {
 
                     write!(
                         &mut dest_file,
-                        "pub const {}: &[u8] = &[{}];",
+                        "pub(crate) const {}: &[u8] = &[{}];",
                         file_stem.to_uppercase(),
                         data
                     ).expect("Failed to write to file");

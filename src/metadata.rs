@@ -85,8 +85,12 @@ pub(crate) struct LOG {
 impl LOG {
     pub(crate) fn new(message: &str) -> LOG {
         let name = resolute::CURRENT_CHAPTER.lock().clone();
+        let handle_id = match resolute::HANDLE_ID.try_lock() {
+            Some(handle) => handle.to_string(),
+            None => String::new(),
+        };
         LOG {
-            handle_id: resolute::HANDLE_ID.lock().to_string(),
+            handle_id: handle_id,
             message: message.to_owned(),
             time: Utc::now().to_rfc3339(),
             name: name,
@@ -94,8 +98,12 @@ impl LOG {
     }
 
     pub(crate) fn new_with_name(message: &str, name: &str) -> LOG {
+        let handle_id = match resolute::HANDLE_ID.try_lock() {
+            Some(handle) => handle.to_string(),
+            None => String::new(),
+        };
         LOG {
-            handle_id: resolute::HANDLE_ID.lock().to_string(),
+            handle_id: handle_id,
             message: message.to_owned(),
             time: Utc::now().to_rfc3339(),
             name: name.to_string(),
