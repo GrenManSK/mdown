@@ -1,13 +1,11 @@
 use chrono::prelude::*;
 use crosscurses::*;
 use rand::{ Rng, distributions::Alphanumeric };
-use regex::Regex;
 use serde_json::{ Value, json };
 use std::{
     cmp::Ordering,
     fs::{ self, File, OpenOptions },
     io::{ Read, Write },
-    path::Path,
     process::exit,
     thread::sleep,
     time::{ Duration, Instant },
@@ -31,6 +29,8 @@ pub(crate) fn setup_requirements(file_path_tm: String) {
     let _ = initscr();
     curs_set(2);
     start_color();
+    crosscurses::echo();
+    crosscurses::cbreak();
     let file_path_temp = file_path_tm.clone();
     tokio::spawn(async move { print_version(file_path_tm).await });
     tokio::spawn(async move { ctrl_handler(file_path_temp).await });
@@ -236,6 +236,49 @@ pub(crate) fn log_handler() {
     }
 }
 
+pub(crate) fn reset() -> Result<(), MdownError> {
+    let confirmation = match input("Do you want to factory reset this app? (y/N) > ") {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    if confirmation.to_lowercase() != String::from("y") {
+        return Ok(());
+    }
+    let dat = match getter::get_dat_path() {
+        Ok(dat) => dat,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    let db = match getter::get_db_path() {
+        Ok(dat) => dat,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    let log = match getter::get_log_path() {
+        Ok(dat) => dat,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    if std::fs::remove_file(&dat).is_ok() {
+        println!("dat.json was successfully removed");
+    }
+    if std::fs::remove_file(&db).is_ok() {
+        println!("resources.db was successfully removed");
+    }
+    if std::fs::remove_file(&log).is_ok() {
+        println!("log.json was successfully removed");
+    }
+
+    Ok(())
+}
+
 pub(crate) fn remove_cache() -> Result<(), MdownError> {
     if is_directory_empty(".cache\\") {
         match fs::remove_dir_all(".cache") {
@@ -253,6 +296,25 @@ pub(crate) fn remove_cache() -> Result<(), MdownError> {
         };
     }
     Ok(())
+}
+
+pub(crate) fn input(text: &str) -> Result<String, MdownError> {
+    print!("{}", text);
+    match std::io::stdout().flush() {
+        Ok(()) => (),
+        Err(err) => {
+            return Err(MdownError::IoError(err, None));
+        }
+    }
+
+    let mut input = String::new();
+    match std::io::stdin().read_line(&mut input) {
+        Ok(_) => (),
+        Err(err) => {
+            return Err(MdownError::IoError(err, None));
+        }
+    }
+    Ok(input.trim().to_string())
 }
 
 pub(crate) fn setup_subscriber() -> Result<(), MdownError> {
@@ -465,19 +527,29 @@ pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
     }
 
     data_array.sort_unstable_by(|v, b| {
-        v.get("attributes")
-            .and_then(|attr| attr.get("chapter"))
-            .and_then(|chapter| chapter.as_str())
-            .and_then(|chapter_str| chapter_str.parse::<f32>().ok())
-            .map(|v_parsed| {
-                b.get("attributes")
-                    .and_then(|attr| attr.get("chapter"))
-                    .and_then(|chapter| chapter.as_str())
-                    .and_then(|chapter_str| chapter_str.parse::<f32>().ok())
-                    .map(|b_parsed| v_parsed.total_cmp(&b_parsed))
-                    .unwrap_or(Ordering::Equal)
-            })
-            .unwrap_or(Ordering::Equal)
+        match
+            v
+                .get("attributes")
+                .and_then(|attr| attr.get("chapter"))
+                .and_then(|chapter| chapter.as_str())
+                .and_then(|chapter_str| chapter_str.parse::<f32>().ok())
+                .map(|v_parsed| {
+                    match
+                        b
+                            .get("attributes")
+                            .and_then(|attr| attr.get("chapter"))
+                            .and_then(|chapter| chapter.as_str())
+                            .and_then(|chapter_str| chapter_str.parse::<f32>().ok())
+                            .map(|b_parsed| v_parsed.total_cmp(&b_parsed))
+                    {
+                        Some(value) => value,
+                        None => Ordering::Equal,
+                    }
+                })
+        {
+            Some(value) => value,
+            None => Ordering::Equal,
+        }
     });
 
     data_array
@@ -603,46 +675,6 @@ pub(crate) fn resolve_start() -> Result<(String, String), MdownError> {
     Ok((file_path.clone(), file_path))
 }
 
-pub(crate) fn delete_matching_directories(pattern: &Regex) -> Result<String, u32> {
-    if Path::new(".cache").is_dir() {
-        if let Ok(entries) = fs::read_dir(".cache") {
-            let mut last_entry_path = String::new();
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if
-                        pattern.is_match(
-                            &(match path.clone().to_str() {
-                                Some(value) => value.to_string().replace(".cache\\", ""),
-                                None => String::new(),
-                            })
-                        ) &&
-                        path.is_dir()
-                    {
-                        match fs::remove_dir_all(&path) {
-                            Ok(()) => (),
-                            Err(err) => {
-                                eprintln!("Error: removing directory '{:?}' {}", &path, err);
-                            }
-                        }
-
-                        last_entry_path = (
-                            match path.to_str() {
-                                Some(value) => value,
-                                None => "__unknown",
-                            }
-                        )
-                            .to_string()
-                            .replace(".cache\\", "");
-                    }
-                }
-            }
-            return Ok(last_entry_path);
-        }
-    }
-    Err(1)
-}
-
 pub(crate) async fn ctrl_handler(file: String) {
     if fs::metadata(".cache\\mdown_final_end.lock").is_ok() {
         match fs::remove_file(".cache\\mdown_final_end.lock") {
@@ -699,6 +731,20 @@ pub(crate) async fn ctrl_handler(file: String) {
         Err(_err) => (),
     }
 
+    delete_dir_if_unfinished(
+        &getter::get_folder_name(
+            &(match resolute::MANGA_NAME.lock() {
+                Ok(path) => path.clone(),
+                Err(err) => {
+                    handle_error(
+                        &MdownError::PoisonError(err.to_string()),
+                        String::from("delete_dir")
+                    );
+                    return;
+                }
+            })
+        )
+    );
     delete_dir();
 
     if is_directory_empty(".cache\\") {
@@ -728,48 +774,6 @@ pub(crate) fn resolve_final_end() -> bool {
 }
 
 pub(crate) fn delete_dir() {
-    let pattern = match Regex::new(r"(.*?)( - (Vol\.\d+ )?Ch\.\d+|$)") {
-        Ok(value) => value,
-        Err(err) => {
-            (
-                match resolute::SUSPENDED.lock() {
-                    Ok(value) => value,
-                    Err(_err) => {
-                        return;
-                    }
-                }
-            ).push(MdownError::RegexError(err));
-            return;
-        }
-    };
-    match delete_matching_directories(&pattern) {
-        Ok(path) => {
-            let pattern = r"(.+)(?: - Vol\.\d+)(?: Ch\.\d+)(?: - .+)";
-            let re = match Regex::new(pattern) {
-                Ok(value) => value,
-                Err(err) => {
-                    (
-                        match resolute::SUSPENDED.lock() {
-                            Ok(value) => value,
-                            Err(_err) => {
-                                return;
-                            }
-                        }
-                    ).push(MdownError::RegexError(err));
-                    return;
-                }
-            };
-            if let Some(captures) = re.captures(&path) {
-                if let Some(result) = captures.get(1) {
-                    delete_dir_if_unfinished(result.as_str());
-                }
-            }
-        }
-        Err(_) => {
-            "";
-        }
-    }
-
     if let Ok(entries) = fs::read_dir(".cache") {
         for entry in entries {
             if let Ok(entry) = entry {

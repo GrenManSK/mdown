@@ -1,7 +1,7 @@
 use crate::resolute::SUSPENDED;
 
 #[derive(Debug)]
-pub(crate) enum MdownError {
+pub enum MdownError {
     IoError(std::io::Error, Option<String>),
     StatusError(reqwest::StatusCode),
     NetworkError(reqwest::Error),
@@ -11,10 +11,11 @@ pub(crate) enum MdownError {
     ConversionError(String),
     NotFoundError(String),
     ZipError(zip::result::ZipError),
+    DatabaseError(rusqlite::Error),
     CustomError(String, String),
 }
 #[derive(Debug)]
-pub(crate) enum Final {
+pub enum Final {
     Final(MdownError),
 }
 
@@ -36,6 +37,7 @@ impl std::fmt::Display for MdownError {
             MdownError::RegexError(msg) => write!(f, "Error: RegexError {}", msg),
             MdownError::ZipError(msg) => write!(f, "Error: ZipError {}", msg),
             MdownError::NotFoundError(msg) => write!(f, "Error: NotFoundError {}", msg),
+            MdownError::DatabaseError(msg) => write!(f, "Error: DatabaseError {}", msg),
             MdownError::CustomError(msg, name) => write!(f, "Error: {} {}", name, msg),
         }
     }
@@ -49,7 +51,7 @@ impl std::fmt::Display for Final {
 }
 
 impl MdownError {
-    pub(crate) fn into(self) -> String {
+    pub fn into(self) -> String {
         match self {
             MdownError::IoError(msg, _name) => msg.to_string(),
             MdownError::StatusError(msg) => msg.to_string(),
@@ -60,6 +62,7 @@ impl MdownError {
             MdownError::NotFoundError(msg) => msg,
             MdownError::ZipError(msg) => msg.to_string(),
             MdownError::RegexError(msg) => msg.to_string(),
+            MdownError::DatabaseError(msg) => msg.to_string(),
             MdownError::CustomError(msg, name) => format!("Error: {} {}", name, msg),
         }
     }
@@ -88,6 +91,7 @@ pub(crate) fn handle_error(err: &MdownError, from: String) {
         MdownError::ZipError(err) => eprintln!("Error: ZipError {} ({})", err, from),
         MdownError::NotFoundError(err) => eprintln!("Error: NotFoundError {} ({})", err, from),
         MdownError::ConversionError(err) => eprintln!("Error: ConversionError {} ({})", err, from),
+        MdownError::DatabaseError(err) => eprintln!("Error: DatabaseError {} ({})", err, from),
         MdownError::CustomError(err, name) => eprintln!("Error: {} {} ({})", name, err, from),
     }
 }

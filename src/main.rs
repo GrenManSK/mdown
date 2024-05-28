@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{ Parser, ArgGroup };
 use crosscurses::stdscr;
 use lazy_static::lazy_static;
 use chrono::DateTime;
@@ -12,6 +12,7 @@ use std::{
     sync::{ Arc, Mutex },
 };
 
+mod db;
 mod download;
 mod error;
 mod getter;
@@ -24,8 +25,42 @@ mod utils;
 mod web;
 mod zip_func;
 
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+/// Mangadex Manga downloader
+#[derive(Parser)]
+#[command(
+    author = "GrenManSK",
+    version,
+    about,
+    help_template = "{before-help}{name} ({version}) - {author}
+
+{about}
+
+{usage-heading} {usage}
+
+{all-args}
+{after-help}",
+    help_expected = true,
+    long_about = None,
+    after_help = "Thanks for using Mdown"
+)]
+#[clap(group = ArgGroup::new("Search-Options").args(&["url", "search"]))]
+#[clap(
+    group = ArgGroup::new("Mod-Options").args(
+        &[
+            "web",
+            "server",
+            "gui",
+            "encode",
+            "check",
+            "update",
+            "show",
+            "show_all",
+            "force_delete",
+            "delete",
+            "reset",
+        ]
+    )
+)]
 struct Args {
     #[arg(
         short,
@@ -50,22 +85,6 @@ struct Args {
         help = "language of manga to download; \"*\" is for all languages\n"
     )]
     lang: String,
-    #[arg(
-        short,
-        long,
-        default_value_t = String::from("0"),
-        next_line_help = true,
-        help = "changes start offset e.g. 50 starts from chapter 50,\nalthough if manga contains chapter like 3.1, 3.2 starting chapter will be moved by number of these chapters\n"
-    )]
-    offset: String,
-    #[arg(
-        short,
-        long,
-        default_value_t = String::from("0"),
-        next_line_help = true,
-        help = "changes start offset e.g. 50 starts from 50 item in database;\nthis occurs before manga is sorted, which result in some weird behavior like missing chapters\n"
-    )]
-    database_offset: String,
     #[arg(
         short,
         long,
@@ -98,18 +117,7 @@ struct Args {
         help = "download only specified chapter\n"
     )]
     chapter: String,
-    #[arg(
-        short,
-        long,
-        default_value_t = String::from("40"),
-        next_line_help = true,
-        help = "download manga images by supplied number at once;\nit is highly recommended to use MAX 50 because of lack of performance and non complete manga downloading,\nmeaning chapter will not download correctly, meaning missing or corrupt pages\n"
-    )]
-    max_consecutive: String,
-    #[arg(long, next_line_help = true, help = "download manga even if it already exists")]
-    force: bool,
-    #[arg(long, next_line_help = true, help = "database will not be sorted")]
-    unsorted: bool,
+    ///
     #[arg(
         short,
         long,
@@ -120,10 +128,39 @@ struct Args {
     #[arg(
         long,
         next_line_help = true,
-        exclusive = true,
-        help = "force to delete *.lock file which is stopping from running another instance of program;\nNOTE that if you already have one instance running it will fail to delete the original file and thus it will crash"
+        help = "add markdown file which contains status information"
     )]
-    force_delete: bool,
+    stat: bool,
+    #[arg(long, next_line_help = true, help = "Won't use curses window")]
+    quiet: bool,
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("40"),
+        next_line_help = true,
+        help = "download manga images by supplied number at once;\nit is highly recommended to use MAX 50 because of lack of performance and non complete manga downloading,\nmeaning chapter will not download correctly, meaning missing or corrupt pages\n"
+    )]
+    max_consecutive: String,
+    #[arg(long, next_line_help = true, help = "download manga even if it already exists")]
+    force: bool,
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("0"),
+        next_line_help = true,
+        help = "changes start offset e.g. 50 starts from chapter 50,\nalthough if manga contains chapter like 3.1, 3.2 starting chapter will be moved by number of these chapters\n"
+    )]
+    offset: String,
+    #[arg(
+        short,
+        long,
+        default_value_t = String::from("0"),
+        next_line_help = true,
+        help = "changes start offset e.g. 50 starts from 50 item in database;\nthis occurs before manga is sorted, which result in some weird behavior like missing chapters\n"
+    )]
+    database_offset: String,
+    #[arg(long, next_line_help = true, help = "database will not be sorted")]
+    unsorted: bool,
     #[arg(
         long,
         default_value_t = String::from("./"),
@@ -131,15 +168,6 @@ struct Args {
         help = "change current working directory\n"
     )]
     cwd: String,
-    #[arg(long, next_line_help = true, help = "add txt file which contains status information")]
-    stat: bool,
-    #[arg(
-        short,
-        long,
-        next_line_help = true,
-        help = "enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed gradually during download process"
-    )]
-    web: bool,
     #[arg(
         short,
         long,
@@ -150,22 +178,10 @@ struct Args {
     encode: String,
     #[arg(long, next_line_help = true, help = "print log")]
     log: bool,
-    #[arg(
-        long,
-        next_line_help = true,
-        exclusive = true,
-        help = "Check downloaded files for errors"
-    )]
+    #[arg(long, next_line_help = true, help = "Check downloaded files for errors")]
     check: bool,
-    #[arg(
-        long,
-        next_line_help = true,
-        exclusive = true,
-        help = "Check downloaded files for errors"
-    )]
+    #[arg(long, next_line_help = true, help = "Check downloaded files for errors")]
     update: bool,
-    #[arg(long, next_line_help = true, exclusive = true, help = "Delete database")]
-    delete: bool,
     #[arg(
         long,
         default_value_t = String::from("*"),
@@ -177,10 +193,27 @@ struct Args {
     show: bool,
     #[arg(long, next_line_help = true, help = "Shows current chapters in database")]
     show_all: bool,
+    #[arg(
+        short,
+        long,
+        next_line_help = true,
+        help = "enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed gradually during download process"
+    )]
+    web: bool,
     #[arg(long, next_line_help = true, help = "Starts server")]
     server: bool,
-    #[arg(long, next_line_help = true, help = "Won't use curses window")]
-    quiet: bool,
+    /// Reset-Options
+    #[arg(
+        long,
+        next_line_help = true,
+        help = "force to delete *.lock file which is stopping from running another instance of program;\nNOTE that if you already have one instance running it will fail to delete the original file and thus it will crash"
+    )]
+    force_delete: bool,
+    #[arg(long, next_line_help = true, help = "Delete database")]
+    delete: bool,
+    #[arg(long, next_line_help = true, help = "Delete database")]
+    reset: bool,
+    /// dev
     #[arg(long, next_line_help = true, help = "Gui version of mdown, does nothing for now")]
     gui: bool,
     #[arg(long, next_line_help = true, help = "debug")]
@@ -224,16 +257,16 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() {
-    if ARGS.encode != "" {
-        println!("{}", web::encode(&ARGS.encode));
-        return ();
-    }
     match start().await {
         Ok(()) => error::handle_suspended(),
         Err(err) => {
             error::handle_final(&err);
             exit(1);
         }
+    }
+    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update && !ARGS.quiet && !ARGS.reset {
+        crosscurses::echo();
+        crosscurses::cbreak();
     }
     if
         *(match resolute::FINAL_END.lock() {
@@ -250,6 +283,26 @@ async fn main() {
     }
 }
 async fn start() -> Result<(), error::Final> {
+    if ARGS.encode != "" {
+        println!("{}", web::encode(&ARGS.encode));
+        return Ok(());
+    }
+
+    if ARGS.reset {
+        return match utils::reset() {
+            Ok(()) => Ok(()),
+            Err(err) => Err(error::Final::Final(err)),
+        };
+    }
+
+    match db::init().await {
+        Ok(()) => (),
+        Err(err) => {
+            error::handle_final(&error::Final::Final(err));
+            exit(1);
+        }
+    }
+
     // cwd
     match env::set_current_dir(ARGS.cwd.as_str()) {
         Ok(()) => (),

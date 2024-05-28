@@ -474,7 +474,7 @@ pub(crate) async fn download_image(
                 perc_string,
                 (downloaded as f32) / (1024 as f32) / (1024 as f32),
                 final_size,
-                (((downloaded as f32) - last_size) * 4.0) / (1024 as f32) / (1024 as f32)
+                (((downloaded as f32) - last_size) * 10.0) / (1024 as f32) / (1024 as f32)
             );
             if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
                 log!(&message);

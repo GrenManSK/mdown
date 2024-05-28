@@ -12,7 +12,7 @@ fn main() {
         }
     }
 
-    for directory in ["resources/server", "resources/web", "resources/combined"] {
+    for directory in ["resources/server", "resources/web", "resources/combined", "resources/database"] {
         setup(directory);
     }
 }
@@ -29,7 +29,13 @@ fn setup(directory_path: &str) {
                     let mut binary_data = Vec::new();
                     file.read_to_end(&mut binary_data).expect("Failed to read file");
 
-                    let out_dir = std::env::var("OUT_DIR").unwrap();
+                    let out_dir = match std::env::var("OUT_DIR") {
+                        Ok(out_dir) => out_dir,
+                        Err(err) => {
+                            eprintln!("Failed to get OUT_DIR: {}", err);
+                            return;
+                        }
+                    };
                     let file_stem = file_name.to_string_lossy().replace(".", "_");
                     let dest_path = Path::new(&out_dir).join(
                         format!("{}.rs", file_stem.to_lowercase())

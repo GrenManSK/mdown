@@ -48,6 +48,15 @@ pub(crate) fn get_dat_path() -> Result<String, MdownError> {
     };
     Ok(format!("{}\\dat.json", path))
 }
+pub(crate) fn get_db_path() -> Result<String, MdownError> {
+    let path = match get_exe_path() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    Ok(format!("{}\\resources.db", path))
+}
 pub(crate) fn get_log_path() -> Result<String, MdownError> {
     let path: String = match get_exe_path() {
         Ok(value) => value,

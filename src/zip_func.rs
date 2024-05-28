@@ -1,8 +1,9 @@
+use rand::{ seq::SliceRandom, thread_rng };
 use std::{ fs::File, io::{ Read, Seek, Write }, path::Path };
 use walkdir::{ DirEntry, WalkDir };
 use zip::{ result::ZipError, write::FileOptions, ZipArchive };
 
-use crate::{ ARGS, error, log, MAXPOINTS, string, utils::progress_bar_preparation };
+use crate::{ ARGS, error, log, MAXPOINTS, resolute, string, utils::progress_bar_preparation };
 
 fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
@@ -200,4 +201,62 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
     }
 
     Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned()))
+}
+
+pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownError> {
+    let mut images = Vec::new();
+    let mut files = match resolute::WEB_DOWNLOADED.lock() {
+        Ok(file) => file.clone(),
+        Err(err) => {
+            return Err(error::MdownError::PoisonError(err.to_string()));
+        }
+    };
+    files.truncate(10);
+
+    for zip_file_path in files.iter() {
+        if zip_file_path.ends_with(".cbz") {
+            let file = match File::open(zip_file_path) {
+                Ok(file) => file,
+                Err(err) => {
+                    return Err(error::MdownError::IoError(err, Some(zip_file_path.to_string())));
+                }
+            };
+            let mut archive = match ZipArchive::new(file) {
+                Ok(archive) => archive,
+                Err(err) => {
+                    return Err(error::MdownError::ZipError(err));
+                }
+            };
+
+            for i in 0..archive.len() {
+                let mut file = match archive.by_index(i) {
+                    Ok(file) => file,
+                    Err(err) => {
+                        return Err(error::MdownError::ZipError(err));
+                    }
+                };
+                if let Some(file_name) = file.name().to_lowercase().split('.').last() {
+                    match file_name {
+                        "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => {
+                            let mut content = Vec::new();
+                            if let Err(err) = file.read_to_end(&mut content) {
+                                return Err(
+                                    error::MdownError::IoError(err, Some(file.name().to_string()))
+                                );
+                            }
+                            images.push(content);
+                        }
+                        _ => {
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut rng = thread_rng();
+    images.shuffle(&mut rng);
+    images.truncate(10);
+    Ok(images)
 }

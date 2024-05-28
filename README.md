@@ -12,14 +12,6 @@ See [site](https://mangadex.org/) for finding manga
 
 `--lang [String]` - language of manga to download; "*" is for all languages
 
-`--offset [Integer]` - changes start offset e.g. 50 starts from chapter 50
-
-`--database-offset [Integer]` - changes start offset e.g. 50 starts from 50 item in database; this occurs before manga is sorted, which result in some weird behavior like missing chapters; For users using `--unsorted`
-
-`--unsorted` - database will not be sorted
-
-`--force` - will download manga even if it already exists
-
 `--title [String]` - name the manga
 
 `--folder [String]` - will put manga in folder specified
@@ -31,29 +23,31 @@ See [site](https://mangadex.org/) for finding manga
 
 `--chapter [Integer]` - will download manga which has supplied chapter in it
 
-`--max-consecutive [Integer]` - will download manga images by supplied number at once; it is highly recommended to use **MAX *50*** (default is *40*) because of lack of performance and non complete manga downloading, meaning chapter will not download correctly, meaning missing pages, **!! USE IT BASED ON YOUR INTERNET SPEED, IF YOU HAVE SLOW INTERNET SPEED USE LOWER NUMBER**
-
 `--saver` - will download images of lower quality and lower download size; will save network resources and reduce download time
-
-`--force-delete` - will force to delete *.lock file which is stopping from running another instance of program; NOTE that if you already have one instance running it will fail to delete the original file and thus it will crash
-
-`--cwd` - change current working directory
 
 `--stat` - will add txt file which contains status information
 
-`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; if ctrl+c mid download, program cache will not be automatically cleared, there is button in web to exit program. If program can not be exited with ctrl+c use it to exit program or type "<http://127.0.0.1:8080/end>" in browser, that can happen when you use program without web flag and then again with web flag in same terminal
+`--quiet` - will not use curses window output
+
+`--max-consecutive [Integer]` - will download manga images by supplied number at once; it is highly recommended to use **MAX *50*** (default is *40*) because of lack of performance and non complete manga downloading, meaning chapter will not download correctly, meaning missing pages, **!! USE IT BASED ON YOUR INTERNET SPEED, IF YOU HAVE SLOW INTERNET SPEED USE LOWER NUMBER**
+
+`--force` - will download manga even if it already exists
+
+`--offset [Integer]` - changes start offset e.g. 50 starts from chapter 50
+
+`--database-offset [Integer]` - changes start offset e.g. 50 starts from 50 item in database; this occurs before manga is sorted, which result in some weird behavior like missing chapters; For users using `--unsorted`
+
+`--unsorted` - database will not be sorted
+
+`--cwd` - change current working directory
 
 `--encode` - will print url in program readable format
 
 `--log` - will print log
 
-`--quiet` - will not use curses window output
-
 `--check` - check for for any manga updates
 
 `--update` - will download manga updates
-
-`--delete` - will delete database
 
 `--search` - will search for manga by its title
 
@@ -61,9 +55,21 @@ See [site](https://mangadex.org/) for finding manga
 
 `--show-all` - will show current chapters in database
 
+`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; if ctrl+c mid download, program cache will not be automatically cleared, there is button in web to exit program. If program can not be exited with ctrl+c use it to exit program or type "<http://127.0.0.1:8080/end>" in browser, that can happen when you use program without web flag and then again with web flag in same terminal
+
 `--server` - will start server from which you can download manga through local internet
 
+`--delete` - will delete database
+
+`--force-delete` - will force to delete *.lock file which is stopping from running another instance of program; NOTE that if you already have one instance running it will fail to delete the original file and thus it will crash
+
+`--reset` - after confirmation will do factory reset
+
 ---
+
+Using [yt-dlp](https://github.com/yt-dlp/yt-dlp);
+
+First time configuration is using to yt-dlp for downloading some stuff
 
 - If you get message that lock file is present, and you believe you don't have already have program started, use `--force-delete` option to force it to delete lock file
 
