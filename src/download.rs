@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    ARGS,
+    args,
     error::MdownError,
     getter,
     IS_END,
@@ -76,7 +76,7 @@ pub(crate) fn get_size(response: &reqwest::Response) -> (u64, f32) {
         Some(value) => value,
         None => 0,
     };
-    (total_size, (total_size as f32) / (1024 as f32) / (1024 as f32))
+    (total_size, (total_size as f32) / 1024.0 / 1024.0)
 }
 
 pub(crate) fn get_perc(percentage: i64) -> String {
@@ -105,7 +105,13 @@ pub(crate) async fn download_cover(
     cover_hash: Arc<str>,
     folder: Arc<str>
 ) -> Result<(), MdownError> {
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG
+    {
         log!("Downloading cover");
     }
     string(2, 0, "Downloading cover_art");
@@ -121,7 +127,7 @@ pub(crate) async fn download_cover(
     let mut file = match File::create(format!("{}\\_cover.png", folder)) {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, Some(format!("{}\\_cover.png", folder))));
+            return Err(MdownError::IoError(err, format!("{}\\_cover.png", folder)));
         }
     };
 
@@ -143,7 +149,7 @@ pub(crate) async fn download_cover(
             Err(err) => {
                 resolute::SUSPENDED
                     .lock()
-                    .push(MdownError::IoError(err, Some(format!("{}\\_cover.png", folder))));
+                    .push(MdownError::IoError(err, format!("{}\\_cover.png", folder)));
             }
         }
         downloaded += chunk.len() as u64;
@@ -166,7 +172,13 @@ pub(crate) async fn download_cover(
                     )
                 )
             );
-            if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+            if
+                *args::ARGS_WEB ||
+                *args::ARGS_GUI ||
+                *args::ARGS_CHECK ||
+                *args::ARGS_UPDATE ||
+                *args::ARGS_LOG
+            {
                 log!(&message);
             }
         }
@@ -181,7 +193,13 @@ pub(crate) async fn download_stat(
     folder: &str,
     manga_name: &str
 ) -> Result<(), MdownError> {
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG
+    {
         log!("Getting statistics");
     }
     string(3, 0, "Getting statistics ...");
@@ -196,7 +214,7 @@ pub(crate) async fn download_stat(
     let mut file = match File::create(format!("{}\\_statistics.md", folder)) {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, Some(format!("{}\\_statistics.md", folder))));
+            return Err(MdownError::IoError(err, format!("{}\\_statistics.md", folder)));
         }
     };
 
@@ -259,7 +277,7 @@ pub(crate) async fn download_stat(
             data += &format!("---\n\n## RATING\n\nRating: {}\n\n", average);
             data += &format!("Bayesian: {}\n\n---\n\n", bayesian);
             for i in 1..11 {
-                data += &get_dist(distribution.clone(), i);
+                data += &get_dist(&distribution, i);
             }
             data += &format!("## Follows: {}\n\n", follows);
             data += &format!(
@@ -276,7 +294,7 @@ pub(crate) async fn download_stat(
     match file.write_all(data.as_bytes()) {
         Ok(()) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, Some(format!("{}\\_statistics.md", folder))));
+            return Err(MdownError::IoError(err, format!("{}\\_statistics.md", folder)));
         }
     }
 
@@ -284,7 +302,7 @@ pub(crate) async fn download_stat(
     Ok(())
 }
 
-fn get_dist(distribution: Value, i: usize) -> String {
+fn get_dist(distribution: &Value, i: usize) -> String {
     let value = match distribution.get(i.to_string()).and_then(Value::as_i64) {
         Some(value) => value,
         _ => -1,
@@ -297,17 +315,23 @@ pub(crate) async fn download_image(
     c_hash: Arc<str>,
     f_name: Arc<str>,
     page: usize,
-    page_str: String,
-    folder_name: String,
-    file_name_brief: String,
-    lock_file: String,
-    full_path: String,
+    page_str: &str,
+    folder_name: &str,
+    file_name_brief: &str,
+    lock_file: &str,
+    full_path: &str,
     saver: Arc<str>,
     start: u32,
     iter: usize,
     times: usize
 ) -> Result<(), MdownError> {
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG
+    {
         log!(&format!("Starting image download {}", page));
     }
 
@@ -327,10 +351,10 @@ pub(crate) async fn download_image(
     let (total_size, final_size) = get_size(&response);
 
     string(3 + 1, start + (page as u32) - 1, "\\");
-    let mut file = match File::create(full_path.clone()) {
+    let mut file = match File::create(full_path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, Some(full_path.clone())));
+            return Err(MdownError::IoError(err, full_path.to_string()));
         }
     };
 
@@ -351,10 +375,7 @@ pub(crate) async fn download_image(
         Ok(lock_file) => lock_file,
         Err(err) => {
             return Err(
-                MdownError::IoError(
-                    err,
-                    Some(format!(".cache\\{}_{}_final.lock", folder_name, page))
-                )
+                MdownError::IoError(err, format!(".cache\\{}_{}_final.lock", folder_name, page))
             );
         }
     };
@@ -364,10 +385,7 @@ pub(crate) async fn download_image(
             resolute::SUSPENDED
                 .lock()
                 .push(
-                    MdownError::IoError(
-                        err,
-                        Some(format!(".cache\\{}_{}_final.lock", folder_name, page))
-                    )
+                    MdownError::IoError(err, format!(".cache\\{}_{}_final.lock", folder_name, page))
                 );
         }
     }
@@ -388,7 +406,7 @@ pub(crate) async fn download_image(
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                resolute::SUSPENDED.lock().push(MdownError::IoError(err, Some(full_path.clone())));
+                resolute::SUSPENDED.lock().push(MdownError::IoError(err, full_path.to_string()));
             }
         }
         downloaded += chunk.len() as u64;
@@ -407,7 +425,7 @@ pub(crate) async fn download_image(
                         return Err(
                             MdownError::IoError(
                                 err,
-                                Some(format!(".cache\\{}_{}.lock", folder_name, page))
+                                format!(".cache\\{}_{}.lock", folder_name, page)
                             )
                         );
                     }
@@ -422,7 +440,7 @@ pub(crate) async fn download_image(
                             .push(
                                 MdownError::IoError(
                                     err,
-                                    Some(format!(".cache\\{}_{}.lock", folder_name, page))
+                                    format!(".cache\\{}_{}.lock", folder_name, page)
                                 )
                             );
                     }
@@ -436,14 +454,20 @@ pub(crate) async fn download_image(
                 page_str,
                 file_name_brief,
                 perc_string,
-                (downloaded as f32) / (1024 as f32) / (1024 as f32),
+                (downloaded as f32) / 1024.0 / 1024.0,
                 final_size,
-                (((downloaded as f32) - last_size) * 10.0) / (1024 as f32) / (1024 as f32)
+                (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
             );
-            if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+            if
+                *args::ARGS_WEB ||
+                *args::ARGS_GUI ||
+                *args::ARGS_CHECK ||
+                *args::ARGS_UPDATE ||
+                *args::ARGS_LOG
+            {
                 log!(&message);
             }
-            if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+            if !*args::ARGS_WEB && !*args::ARGS_GUI && !*args::ARGS_CHECK && !*args::ARGS_UPDATE {
                 string(
                     3 + 1 + (page as u32),
                     0,
@@ -464,14 +488,14 @@ pub(crate) async fn download_image(
 
     *CURRENT_PAGE.lock() += 1;
 
-    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+    if !*args::ARGS_WEB && !*args::ARGS_GUI && !*args::ARGS_CHECK && !*args::ARGS_UPDATE {
         let message = format!(
             "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
             page_str,
             file_name_brief,
             100,
-            (downloaded as f32) / (1024 as f32) / (1024 as f32),
-            (total_size as f32) / (1024 as f32) / (1024 as f32)
+            (downloaded as f32) / 1024.0 / 1024.0,
+            (total_size as f32) / 1024.0 / 1024.0
         );
         string(
             3 + 1 + (page as u32),
@@ -496,9 +520,7 @@ pub(crate) async fn download_image(
     {
         Ok(file) => file,
         Err(err) => {
-            return Err(
-                MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page)))
-            );
+            return Err(MdownError::IoError(err, format!(".cache\\{}_{}.lock", folder_name, page)));
         }
     };
     match lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes()) {
@@ -506,13 +528,17 @@ pub(crate) async fn download_image(
         Err(err) => {
             resolute::SUSPENDED
                 .lock()
-                .push(
-                    MdownError::IoError(err, Some(format!(".cache\\{}_{}.lock", folder_name, page)))
-                );
+                .push(MdownError::IoError(err, format!(".cache\\{}_{}.lock", folder_name, page)));
         }
     }
 
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG
+    {
         log!(&format!("Finished image download {}", page));
     }
     Ok(())

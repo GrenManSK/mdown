@@ -13,7 +13,7 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    ARGS,
+    args::{ self, ARGS },
     download,
     error::MdownError,
     getter,
@@ -25,15 +25,15 @@ use crate::{
     string,
 };
 
-pub(crate) fn setup_requirements(file_path_tm: String) {
+pub(crate) fn setup_requirements(file_path: String) {
     let _ = initscr();
     curs_set(2);
     start_color();
     crosscurses::echo();
     crosscurses::cbreak();
-    let file_path_temp = file_path_tm.clone();
-    tokio::spawn(async move { print_version(file_path_tm).await });
-    tokio::spawn(async move { ctrl_handler(file_path_temp).await });
+    let file_path_temp = file_path.clone();
+    tokio::spawn(async move { print_version(&file_path).await });
+    tokio::spawn(async move { ctrl_handler(&file_path_temp).await });
 }
 
 pub(crate) fn log_handler() {
@@ -116,7 +116,7 @@ pub(crate) fn log_handler() {
                     let Some(value) = data
                         .get_mut(&handle_id.to_string())
                         .and_then(|value| value.get_mut("logs"))
-                        .and_then(|value| value.get_mut(chap_num.clone()))
+                        .and_then(|value| value.get_mut(&chap_num))
                         .and_then(Value::as_array_mut)
                 {
                     inst.extend_from_slice(value);
@@ -141,9 +141,7 @@ pub(crate) fn log_handler() {
                         Utc::now().to_rfc3339()
                     }
                 };
-                inst.push(
-                    Value::String(format!("{}  {}", message.time.clone(), message.message.clone()))
-                );
+                inst.push(Value::String(format!("{}  {}", &message.time, &message.message)));
 
                 map.insert(chap_num.clone(), serde_json::Value::Array(inst.clone()));
 
@@ -257,9 +255,7 @@ pub(crate) fn remove_cache() -> Result<(), MdownError> {
         match fs::remove_dir_all(".cache") {
             Ok(()) => (),
             Err(err) => {
-                resolute::SUSPENDED
-                    .lock()
-                    .push(MdownError::IoError(err, Some(String::from(".cache\\"))));
+                resolute::SUSPENDED.lock().push(MdownError::IoError(err, String::from(".cache\\")));
             }
         };
     }
@@ -271,7 +267,7 @@ pub(crate) fn input(text: &str) -> Result<String, MdownError> {
     match std::io::stdout().flush() {
         Ok(()) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, None));
+            return Err(MdownError::IoError(err, String::new()));
         }
     }
 
@@ -279,7 +275,7 @@ pub(crate) fn input(text: &str) -> Result<String, MdownError> {
     match std::io::stdin().read_line(&mut input) {
         Ok(_) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, None));
+            return Err(MdownError::IoError(err, String::new()));
         }
     }
     Ok(input.trim().to_string())
@@ -301,7 +297,7 @@ pub(crate) fn setup_subscriber() -> Result<(), MdownError> {
                 .push(
                     MdownError::CustomError(
                         String::from("Failed to set up tracing_subscriber (basically info)"),
-                        String::from("SubscriberError")
+                        String::from("Subscriber")
                     )
                 );
             Ok(())
@@ -313,9 +309,7 @@ pub(crate) fn create_cache_folder() -> Result<(), MdownError> {
     match fs::create_dir(".cache") {
         Ok(()) => Ok(()),
         Err(err) => {
-            resolute::SUSPENDED
-                .lock()
-                .push(MdownError::IoError(err, Some(String::from(".cache\\"))));
+            resolute::SUSPENDED.lock().push(MdownError::IoError(err, String::from(".cache\\")));
             Ok(())
         }
     }
@@ -329,7 +323,7 @@ pub(crate) fn is_valid_uuid(s: &str) -> bool {
 }
 
 pub(crate) fn clear_screen(from: u32) {
-    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update {
+    if !*args::ARGS_WEB && !*args::ARGS_GUI && !*args::ARGS_CHECK && !*args::ARGS_UPDATE {
         for i in from..MAXPOINTS.max_y {
             string(i, 0, &" ".repeat(MAXPOINTS.max_x as usize));
         }
@@ -349,19 +343,16 @@ pub(crate) fn process_filename(filename: &str) -> String {
         .replace('"', "")
 }
 
-pub(crate) async fn wait_for_end(
-    file_path: String,
-    images_length: usize
-) -> Result<(), MdownError> {
+pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Result<(), MdownError> {
     let full_path = format!(".cache\\{}.lock", file_path);
     let mut full_size = 0.0;
     let start = Instant::now();
-    while fs::metadata(full_path.clone()).is_ok() {
+    while fs::metadata(&full_path).is_ok() {
         let mut size = 0.0;
         for i in 1..images_length + 1 {
             let image_name = format!(".cache\\{}_{}.lock", file_path, i);
-            if fs::metadata(image_name.clone()).is_ok() {
-                let mut image_file = match File::open(image_name.clone()) {
+            if fs::metadata(&image_name).is_ok() {
+                let mut image_file = match File::open(&image_name) {
                     Ok(image) => image,
                     Err(_err) => {
                         continue;
@@ -448,7 +439,13 @@ pub(crate) async fn wait_for_end(
 }
 
 pub(crate) fn progress_bar_preparation(start: u32, images_length: usize, line: u32) {
-    if !ARGS.web && !ARGS.gui && !ARGS.check && !ARGS.update && !ARGS.server {
+    if
+        !*args::ARGS_WEB &&
+        !*args::ARGS_GUI &&
+        !*args::ARGS_CHECK &&
+        !*args::ARGS_UPDATE &&
+        !*args::ARGS_SERVER
+    {
         string(line, 0, &format!("{}|", &"-".repeat((start as usize) - 1)));
         string(
             line,
@@ -465,7 +462,7 @@ pub(crate) fn progress_bar_preparation(start: u32, images_length: usize, line: u
 pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
     let mut data_array = data.to_owned();
 
-    if ARGS.unsorted {
+    if *args::ARGS_UNSORTED {
         return data.to_vec();
     }
 
@@ -516,9 +513,8 @@ pub(crate) fn get_json(manga_name_json: &str) -> Result<Value, MdownError> {
 }
 
 pub(crate) async fn search() -> Result<String, MdownError> {
-    let id;
     let base_url = "https://api.mangadex.org";
-    let title = ARGS.search.clone();
+    let title = &ARGS.lock().search;
 
     let client = match download::get_client() {
         Ok(client) => client,
@@ -571,25 +567,19 @@ pub(crate) async fn search() -> Result<String, MdownError> {
             .iter()
             .filter_map(|id| id.as_str())
             .collect();
-        id = (
-            match manga_ids.first() {
-                Some(id) => id,
-                None => {
-                    return Err(
-                        MdownError::NotFoundError(String::from("manga_id in manga_ids in main.rs"))
-                    );
-                }
-            }
-        ).to_string();
+        return match manga_ids.first() {
+            Some(id) => Ok(id.to_string()),
+            None =>
+                Err(MdownError::NotFoundError(String::from("manga_id in manga_ids in main.rs"))),
+        };
     } else {
         return Err(MdownError::StatusError(response.status()));
     }
-    Ok(id)
 }
 
-pub(crate) fn resolve_start() -> Result<(String, String), MdownError> {
+pub(crate) fn resolve_start() -> Result<String, MdownError> {
     let file_path: String = format!(".cache\\mdown_{}.lock", env!("CARGO_PKG_VERSION"));
-    if ARGS.force_delete {
+    if *args::ARGS_FORCE_DELETE {
         match fs::remove_file(&file_path) {
             Ok(()) => println!("File has been deleted\nYou can now use it as normal"),
             Err(_err) => {
@@ -602,23 +592,23 @@ pub(crate) fn resolve_start() -> Result<(String, String), MdownError> {
             }
         }
     }
-    if fs::metadata(file_path.clone()).is_ok() {
+    if fs::metadata(&file_path).is_ok() {
         eprintln!(
             "Lock file has been found;\nSee README.md;\nCannot run multiple instances of mdown"
         );
         exit(100);
     }
-    match File::create(file_path.clone()) {
+    match File::create(&file_path) {
         Ok(_) => (),
         Err(e) => {
             panic!("Error creating the file: {}", e);
         }
     }
 
-    Ok((file_path.clone(), file_path))
+    Ok(file_path)
 }
 
-pub(crate) async fn ctrl_handler(file: String) {
+pub(crate) async fn ctrl_handler(file: &str) {
     if fs::metadata(".cache\\mdown_final_end.lock").is_ok() {
         match fs::remove_file(".cache\\mdown_final_end.lock") {
             Ok(()) => (),
@@ -626,7 +616,7 @@ pub(crate) async fn ctrl_handler(file: String) {
         };
     }
     loop {
-        if fs::metadata(file.clone()).is_err() {
+        if fs::metadata(file).is_err() {
             break;
         }
         let key: Input = match stdscr().getch() {
@@ -635,7 +625,7 @@ pub(crate) async fn ctrl_handler(file: String) {
         };
         if key == Input::from(crosscurses::Input::Character('\u{3}')) {
             *IS_END.lock() = true;
-            if ARGS.log {
+            if *args::ARGS_LOG {
                 log!("CTRL+C received");
                 log!("CTRL+C received", "", false);
             }
@@ -648,7 +638,7 @@ pub(crate) async fn ctrl_handler(file: String) {
     clear_screen(0);
     string(0, 0, "CTRL_C: Cleaning up");
     sleep(Duration::from_secs(1));
-    match fs::remove_file(&file) {
+    match fs::remove_file(file) {
         Ok(()) => (),
         Err(_err) => (),
     }
@@ -738,11 +728,11 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
     }
 }
 
-pub(crate) async fn print_version(file: String) {
+pub(crate) async fn print_version(file: &str) {
     let version = env!("CARGO_PKG_VERSION");
     for _ in 0..50 {
         string(MAXPOINTS.max_y - 1, 0, &format!("Current version: {}", version));
-        if fs::metadata(file.clone()).is_err() {
+        if fs::metadata(file).is_err() {
             break;
         }
         sleep(Duration::from_millis(100));
@@ -758,12 +748,12 @@ pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match> {
             return None;
         }
     };
-    re.captures(cap).and_then(move |id| id.get(1))
+    re.captures(cap).and_then(|id| id.get(1))
 }
 
 pub(crate) fn resolve_end(
-    file_path: String,
-    manga_name: String,
+    file_path: &str,
+    manga_name: &str,
     status_code: reqwest::StatusCode
 ) -> Result<(), String> {
     match fs::remove_file(&file_path) {
@@ -841,6 +831,7 @@ pub(crate) fn is_directory_empty(path: &str) -> bool {
     }
 }
 
+#[derive(Debug, Clone)]
 pub(crate) struct FileName {
     pub(crate) manga_name: String,
     pub(crate) vol: String,
@@ -871,7 +862,7 @@ impl FileName {
     pub(crate) fn get_file_w_folder_w_cwd(&self) -> String {
         format!(
             "{}{}/{}.cbz",
-            ARGS.cwd,
+            *args::ARGS_CWD,
             self.folder,
             format!("{}", process_filename(&self.get_folder_name()))
         )
@@ -887,54 +878,73 @@ impl FileName {
     }
 }
 
-pub(crate) fn skip_didnt_match(
-    attr: &str,
+pub(crate) fn skip_didnt_match<'a>(
+    attr: &'a str,
     item: usize,
     moves: u32,
-    mut hist: Vec<String>
-) -> (u32, Vec<String>) {
+    hist: &'a mut Vec<String>
+) -> u32 {
     let message = format!("({}) Skipping because supplied {} doesn't match", item as u32, attr);
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG
+    {
         log!(&message);
     }
     hist.push(message);
-    resolve_move(moves, hist.clone(), 3, 0)
+    resolve_move(moves, hist, 3, 0)
 }
 
-pub(crate) fn skip_custom(
-    attr: &str,
+pub(crate) fn skip_custom<'a>(
+    attr: &'a str,
     item: usize,
     moves: u32,
-    mut hist: Vec<String>
-) -> (u32, Vec<String>) {
+    hist: &'a mut Vec<String>
+) -> u32 {
     let message = format!("({}) Skipping because {}", item as u32, attr);
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG
+    {
         log!(&message);
     }
     hist.push(message);
-    resolve_move(moves, hist.clone(), 3, 0)
+    resolve_move(moves, hist, 3, 0)
 }
 
-pub(crate) fn skip(
-    attr: String,
-    item: usize,
-    moves: u32,
-    mut hist: Vec<String>
-) -> (u32, Vec<String>) {
+pub(crate) fn skip(attr: String, item: usize, moves: u32, hist: &mut Vec<String>) -> u32 {
     let al_dow = format!("({}) Skipping because file is already downloaded {}", item, attr);
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG
+    {
         log!(&al_dow);
     }
     hist.push(al_dow);
-    resolve_move(moves, hist.clone(), 3, 0)
+    resolve_move(moves, hist, 3, 0)
 }
-pub(crate) fn skip_offset(item: usize, moves: u32, mut hist: Vec<String>) -> (u32, Vec<String>) {
+pub(crate) fn skip_offset(item: usize, moves: u32, hist: &mut Vec<String>) -> u32 {
     let al_dow = format!("({}) Skipping because of offset", item);
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG
+    {
         log!(&al_dow);
     }
     hist.push(al_dow);
-    resolve_move(moves, hist.clone(), 3, 0)
+    resolve_move(moves, hist, 3, 0)
 }
 
 pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(), MdownError> {
@@ -943,13 +953,13 @@ pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(),
     {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, Some(String::from(file))));
+            return Err(MdownError::IoError(err, String::from(file)));
         }
     };
     match write!(file_inst, "{:?}", item) {
         Ok(()) => (),
         Err(err) => {
-            resolute::SUSPENDED.lock().push(MdownError::IoError(err, Some(String::from(file))));
+            resolute::SUSPENDED.lock().push(MdownError::IoError(err, String::from(file)));
         }
     }
     Ok(())

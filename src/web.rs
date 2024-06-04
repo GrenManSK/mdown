@@ -4,10 +4,11 @@ use serde_json::{ json, Value };
 use std::{ collections::HashMap, fs::File, io::{ Read, Write }, net::TcpListener };
 
 use crate::{
-    ARGS,
+    args,
     db,
-    error::{ MdownError, handle_error },
+    error::MdownError,
     getter,
+    handle_error,
     log,
     log_end,
     resolute,
@@ -155,7 +156,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
     match stream.read(&mut buffer) {
         Ok(_n) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, None));
+            return Err(MdownError::IoError(err, String::new()));
         }
     }
 
@@ -189,7 +190,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
                         format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}", response),
 
                     Err(err) => {
-                        handle_error(&err, String::from("web_manga"));
+                        handle_error!(&err, String::from("web_manga"));
                         format!(
                             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}",
                             r#"{"status": "error"}"#
@@ -226,7 +227,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
                     return Err(
                         MdownError::CustomError(
                             String::from("Didn't find resource"),
-                            String::from("ResourceError")
+                            String::from("Resource")
                         )
                     );
                 }
@@ -270,7 +271,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
                         response = value;
                     }
                     Err(err) => {
-                        handle_error(&err, String::from("main"));
+                        handle_error!(&err, String::from("main"));
                         response = String::from(
                             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
                         );
@@ -312,7 +313,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
                     response = value;
                 }
                 Err(err) => {
-                    handle_error(&err, String::from("main"));
+                    handle_error!(&err, String::from("main"));
                     response = String::from(
                         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
                     );
@@ -355,7 +356,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
         match utils::remove_cache() {
             Ok(()) => (),
             Err(err) => {
-                handle_error(&err, String::from("ctrl_handler"));
+                handle_error!(&err, String::from("ctrl_handler"));
             }
         }
         std::process::exit(0);
@@ -422,7 +423,7 @@ fn parse_request(url: String) -> std::result::Result<String, MdownError> {
 }
 
 fn get_html() -> String {
-    if ARGS.dev {
+    if *args::ARGS_DEV {
         let err_404 = String::from(
             "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>404 Error - Page Not Found</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            background-color: #f7f7f7;\n            color: #333;\n            margin: 0;\n            padding: 0;\n            text-align: center;\n        }\n        .container {\n            position: absolute;\n            top: 50%;\n            left: 50%;\n            transform: translate(-50%, -50%);\n        }\n        h1 {\n            font-size: 36px;\n            margin-bottom: 20px;\n        }\n        p {\n            font-size: 18px;\n            margin-bottom: 20px;\n        }\n        a {\n            color: #007bff;\n            text-decoration: none;\n        }\n        a:hover {\n            text-decoration: underline;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <h1>404 Error - Page Not Found</h1>\n        <p>The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>\n        <p>Go back to <a href=\"/\">home page</a>.</p>\n    </div>\n</body>\n</html>\n"
         );
@@ -452,7 +453,7 @@ async fn web() -> Result<(), MdownError> {
     let listener = match TcpListener::bind("127.0.0.1:8080") {
         Ok(listener) => listener,
         Err(err) => {
-            return Err(MdownError::IoError(err, None));
+            return Err(MdownError::IoError(err, String::new()));
         }
     };
     log!("Server listening on 127.0.0.1:8080");
@@ -483,7 +484,7 @@ pub(crate) async fn start() -> Result<(), MdownError> {
             match utils::remove_cache() {
                 Ok(()) => (),
                 Err(err) => {
-                    handle_error(&err, String::from("ctrl_handler"));
+                    handle_error!(&err, String::from("ctrl_handler"));
                 }
             }
             std::process::exit(0);
@@ -494,7 +495,7 @@ pub(crate) async fn start() -> Result<(), MdownError> {
             return Err(
                 MdownError::CustomError(
                     format!("Failed setting up ctrl handler, {}", err.to_string()),
-                    String::from("CTRL handler")
+                    String::from("CTRL_handler")
                 )
             );
         }

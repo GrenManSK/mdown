@@ -1,9 +1,8 @@
-use rand::{ seq::SliceRandom, thread_rng };
 use std::{ fs::File, io::{ Read, Seek, Write }, path::Path };
 use walkdir::{ DirEntry, WalkDir };
 use zip::{ result::ZipError, write::FileOptions, ZipArchive };
 
-use crate::{ ARGS, error, log, MAXPOINTS, resolute, string, utils::progress_bar_preparation };
+use crate::{ args, error, log, MAXPOINTS, string, utils::progress_bar_preparation };
 
 fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
@@ -44,20 +43,20 @@ fn zip_dir<T>(
             let mut f = match File::open(path) {
                 Ok(file) => file,
                 Err(err) => {
-                    return Err(error::MdownError::IoError(err, None));
+                    return Err(error::MdownError::IoError(err, String::new()));
                 }
             };
 
             match f.read_to_end(&mut buffer) {
                 Ok(_size) => (),
                 Err(err) => {
-                    return Err(error::MdownError::IoError(err, None));
+                    return Err(error::MdownError::IoError(err, String::new()));
                 }
             }
             match zip.write_all(&buffer) {
                 Ok(()) => (),
                 Err(err) => {
-                    return Err(error::MdownError::IoError(err, None));
+                    return Err(error::MdownError::IoError(err, String::new()));
                 }
             }
             buffer.clear();
@@ -89,7 +88,7 @@ fn doit(src_dir: &str, dst_file: &str) -> Result<(), error::MdownError> {
     let file = match File::create(path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, None));
+            return Err(error::MdownError::IoError(err, String::new()));
         }
     };
 
@@ -105,14 +104,28 @@ fn doit(src_dir: &str, dst_file: &str) -> Result<(), error::MdownError> {
 }
 
 pub(crate) fn to_zip(src_dir: &str, dst_file: &str) {
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log || ARGS.server {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG ||
+        *args::ARGS_SERVER
+    {
         log!(&format!("Zipping files to: {} ...", dst_file));
     }
     match doit(src_dir, dst_file) {
         Ok(_) => string(7, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str()),
         Err(e) => eprintln!("  Error: {e:?}"),
     }
-    if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log || ARGS.server {
+    if
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_LOG ||
+        *args::ARGS_SERVER
+    {
         log!(&format!("Zipping files to: {} Done", dst_file));
     }
 }
@@ -124,7 +137,7 @@ pub(crate) fn extract_metadata_from_zip(
     let file = match File::open(zip_file_path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, Some(zip_file_path.to_string())));
+            return Err(error::MdownError::IoError(err, zip_file_path.to_string()));
         }
     };
     let mut archive = match ZipArchive::new(file) {
@@ -147,9 +160,7 @@ pub(crate) fn extract_metadata_from_zip(
             match file.read_to_string(&mut content) {
                 Ok(_) => (),
                 Err(err) => {
-                    return Err(
-                        error::MdownError::IoError(err, Some(metadata_file_name.to_string()))
-                    );
+                    return Err(error::MdownError::IoError(err, metadata_file_name.to_string()));
                 }
             }
             return Ok(content);
@@ -163,11 +174,12 @@ pub(crate) fn extract_metadata_from_zip(
     )
 }
 
+#[cfg(feature = "server")]
 pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, error::MdownError> {
     let file = match File::open(zip_file_path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, Some(zip_file_path.to_string())));
+            return Err(error::MdownError::IoError(err, zip_file_path.to_string()));
         }
     };
     let mut archive = match ZipArchive::new(file) {
@@ -189,7 +201,7 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
                 "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => {
                     let mut content = Vec::new();
                     if let Err(err) = file.read_to_end(&mut content) {
-                        return Err(error::MdownError::IoError(err, Some(file.name().to_string())));
+                        return Err(error::MdownError::IoError(err, file.name().to_string()));
                     }
                     return Ok(content);
                 }
@@ -203,7 +215,10 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
     Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned()))
 }
 
+#[cfg(feature = "web")]
 pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownError> {
+    use crate::resolute;
+    use rand::{ seq::SliceRandom, thread_rng };
     let mut images = Vec::new();
     let mut files = resolute::WEB_DOWNLOADED.lock().clone();
     files.truncate(10);
@@ -213,7 +228,7 @@ pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownErro
             let file = match File::open(zip_file_path) {
                 Ok(file) => file,
                 Err(err) => {
-                    return Err(error::MdownError::IoError(err, Some(zip_file_path.to_string())));
+                    return Err(error::MdownError::IoError(err, zip_file_path.to_string()));
                 }
             };
             let mut archive = match ZipArchive::new(file) {
@@ -236,7 +251,7 @@ pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownErro
                             let mut content = Vec::new();
                             if let Err(err) = file.read_to_end(&mut content) {
                                 return Err(
-                                    error::MdownError::IoError(err, Some(file.name().to_string()))
+                                    error::MdownError::IoError(err, file.name().to_string())
                                 );
                             }
                             images.push(content);

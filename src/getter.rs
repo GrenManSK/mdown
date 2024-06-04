@@ -2,7 +2,7 @@ use serde_json::Value;
 use std::process::exit;
 
 use crate::{
-    ARGS,
+    args::{ self, ARGS },
     download::get_response_client,
     error::MdownError,
     getter,
@@ -19,7 +19,7 @@ fn get_exe_path() -> Result<String, MdownError> {
             return Err(
                 MdownError::IoError(
                     err,
-                    Some(String::from("? your path to your exe file is invalid bro"))
+                    String::from("? your path to your exe file is invalid bro")
                 )
             );
         }
@@ -76,6 +76,7 @@ pub(crate) fn get_log_lock_path() -> Result<String, MdownError> {
     Ok(format!("{}\\log.lock", path))
 }
 
+#[cfg(any(feature = "server", feature = "web"))]
 pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, String> {
     (
         match parts[1].split('?').nth(1) {
@@ -99,12 +100,17 @@ pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, S
         .collect()
 }
 
-pub(crate) fn get_folder_name(manga_name: &str) -> String {
-    if ARGS.folder == "name" { manga_name.to_owned() } else { ARGS.folder.as_str().to_string() }
+pub(crate) fn get_folder_name<'a>(manga_name: &'a str) -> &'a str {
+    let folder_name = ARGS.lock().folder.clone();
+    if folder_name == "name" {
+        manga_name
+    } else {
+        Box::leak(folder_name.into_boxed_str())
+    }
 }
 
 pub(crate) fn get_manga_name(title_data: &Value) -> String {
-    let lang = resolute::LANGUAGE.lock();
+    let lang = resolute::LANGUAGE.lock().clone();
     let name = (
         match
             title_data
@@ -224,10 +230,10 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
     };
 
     if response.status().is_success() {
-        let json = match response.text().await {
-            Ok(text) => text,
-            Err(err) => {
-                return Err(
+        return match response.text().await {
+            Ok(text) => Ok(text),
+            Err(err) =>
+                Err(
                     MdownError::StatusError(match err.status() {
                         Some(status) => status,
                         None => {
@@ -238,11 +244,8 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
                             );
                         }
                     })
-                );
-            }
+                ),
         };
-
-        Ok(json)
     } else {
         eprintln!(
             "Error: get manga json Failed to fetch data from the API. Status code: {:?}",
@@ -356,10 +359,10 @@ pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
 
 pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), MdownError> {
     let mut times = 0;
-    let mut json: String;
-    let mut json_2: String = String::new();
+    let mut json;
+    let mut json_2 = String::new();
     let mut times_offset: u32;
-    let stat = match ARGS.stat {
+    let stat = match ARGS.lock().stat {
         true => 1,
         false => 0,
     };
@@ -431,7 +434,13 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                             offset.to_string()
                         );
                         string(3 + times + stat, 0, &message);
-                        if ARGS.web || ARGS.gui || ARGS.check || ARGS.update || ARGS.log {
+                        if
+                            *args::ARGS_WEB ||
+                            *args::ARGS_GUI ||
+                            *args::ARGS_CHECK ||
+                            *args::ARGS_UPDATE ||
+                            *args::ARGS_LOG
+                        {
                             log!(&message);
                         }
                         offset_temp = data_array.len();
@@ -614,10 +623,10 @@ pub(crate) fn get_metadata(array_item: &Value) -> (&Value, &str, u64, &str, &str
     (chapter_attr, lang, pages, chapter_num, title)
 }
 
-pub(crate) fn get_arg(arg: String) -> String {
-    match arg.as_str() {
-        "" => String::from("*"),
-        x => String::from(x),
+pub(crate) fn get_arg(arg: &str) -> &str {
+    match arg {
+        "" => "*",
+        x => x,
     }
 }
 

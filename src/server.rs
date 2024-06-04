@@ -9,7 +9,7 @@ use std::{
 };
 include!(concat!(env!("OUT_DIR"), "/error_404_jpg.rs"));
 
-use crate::{ ARGS, error::{ MdownError, handle_error }, getter::get_query, log, utils, zip_func };
+use crate::{ args, error::MdownError, getter::get_query, handle_error, log, utils, zip_func };
 
 fn get_directory_content(path: &str) -> std::result::Result<Value, MdownError> {
     let mut result = serde_json::Map::new();
@@ -23,14 +23,14 @@ fn get_directory_content(path: &str) -> std::result::Result<Value, MdownError> {
     let dir = match fs::read_dir(&decoded_str) {
         Ok(dir) => dir,
         Err(err) => {
-            return Err(MdownError::IoError(err, Some(decoded_str)));
+            return Err(MdownError::IoError(err, decoded_str));
         }
     };
     for entry in dir {
         let entry = match entry {
             Ok(entry) => entry,
             Err(err) => {
-                return Err(MdownError::IoError(err, Some(decoded_str)));
+                return Err(MdownError::IoError(err, decoded_str));
             }
         };
         let file_name = match entry.file_name().into_string() {
@@ -46,7 +46,7 @@ fn get_directory_content(path: &str) -> std::result::Result<Value, MdownError> {
         let metadata = match entry.metadata() {
             Ok(metadata) => metadata,
             Err(err) => {
-                return Err(MdownError::IoError(err, Some(file_name)));
+                return Err(MdownError::IoError(err, file_name));
             }
         };
         let mut file_info =
@@ -55,7 +55,7 @@ fn get_directory_content(path: &str) -> std::result::Result<Value, MdownError> {
             "modified": match metadata.modified() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(MdownError::IoError(err, Some(file_name)));
+                    return Err(MdownError::IoError(err, file_name));
                 }
             },
             "path": file_name,
@@ -89,7 +89,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
     match stream.read_line(&mut request_line) {
         Ok(_n) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, None));
+            return Err(MdownError::IoError(err, String::new()));
         }
     }
 
@@ -131,7 +131,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, None));
+                    return Err(MdownError::IoError(err, String::new()));
                 }
             };
         } else if path.starts_with("/__preview__?") {
@@ -162,7 +162,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
                 contents = match fs::read(&decoded_str) {
                     Ok(contents) => contents,
                     Err(err) => {
-                        return Err(MdownError::IoError(err, Some(decoded_str)));
+                        return Err(MdownError::IoError(err, decoded_str));
                     }
                 };
             }
@@ -177,13 +177,13 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, None));
+                    return Err(MdownError::IoError(err, String::new()));
                 }
             }
             match stream.get_mut().write_all(&contents) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, None));
+                    return Err(MdownError::IoError(err, String::new()));
                 }
             }
         } else if path.starts_with("/__download__?") {
@@ -214,7 +214,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
             let contents = match fs::read(&dst_file) {
                 Ok(contents) => contents,
                 Err(err) => {
-                    return Err(MdownError::IoError(err, Some(dst_file)));
+                    return Err(MdownError::IoError(err, dst_file));
                 }
             };
             let mut response = String::new();
@@ -229,20 +229,20 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, None));
+                    return Err(MdownError::IoError(err, String::new()));
                 }
             }
             match stream.get_mut().write_all(&contents) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, None));
+                    return Err(MdownError::IoError(err, String::new()));
                 }
             }
 
             match fs::remove_file(&dst_file) {
                 Ok(_) => {}
                 Err(err) => {
-                    return Err(MdownError::IoError(err, Some(dst_file)));
+                    return Err(MdownError::IoError(err, dst_file));
                 }
             };
         } else if path.starts_with("/__version__") {
@@ -254,7 +254,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, None));
+                    return Err(MdownError::IoError(err, String::new()));
                 }
             };
         } else if path.starts_with("/__get__?") {
@@ -272,7 +272,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
                     return Err(
                         MdownError::CustomError(
                             String::from("Didn't find resource"),
-                            String::from("ResourceError")
+                            String::from("Resource")
                         )
                     );
                 }
@@ -280,7 +280,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
             match stream.get_mut().write_all(&content) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, None));
+                    return Err(MdownError::IoError(err, String::new()));
                 }
             }
         } else if path == "/" {
@@ -293,7 +293,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, None));
+                    return Err(MdownError::IoError(err, String::new()));
                 }
             };
         } else {
@@ -308,7 +308,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
                 let contents = match fs::read(&file_path) {
                     Ok(contents) => contents,
                     Err(err) => {
-                        return Err(MdownError::IoError(err, None));
+                        return Err(MdownError::IoError(err, String::new()));
                     }
                 };
                 let mut response = String::new();
@@ -327,13 +327,13 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
                 match stream.get_mut().write_all(response.as_bytes()) {
                     Ok(_n) => (),
                     Err(err) => {
-                        return Err(MdownError::IoError(err, None));
+                        return Err(MdownError::IoError(err, String::new()));
                     }
                 }
                 match stream.get_mut().write_all(&contents) {
                     Ok(_n) => (),
                     Err(err) => {
-                        return Err(MdownError::IoError(err, None));
+                        return Err(MdownError::IoError(err, String::new()));
                     }
                 };
             } else {
@@ -341,7 +341,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
                 match stream.get_mut().write_all(response.as_bytes()) {
                     Ok(_n) => (),
                     Err(err) => {
-                        return Err(MdownError::IoError(err, None));
+                        return Err(MdownError::IoError(err, String::new()));
                     }
                 };
             }
@@ -352,7 +352,7 @@ fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
 }
 
 fn get_html() -> String {
-    if ARGS.dev {
+    if *args::ARGS_DEV {
         let err_404 = String::from(
             "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>404 Error - Page Not Found</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            background-color: #f7f7f7;\n            color: #333;\n            margin: 0;\n            padding: 0;\n            text-align: center;\n        }\n        .container {\n            position: absolute;\n            top: 50%;\n            left: 50%;\n            transform: translate(-50%, -50%);\n        }\n        h1 {\n            font-size: 36px;\n            margin-bottom: 20px;\n        }\n        p {\n            font-size: 18px;\n            margin-bottom: 20px;\n        }\n        a {\n            color: #007bff;\n            text-decoration: none;\n        }\n        a:hover {\n            text-decoration: underline;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <h1>404 Error - Page Not Found</h1>\n        <p>The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>\n        <p>Go back to <a href=\"/\">home page</a>.</p>\n    </div>\n</body>\n</html>\n"
         );
@@ -393,7 +393,7 @@ pub(crate) fn start() -> std::result::Result<(), MdownError> {
     match io::stdout().flush() {
         Ok(_) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, None));
+            return Err(MdownError::IoError(err, String::new()));
         }
     }
 
@@ -402,7 +402,7 @@ pub(crate) fn start() -> std::result::Result<(), MdownError> {
     match io::stdin().read_line(&mut input) {
         Ok(_) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, None));
+            return Err(MdownError::IoError(err, String::new()));
         }
     }
 
@@ -419,7 +419,7 @@ pub(crate) fn start() -> std::result::Result<(), MdownError> {
             return Err(
                 MdownError::CustomError(
                     String::from("Invalid IP address"),
-                    String::from("IP address")
+                    String::from("IP_address")
                 )
             );
         }
@@ -433,7 +433,7 @@ pub(crate) fn start() -> std::result::Result<(), MdownError> {
             match utils::remove_cache() {
                 Ok(()) => (),
                 Err(err) => {
-                    handle_error(&err, String::from("ctrl_handler"));
+                    handle_error!(&err, String::from("ctrl_handler"));
                 }
             }
             std::process::exit(0);
@@ -444,7 +444,7 @@ pub(crate) fn start() -> std::result::Result<(), MdownError> {
             return Err(
                 MdownError::CustomError(
                     format!("Failed setting up ctrl handler, {}", err.to_string()),
-                    String::from("CTRL handler")
+                    String::from("CTRL_handler")
                 )
             );
         }
@@ -453,7 +453,7 @@ pub(crate) fn start() -> std::result::Result<(), MdownError> {
     let listener = match TcpListener::bind(format!("{}:3000", ip_address)) {
         Ok(listener) => listener,
         Err(err) => {
-            return Err(MdownError::IoError(err, None));
+            return Err(MdownError::IoError(err, String::new()));
         }
     };
     println!("Server listening on {}:3000 ...", ip_address);

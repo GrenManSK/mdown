@@ -1,6 +1,6 @@
 use rusqlite::{ params, Connection, OptionalExtension };
 use serde_json::Value;
-use std::{ io::{ Write, Read }, process::Command, result::Result };
+use std::{ io::{ Read, Write }, process::Command, result::Result, thread::sleep, time::Duration };
 
 use crate::{ download, error::MdownError, getter, resolute, utils };
 
@@ -70,7 +70,7 @@ pub(crate) async fn init() -> std::result::Result<(), MdownError> {
         }
     };
 
-    let conn = match Connection::open(db_path) {
+    let conn = match Connection::open(&db_path) {
         Ok(conn) => conn,
         Err(err) => {
             return Err(MdownError::DatabaseError(err));
@@ -86,6 +86,7 @@ pub(crate) async fn init() -> std::result::Result<(), MdownError> {
     let full_path = String::from("yt-dlp_min.exe");
 
     let mut yt_dlp = false;
+    let mut ftd = false;
 
     let json_data_string = String::from_utf8_lossy(DATA_JSON).to_string();
     let json_data = match utils::get_json(&json_data_string) {
@@ -120,7 +121,12 @@ pub(crate) async fn init() -> std::result::Result<(), MdownError> {
                     }
                 };
                 if db_item.is_none() {
+                    if !ftd {
+                        println!("First time setup");
+                        sleep(Duration::from_secs(1));
+                    }
                     if !yt_dlp {
+                        ftd = true;
                         match download_yt_dlp(&full_path).await {
                             Ok(_) => (),
                             Err(err) => {
@@ -172,20 +178,20 @@ pub(crate) async fn init() -> std::result::Result<(), MdownError> {
                                             std::io::ErrorKind::Other,
                                             "Process failed"
                                         ),
-                                        None
+                                        String::new()
                                     )
                                 );
                             }
                         }
                         Err(err) => {
-                            return Err(MdownError::IoError(err, None));
+                            return Err(MdownError::IoError(err, String::new()));
                         }
                     }
 
                     let file_bytes = match read_file_to_bytes(name) {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(MdownError::IoError(err, Some(String::from(name))));
+                            return Err(MdownError::IoError(err, String::from(name)));
                         }
                     };
 
@@ -200,7 +206,7 @@ pub(crate) async fn init() -> std::result::Result<(), MdownError> {
                     match std::fs::remove_file(name) {
                         Ok(_) => (),
                         Err(err) => {
-                            return Err(MdownError::IoError(err, Some(String::from(name))));
+                            return Err(MdownError::IoError(err, String::from(name)));
                         }
                     };
                 }
@@ -213,7 +219,7 @@ pub(crate) async fn init() -> std::result::Result<(), MdownError> {
             match std::fs::remove_file(&full_path) {
                 Ok(_) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, Some(full_path.clone())));
+                    return Err(MdownError::IoError(err, full_path));
                 }
             };
         }
@@ -292,7 +298,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let mut file = match std::fs::File::create(&full_path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, Some(full_path.to_string())));
+            return Err(MdownError::IoError(err, full_path.to_string()));
         }
     };
     let (mut downloaded, mut last_size) = (0, 0.0);
@@ -312,9 +318,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                resolute::SUSPENDED
-                    .lock()
-                    .push(MdownError::IoError(err, Some(full_path.to_string())));
+                resolute::SUSPENDED.lock().push(MdownError::IoError(err, full_path.to_string()));
             }
         }
         downloaded += chunk.len() as u64;
@@ -325,9 +329,9 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
             let message = format!(
                 "Downloading yt-dlp_min.exe {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]",
                 perc_string,
-                (downloaded as f32) / (1024 as f32) / (1024 as f32),
+                (downloaded as f32) / 1024.0 / 1024.0,
                 final_size,
-                (((downloaded as f32) - last_size) * 10.0) / (1024 as f32) / (1024 as f32)
+                (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
             );
             println!("{}", message);
             last_check_time = current_time;
@@ -337,8 +341,8 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let message = format!(
         "Downloading yt-dlp_min.exe {}% - {:.2}mb of {:.2}mb",
         100,
-        (downloaded as f32) / (1024 as f32) / (1024 as f32),
-        (total_size as f32) / (1024 as f32) / (1024 as f32)
+        (downloaded as f32) / 1024.0 / 1024.0,
+        (total_size as f32) / 1024.0 / 1024.0
     );
     println!("{}\n", message);
     Ok(())

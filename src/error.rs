@@ -1,51 +1,18 @@
 use crate::resolute::SUSPENDED;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum MdownError {
-    IoError(std::io::Error, Option<String>),
-    StatusError(reqwest::StatusCode),
-    NetworkError(reqwest::Error),
-    RegexError(regex::Error),
-    JsonError(String),
-    ConversionError(String),
-    NotFoundError(String),
-    ZipError(zip::result::ZipError),
-    DatabaseError(rusqlite::Error),
-    CustomError(String, String),
-}
-#[derive(Debug)]
-pub enum Final {
-    Final(MdownError),
-}
-
-impl std::fmt::Display for MdownError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MdownError::IoError(msg, name) => {
-                match name {
-                    Some(name) => write!(f, "Error: IO Error {} for file {}", msg, name),
-                    None => write!(f, "Error: IO Error {}", msg),
-                }
-            }
-            MdownError::StatusError(msg) => write!(f, "Error: {}", msg),
-            MdownError::NetworkError(msg) => write!(f, "Error: {}", msg),
-            MdownError::JsonError(msg) =>
-                write!(f, "Error: either corrupt json file or not found item; {}", msg),
-            MdownError::ConversionError(msg) => write!(f, "Error: ConversionError {}", msg),
-            MdownError::RegexError(msg) => write!(f, "Error: RegexError {}", msg),
-            MdownError::ZipError(msg) => write!(f, "Error: ZipError {}", msg),
-            MdownError::NotFoundError(msg) => write!(f, "Error: NotFoundError {}", msg),
-            MdownError::DatabaseError(msg) => write!(f, "Error: DatabaseError {}", msg),
-            MdownError::CustomError(msg, name) => write!(f, "Error: {} {}", name, msg),
-        }
-    }
-}
-impl std::fmt::Display for Final {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Final::Final(msg) => write!(f, "{}", msg.to_string()),
-        }
-    }
+    #[error("I/O error: {0} ({1})")] IoError(std::io::Error, String),
+    #[error("Status error: {0}")] StatusError(reqwest::StatusCode),
+    #[error("Network error: {0}")] NetworkError(reqwest::Error),
+    #[error("Regex error: {0}")] RegexError(regex::Error),
+    #[error("Json error: {0}")] JsonError(String),
+    #[error("Conversion error: {0}")] ConversionError(String),
+    #[error("NotFound error: Didn't found {0}")] NotFoundError(String),
+    #[error("Zip error: {0}")] ZipError(zip::result::ZipError),
+    #[error("Database error: {0}")] DatabaseError(rusqlite::Error),
+    #[error("{1} error: {0}")] CustomError(String, String),
 }
 
 impl MdownError {
@@ -64,32 +31,35 @@ impl MdownError {
         }
     }
 }
-// impl Final {
-//     pub(crate) fn into(self) -> String {
-//         match self {
-//             Final::Final(msg) => msg.into(),
-//         }
-//     }
-// }
 
-pub(crate) fn handle_error(err: &MdownError, from: String) {
+pub(crate) fn handle_error(err: &MdownError, from: Option<String>) {
+    let to = match from {
+        Some(value) => format!(" ({})", value),
+        None => String::new(),
+    };
     match err {
         MdownError::IoError(err, name) => {
-            match name {
-                Some(name) => eprintln!("Error: IO Error {} in file {} ({})", err, name, from),
-                None => eprintln!("Error: IO Error {} ({})", err, from),
+            match name.as_str() {
+                "" => eprintln!("Error: IO Error {} ({})", err, to),
+                name => eprintln!("Error: IO Error {} in file {}{}", err, name, to),
             }
         }
-        MdownError::StatusError(err) => eprintln!("Error: Network Error {} ({})", err, from),
-        MdownError::NetworkError(err) => eprintln!("Error: Network Error {} ({})", err, from),
-        MdownError::JsonError(err) => eprintln!("Error: Json Error {} ({})", err, from),
-        MdownError::RegexError(err) => eprintln!("Error: RegexError {} ({})", err, from),
-        MdownError::ZipError(err) => eprintln!("Error: ZipError {} ({})", err, from),
-        MdownError::NotFoundError(err) => eprintln!("Error: NotFoundError {} ({})", err, from),
-        MdownError::ConversionError(err) => eprintln!("Error: ConversionError {} ({})", err, from),
-        MdownError::DatabaseError(err) => eprintln!("Error: DatabaseError {} ({})", err, from),
-        MdownError::CustomError(err, name) => eprintln!("Error: {} {} ({})", name, err, from),
+        error => eprintln!("Error: {}{}", error, to),
     }
+}
+
+#[macro_export]
+macro_rules! handle_error {
+    ($err:expr) => {
+        {
+            crate::error::handle_error($err, None);
+        }
+    };
+    ($err:expr, $from:expr) => {
+        {
+            crate::error::handle_error($err, Some($from));
+        }
+    };
 }
 
 pub(crate) fn handle_suspended() {
@@ -97,12 +67,12 @@ pub(crate) fn handle_suspended() {
     if !suspended.is_empty() {
         println!("Suspended errors:");
         for i in suspended.iter() {
-            handle_error(i, String::from("suspended"));
+            handle_error!(i, String::from("suspended"));
         }
     }
 }
 
-pub(crate) fn handle_final(err: &Final) {
-    eprintln!("{}", err);
+pub(crate) fn handle_final(err: &MdownError) {
+    handle_error!(err.into());
     handle_suspended();
 }
