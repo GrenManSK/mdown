@@ -69,7 +69,7 @@ See [site](https://mangadex.org/) for finding manga
 
 Using [yt-dlp](https://github.com/yt-dlp/yt-dlp);
 
-First time configuration is using to yt-dlp for downloading some stuff
+First time configuration is using yt-dlp for downloading some stuff
 
 - If you get message that lock file is present, and you believe you don't have already have program started, use `--force-delete` option to force it to delete lock file
 
