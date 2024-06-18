@@ -1,4 +1,4 @@
-use clap::{ Parser, ArgGroup };
+use clap::{ Parser, ArgGroup, Subcommand };
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 
@@ -8,19 +8,37 @@ lazy_static! {
     pub(crate) static ref ARGS_UPDATE: bool = ARGS.lock().update.clone();
     pub(crate) static ref ARGS_QUIET: bool = ARGS.lock().quiet.clone();
     pub(crate) static ref ARGS_LOG: bool = ARGS.lock().log.clone();
-    pub(crate) static ref ARGS_RESET: bool = ARGS.lock().reset.clone();
     pub(crate) static ref ARGS_ENCODE: String = ARGS.lock().encode.clone();
-    pub(crate) static ref ARGS_DELETE: bool = ARGS.lock().delete.clone();
-    pub(crate) static ref ARGS_FORCE_DELETE: bool = ARGS.lock().force_delete.clone();
     pub(crate) static ref ARGS_DEV: bool = ARGS.lock().dev.clone();
     pub(crate) static ref ARGS_CWD: String = ARGS.lock().cwd.clone();
     pub(crate) static ref ARGS_UNSORTED: bool = ARGS.lock().unsorted.clone();
-    pub(crate) static ref ARGS_SHOW: bool = ARGS.lock().show.clone();
+    pub(crate) static ref ARGS_SHOW: Option<Option<String>> = ARGS.lock().show.clone();
     pub(crate) static ref ARGS_DEBUG: bool = ARGS.lock().debug.clone();
     pub(crate) static ref ARGS_SHOW_ALL: bool = ARGS.lock().show_all.clone();
+    pub(crate) static ref ARGS_SHOW_LOG: bool = ARGS.lock().show_log.clone();
     pub(crate) static ref ARGS_WEB: bool = ARGS.lock().web.clone();
     pub(crate) static ref ARGS_GUI: bool = ARGS.lock().gui.clone();
     pub(crate) static ref ARGS_SERVER: bool = ARGS.lock().server.clone();
+    pub(crate) static ref ARGS_RESET: bool = match ARGS.lock().subcommands {
+        Some(Commands::App { reset, .. }) => reset,
+        Some(_) => false,
+        None => false,
+    };
+    pub(crate) static ref ARGS_DELETE: bool = match ARGS.lock().subcommands {
+        Some(Commands::App { delete, .. }) => delete,
+        Some(_) => false,
+        None => false,
+    };
+    pub(crate) static ref ARGS_FORCE_DELETE: bool = match ARGS.lock().subcommands {
+        Some(Commands::App { force_delete, .. }) => force_delete,
+        Some(_) => false,
+        None => false,
+    };
+    pub(crate) static ref ARGS_FORCE_SETUP: bool = match ARGS.lock().subcommands {
+        Some(Commands::App { force_setup, .. }) => force_setup,
+        Some(_) => false,
+        None => false,
+    };
 }
 
 /// Mangadex Manga downloader
@@ -167,7 +185,11 @@ pub(crate) struct ParserArgs {
         default_value_t = String::from(""),
         help = "print url in program readable format\n"
     )] pub(crate) encode: String,
-    #[arg(long, next_line_help = true, help = "print log")] pub(crate) log: bool,
+    #[arg(
+        long,
+        next_line_help = true,
+        help = "print log and write it in log,json"
+    )] pub(crate) log: bool,
     #[arg(
         long,
         next_line_help = true,
@@ -188,12 +210,17 @@ pub(crate) struct ParserArgs {
         long,
         next_line_help = true,
         help = "Shows current manga in database"
-    )] pub(crate) show: bool,
+    )] pub(crate) show: Option<Option<String>>,
     #[arg(
         long,
         next_line_help = true,
         help = "Shows current chapters in database"
     )] pub(crate) show_all: bool,
+    #[arg(
+        long,
+        next_line_help = true,
+        help = "Shows current logs in database"
+    )] pub(crate) show_log: bool,
     #[arg(
         short,
         long,
@@ -202,19 +229,45 @@ pub(crate) struct ParserArgs {
     )] pub(crate) web: bool,
     #[arg(long, next_line_help = true, help = "Starts server")] pub(crate) server: bool,
     /// Reset-Options
-    #[arg(
-        long,
-        next_line_help = true,
-        help = "force to delete *.lock file which is stopping from running another instance of program;\nNOTE that if you already have one instance running it will fail to delete the original file and thus it will crash"
-    )]
-    pub(crate) force_delete: bool,
-    #[arg(long, next_line_help = true, help = "Delete database")] pub(crate) delete: bool,
-    #[arg(long, next_line_help = true, help = "Delete database")] pub(crate) reset: bool,
-    /// dev
-    #[arg(long, next_line_help = true, help = "Gui version of mdown, does nothing for now")]
+    #[arg(long, next_line_help = true, help = "Gui version of mdown")]
     pub(crate) gui: bool,
-    #[arg(long, next_line_help = true, help = "debug")] pub(crate) debug: bool,
+    /// dev
+    #[arg(long, next_line_help = true, help = "debug")]
+    pub(crate) debug: bool,
     #[arg(long, next_line_help = true, help = "dev")] pub(crate) dev: bool,
+    #[command(subcommand)]
+    pub(crate) subcommands: Option<Commands>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub(crate) enum Commands {
+    Settings {
+        #[arg(
+            long,
+            next_line_help = true,
+            help = "set default name of folder"
+        )] folder: Option<Option<String>>,
+    },
+    App {
+        #[arg(long, next_line_help = true, help = "Force first time setup")] force_setup: bool,
+        #[arg(
+            long,
+            next_line_help = true,
+            help = "force to delete *.lock file which is stopping from running another instance of program;\nNOTE that if you already have one instance running it will fail to delete the original file and thus it will crash"
+        )]
+        force_delete: bool,
+        #[arg(long, next_line_help = true, help = "Delete dat.json")] delete: bool,
+        #[arg(
+            long,
+            next_line_help = true,
+            help = "Delete all files created by program"
+        )] reset: bool,
+    },
+}
+
+pub(crate) enum Value {
+    #[allow(dead_code)] Bool(bool),
+    Str(String),
 }
 
 pub(crate) struct Args {
@@ -238,19 +291,27 @@ pub(crate) struct Args {
     pub(crate) check: bool,
     pub(crate) update: bool,
     pub(crate) search: String,
-    pub(crate) show: bool,
+    pub(crate) show: Option<Option<String>>,
     pub(crate) show_all: bool,
+    pub(crate) show_log: bool,
     pub(crate) web: bool,
     pub(crate) server: bool,
-    pub(crate) force_delete: bool,
-    pub(crate) delete: bool,
-    pub(crate) reset: bool,
     pub(crate) gui: bool,
     pub(crate) debug: bool,
     pub(crate) dev: bool,
+    pub(crate) subcommands: Option<Commands>,
 }
 
 impl Args {
+    pub(crate) fn change(&mut self, typ: &str, to: Value) {
+        match (typ, to) {
+            ("folder", Value::Str(value)) => {
+                self.folder = value;
+            }
+            _ => (),
+        }
+    }
+
     pub(crate) fn from_args() -> Args {
         let args = ParserArgs::parse();
         Args {
@@ -275,15 +336,14 @@ impl Args {
             update: args.update,
             show: args.show,
             show_all: args.show_all,
+            show_log: args.show_log,
             web: args.web,
             server: args.server,
             search: args.search,
-            force_delete: args.force_delete,
-            delete: args.delete,
-            reset: args.reset,
             gui: args.gui,
             debug: args.debug,
             dev: args.dev,
+            subcommands: args.subcommands,
         }
     }
 
@@ -322,17 +382,16 @@ impl Args {
             log: *ARGS_LOG,
             check: *ARGS_CHECK,
             update: *ARGS_UPDATE,
-            show: *ARGS_SHOW,
+            show: ARGS_SHOW.clone(),
             show_all: *ARGS_SHOW_ALL,
+            show_log: *ARGS_SHOW_LOG,
             web: *ARGS_WEB,
             server: *ARGS_SERVER,
             search: String::new(),
-            force_delete: *ARGS_FORCE_DELETE,
-            delete: *ARGS_DELETE,
-            reset: *ARGS_RESET,
             gui: *ARGS_GUI,
             debug: *ARGS_DEBUG,
             dev: *ARGS_DEV,
+            subcommands: ARGS.lock().subcommands.clone(),
         }
     }
 }

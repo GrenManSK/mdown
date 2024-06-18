@@ -11,8 +11,8 @@ use crate::{
     handle_error,
     log,
     log_end,
-    resolute,
     resolute::{
+        self,
         CURRENT_CHAPTER,
         CURRENT_PAGE,
         CURRENT_PAGE_MAX,

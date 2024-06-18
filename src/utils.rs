@@ -237,17 +237,51 @@ pub(crate) fn reset() -> Result<(), MdownError> {
         }
     };
 
-    if std::fs::remove_file(&dat).is_ok() {
-        println!("dat.json was successfully removed");
+    match std::fs::remove_file(&dat) {
+        Ok(_) => println!("dat.json was successfully removed"),
+        Err(err) => {
+            match err.raw_os_error() {
+                Some(code) => {
+                    if code != 2 {
+                        push_suspended(err, "dat.json");
+                    }
+                }
+                None => push_suspended(err, "dat.json"),
+            }
+        }
     }
-    if std::fs::remove_file(&db).is_ok() {
-        println!("resources.db was successfully removed");
+    match std::fs::remove_file(&db) {
+        Ok(_) => println!("resources.db was successfully removed"),
+        Err(err) => {
+            match err.raw_os_error() {
+                Some(code) => {
+                    if code != 2 {
+                        push_suspended(err, "resources.db");
+                    }
+                }
+                None => push_suspended(err, "resources.db"),
+            }
+        }
     }
-    if std::fs::remove_file(&log).is_ok() {
-        println!("log.json was successfully removed");
+    match std::fs::remove_file(&log) {
+        Ok(_) => println!("log.json was successfully removed"),
+        Err(err) => {
+            match err.raw_os_error() {
+                Some(code) => {
+                    if code != 2 {
+                        push_suspended(err, "log.json");
+                    }
+                }
+                None => push_suspended(err, "log.json"),
+            }
+        }
     }
 
     Ok(())
+}
+
+fn push_suspended(err: std::io::Error, name: &str) {
+    resolute::SUSPENDED.lock().push(MdownError::IoError(err, name.to_string()));
 }
 
 pub(crate) fn remove_cache() -> Result<(), MdownError> {

@@ -12,7 +12,12 @@ fn main() {
         }
     }
 
-    for directory in ["resources/server", "resources/web", "resources/combined", "resources/database"] {
+    for directory in [
+        "resources/server",
+        "resources/web",
+        "resources/combined",
+        "resources/database",
+    ] {
         setup(directory);
     }
 }

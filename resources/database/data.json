@@ -4,13 +4,19 @@
             "type": "yt-dlp",
             "url": "https://youtu.be/EFB-YkrKad8?si=nVaajYUpRQb_rOTn",
             "name": "rambling_pleat.ogg",
-            "dmca": "rambling pleat by ALICESOFT\nComposer: L-Minatsu\nFeatured in Alice Sound Album vol.33 (Original Soundtrack)"
+            "dmca": "rambling pleat by ALICESOFT\nComposer: L-Minatsu\nFeatured in Alice Sound Album vol.33 (Original Soundtrack)",
+            "dependencies": [
+                "web"
+            ]
         },
         {
             "type": "yt-dlp",
             "url": "https://youtu.be/dCg2UiiHeKI?si=uiOdoP7NvN7O5cYI",
             "name": "system_haven.ogg",
-            "dmca": "preparara by ALICESOFT\nComposer: L-Minatsu\nFeatured in Alice Sound Album vol.33 (Original Soundtrack)"
+            "dmca": "preparara by ALICESOFT\nComposer: L-Minatsu\nFeatured in Alice Sound Album vol.33 (Original Soundtrack)",
+            "dependencies": [
+                "web"
+            ]
         }
     ]
 }

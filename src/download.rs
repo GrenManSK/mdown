@@ -321,9 +321,7 @@ pub(crate) async fn download_image(
     lock_file: &str,
     full_path: &str,
     saver: Arc<str>,
-    start: u32,
-    iter: usize,
-    times: usize
+    start: u32
 ) -> Result<(), MdownError> {
     if
         *args::ARGS_WEB ||
@@ -336,8 +334,6 @@ pub(crate) async fn download_image(
     }
 
     string(3 + 1, start + (page as u32) - 1, "|");
-    string(3 + 1 + (page as u32), 0, "  Sleeping");
-    sleep(Duration::from_millis(((page - iter * times) * 50) as u64));
     string(3 + 1 + (page as u32), 0, &format!("   {} Downloading {}", page_str, file_name_brief));
     string(3 + 1, start + (page as u32) - 1, "/");
 
@@ -540,6 +536,31 @@ pub(crate) async fn download_image(
         *args::ARGS_LOG
     {
         log!(&format!("Finished image download {}", page));
+    }
+
+    if *args::ARGS_GUI {
+        match fs::create_dir_all(".cache\\preview") {
+            Ok(()) => (),
+            Err(err) => {
+                return Err(MdownError::IoError(err, format!(".cache\\preview\\{}", full_path)));
+            }
+        }
+        let target_file = std::path::Path::new(".cache\\preview").join("preview.png");
+
+        if target_file.exists() {
+            match fs::remove_file(&target_file) {
+                Ok(()) => (),
+                Err(err) => {
+                    return Err(MdownError::IoError(err, format!(".cache\\preview\\{}", full_path)));
+                }
+            };
+        }
+        match fs::copy(full_path, target_file) {
+            Ok(_) => (),
+            Err(err) => {
+                return Err(MdownError::IoError(err, format!(".cache\\preview\\{}", full_path)));
+            }
+        };
     }
     Ok(())
 }

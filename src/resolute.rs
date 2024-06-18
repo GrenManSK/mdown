@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 use serde_json::{ Map, Value };
 use std::{ collections::HashMap, fs::{ self, File, OpenOptions }, io::{ Read, Write }, sync::Arc };
 use parking_lot::Mutex;
+use crossterm::event::{ self, Event, KeyCode };
 
 use crate::{
     args::{ self, ARGS },
@@ -9,14 +10,22 @@ use crate::{
     download_manga,
     error::MdownError,
     getter::{ self, get_folder_name, get_manga, get_manga_name, get_scanlation_group },
-    log,
     handle_error,
+    log,
     log_end,
-    metadata::{ ChapterMetadata, TagMetadata, LOG, DAT, MangaMetadata },
-    MAXPOINTS,
+    metadata::{
+        ChapterMetadata,
+        MangaDownloadLogs,
+        MangaMetadata,
+        MdownLogs,
+        TagMetadata,
+        DAT,
+        LOG,
+    },
     string,
-    utils::{ self, clear_screen },
+    utils::{ self, clear_screen, input },
     zip_func,
+    MAXPOINTS,
 };
 
 lazy_static! {
@@ -24,6 +33,7 @@ lazy_static! {
     pub(crate) static ref WEB_DOWNLOADED: Mutex<Vec<String>> = Mutex::new(Vec::new()); // filenames
     pub(crate) static ref MANGA_NAME: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref MANGA_ID: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref CHAPTER_ID: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref LOGS: Mutex<Vec<LOG>> = Mutex::new(Vec::new());
     pub(crate) static ref HANDLE_ID: Mutex<Box<str>> = Mutex::new(String::new().into_boxed_str());
     pub(crate) static ref HANDLE_ID_END: Mutex<Vec<Box<str>>> = Mutex::new(Vec::new());
@@ -69,6 +79,178 @@ pub(crate) fn args_delete() -> Result<(), MdownError> {
     }
 }
 
+pub(crate) async fn show_log() -> Result<(), MdownError> {
+    let log_path = match getter::get_log_path() {
+        Ok(path) => path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    match fs::metadata(&log_path) {
+        Ok(_metadata) => (),
+        Err(err) => {
+            return Err(MdownError::IoError(err, log_path));
+        }
+    }
+    let json = match get_dat_content(log_path.as_str()) {
+        Ok(value) => value,
+        Err(error) => {
+            return Err(error);
+        }
+    };
+
+    match serde_json::from_value::<MdownLogs>(json) {
+        Ok(logs) => {
+            println!(
+                "N     ID            In brackets is probable type (it may not be same real type)"
+            );
+            let data = logs.clone();
+
+            let mut names: Vec<String> = Vec::new();
+            for (name, _) in data.iter() {
+                names.push(name.to_string());
+            }
+            names.sort();
+            for (times, name) in names.iter().enumerate() {
+                let typ = match name.len() {
+                    12 => "web",
+                    16 => "downloader",
+                    _ => "unknown",
+                };
+                println!("{}: {} ({})", times, name, typ);
+            }
+
+            let vstup = match input("> ") {
+                Ok(vstup) => vstup,
+                Err(err) => {
+                    return Err(err);
+                }
+            };
+
+            println!("");
+
+            let code = match vstup.parse::<usize>() {
+                Ok(code) => code,
+                Err(err) => {
+                    return Err(MdownError::ConversionError(err.to_string()));
+                }
+            };
+            if code >= data.len() {
+                return Err(MdownError::ConversionError(String::from("code")));
+            }
+
+            let name = match names.get(code) {
+                Some(name) => name,
+                None => {
+                    return Err(MdownError::ConversionError(String::from("name")));
+                }
+            };
+
+            let log = match logs.get(name) {
+                Some(items) => items.clone(),
+                None => MangaDownloadLogs::default(),
+            };
+
+            let name = log.name;
+            let id = log.id;
+            let mwd = log.mwd;
+            let time_start = log.time_start;
+            let time_end = log.time_end;
+            let r#type = log.r#type;
+            let logs = log.logs;
+
+            println!("name: {}", name);
+            println!("id: {}", id);
+            println!("mwd: {}", mwd);
+            println!("time_start: {}", time_start);
+            println!("time_end:   {}", time_end);
+            println!("type: {}", r#type);
+
+            println!("");
+
+            let mut names: Vec<String> = Vec::new();
+            for (name, _) in logs.iter() {
+                let name = match name.as_str() {
+                    "" => "General",
+                    x => x,
+                };
+                names.push(name.to_string());
+            }
+
+            names.sort();
+
+            println!("N   Name");
+
+            for (times, name) in names.iter().enumerate() {
+                println!("{}: {}", times, name);
+            }
+
+            let vstup = match input("> ") {
+                Ok(vstup) => vstup,
+                Err(err) => {
+                    return Err(err);
+                }
+            };
+            let code = match vstup.parse::<usize>() {
+                Ok(code) => code,
+                Err(err) => {
+                    return Err(MdownError::ConversionError(err.to_string()));
+                }
+            };
+            if code >= logs.len() {
+                return Err(MdownError::ConversionError(String::from("code")));
+            }
+
+            let name = match names.get(code) {
+                Some(name) =>
+                    match name.as_str() {
+                        "General" => "",
+                        x => x,
+                    }
+                None => {
+                    return Err(MdownError::ConversionError(String::from("name")));
+                }
+            };
+
+            let items = match logs.get(name) {
+                Some(items) => items.to_vec(),
+                None => Vec::new(),
+            };
+
+            let mut lines = 0;
+            let mut stdout = std::io::stdout().lock();
+
+            for (times, name) in items.iter().enumerate() {
+                if times >= lines + 100 {
+                    write!(
+                        stdout,
+                        "Press Enter to print the next line, or space to print the next 100 lines.\r"
+                    ).unwrap();
+                    stdout.flush().unwrap();
+
+                    if let Event::Key(key_event) = event::read().unwrap() {
+                        match key_event.code {
+                            KeyCode::Enter => {
+                                lines += 2;
+                            }
+                            KeyCode::Char(' ') => {
+                                lines += 50;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                println!("{}: {}", times, name);
+            }
+        }
+        Err(err) => {
+            return Err(MdownError::JsonError(err.to_string()));
+        }
+    }
+
+    Ok(())
+}
+
 pub(crate) async fn show() -> Result<(), MdownError> {
     let dat_path = match getter::get_dat_path() {
         Ok(path) => path,
@@ -98,11 +280,23 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                 println!("No manga found");
             }
             for item in data.iter() {
+                let id = item.id.clone();
+
+                match ARGS.lock().show {
+                    Some(Some(ref filter)) if !filter.is_empty() => {
+                        if &id != filter {
+                            continue;
+                        }
+                    }
+                    Some(_) => (),
+                    None => {
+                        return Ok(());
+                    }
+                }
                 println!("");
                 println!("------------------------------------");
                 let manga_name = item.name.clone();
                 let mwd = item.mwd.clone();
-                let id = item.id.clone();
                 let language = item.current_language.clone();
                 let date = item.date.clone();
                 let mut date_str = String::new();
@@ -598,7 +792,12 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
     json = match serde_json::from_value::<DAT>(json.clone()) {
         Ok(mut dat) => {
             let data = &mut dat.data;
-            if data.is_empty() {
+
+            let manga_names: Vec<String> = data
+                .iter()
+                .map(|item| item.name.clone())
+                .collect();
+            if data.is_empty() || !manga_names.contains(&MANGA_NAME.lock().clone()) {
                 let mwd = format!("{}", MWD.lock());
                 let cover = COVER.lock();
                 let mut chapters = Vec::new();
@@ -646,51 +845,44 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
 
                 data.push(manga_data);
             } else {
-                let manga_names: Vec<String> = data
-                    .iter()
-                    .map(|item| item.name.clone())
-                    .collect();
+                for chap_data in data.iter_mut() {
+                    let name = &chap_data.name;
+                    if name == MANGA_NAME.lock().as_str() {
+                        let existing_chapters = &mut chap_data.chapters;
 
-                if manga_names.contains(&MANGA_NAME.lock().clone()) {
-                    for chap_data in data.iter_mut() {
-                        let name = &chap_data.name;
-                        if name == MANGA_NAME.lock().as_str() {
-                            let existing_chapters = &mut chap_data.chapters;
+                        let mut existing_chapters_temp = Vec::new();
 
-                            let mut existing_chapters_temp = Vec::new();
-
-                            for i in existing_chapters.iter_mut() {
-                                let number = &i.number;
-                                existing_chapters_temp.push(number);
-                            }
-
-                            let mut new_chapters: Vec<_> = CHAPTERS.lock()
-                                .iter()
-                                .cloned()
-                                .filter(|chapter| {
-                                    let number = chapter.number.clone();
-                                    !existing_chapters_temp.contains(&&number)
-                                })
-                                .collect();
-
-                            new_chapters.sort_by(|a, b| {
-                                let a_num = match a.number.parse::<u32>() {
-                                    Ok(value) => value,
-                                    Err(_err) => 0,
-                                };
-                                let b_num = match b.number.parse::<u32>() {
-                                    Ok(value) => value,
-                                    Err(_err) => 0,
-                                };
-                                a_num.cmp(&b_num)
-                            });
-
-                            for i in new_chapters.iter() {
-                                existing_chapters.push(i.clone());
-                            }
-
-                            break;
+                        for i in existing_chapters.iter_mut() {
+                            let number = &i.number;
+                            existing_chapters_temp.push(number);
                         }
+
+                        let mut new_chapters: Vec<_> = CHAPTERS.lock()
+                            .iter()
+                            .cloned()
+                            .filter(|chapter| {
+                                let number = chapter.number.clone();
+                                !existing_chapters_temp.contains(&&number)
+                            })
+                            .collect();
+
+                        new_chapters.sort_by(|a, b| {
+                            let a_num = match a.number.parse::<u32>() {
+                                Ok(value) => value,
+                                Err(_err) => 0,
+                            };
+                            let b_num = match b.number.parse::<u32>() {
+                                Ok(value) => value,
+                                Err(_err) => 0,
+                            };
+                            a_num.cmp(&b_num)
+                        });
+
+                        for i in new_chapters.iter() {
+                            existing_chapters.push(i.clone());
+                        }
+
+                        break;
                     }
                 }
             }
@@ -1013,6 +1205,16 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         log!("Downloaded manga");
     }
     *DOWNLOADING.lock() = false;
+    CHAPTERS.lock().clear();
+    MANGA_ID.lock().clear();
+    CURRENT_CHAPTER.lock().clear();
+    *CURRENT_PAGE.lock() = 0;
+    *CURRENT_PAGE_MAX.lock() = 0;
+    *CURRENT_PERCENT.lock() = 0.0;
+    *CURRENT_SIZE.lock() = 0.0;
+    *CURRENT_SIZE_MAX.lock() = 0.0;
+    *CURRENT_CHAPTER_PARSED.lock() = 0;
+    *CURRENT_CHAPTER_PARSED_MAX.lock() = 0;
     Ok(manga_name)
 }
 
@@ -1149,6 +1351,7 @@ async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) -> Resul
     *MANGA_ID.lock() = id.to_owned();
     match get_manga(id, going_offset).await {
         Ok((json, _offset)) => {
+            clear_screen(1);
             let downloaded_temp = match download_manga(json, manga_name, arg_force).await {
                 Ok(value) => value,
                 Err(err) => {

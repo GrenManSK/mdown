@@ -1,8 +1,7 @@
 use rusqlite::{ params, Connection, OptionalExtension };
-use serde_json::Value;
-use std::{ io::{ Read, Write }, process::Command, result::Result, thread::sleep, time::Duration };
+use std::{ io::{ Read, Write }, process::Command, result::Result };
 
-use crate::{ download, error::MdownError, getter, resolute, utils };
+use crate::{ args, download, error::MdownError, getter, resolute, metadata::DB };
 
 include!(concat!(env!("OUT_DIR"), "/data_json.rs"));
 
@@ -12,8 +11,9 @@ fn initialize_db(conn: &Connection) -> Result<(), MdownError> {
             "CREATE TABLE IF NOT EXISTS resources (
             id INTEGER PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
-            data BLOB NOT NULL
-            )",
+            data TEXT NOT NULL,
+            is_binary BOOLEAN NOT NULL
+        )",
             []
         )
     {
@@ -26,30 +26,63 @@ fn initialize_db(conn: &Connection) -> Result<(), MdownError> {
 }
 
 pub(crate) fn read_resource(conn: &Connection, name: &str) -> Result<Option<Vec<u8>>, MdownError> {
-    let mut stmt = match conn.prepare("SELECT data FROM resources WHERE name = ?1") {
+    let mut stmt = match conn.prepare("SELECT data, is_binary FROM resources WHERE name = ?1") {
         Ok(stmt) => stmt,
         Err(err) => {
             return Err(MdownError::DatabaseError(err));
         }
     };
-    match stmt.query_row(params![name], |row| row.get(0)).optional() {
+
+    match
+        stmt
+            .query_row(params![name], |row| {
+                let data: String = row.get(0).unwrap();
+                let is_binary: bool = row.get(1).unwrap();
+
+                if is_binary {
+                    #[allow(deprecated)]
+                    let decoded_data = base64
+                        ::decode(&data)
+                        .map_err(|e|
+                            MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                        )
+                        .unwrap();
+                    Ok(Some(decoded_data))
+                } else {
+                    Ok(Some(data.into_bytes()))
+                }
+            })
+            .optional()
+    {
         Ok(result) =>
-            match result {
-                Some(data) => Ok(Some(data)),
-                None => Ok(None),
-            }
-        Err(err) => {
-            return Err(MdownError::DatabaseError(err));
-        }
+            Ok(match result {
+                Some(data) => data,
+                None => None,
+            }),
+        Err(err) => Err(MdownError::DatabaseError(err)),
     }
 }
 
-fn write_resource(conn: &Connection, name: &str, data: &[u8]) -> Result<u64, MdownError> {
+fn write_resource(
+    conn: &Connection,
+    name: &str,
+    data: &[u8],
+    is_binary: bool
+) -> Result<u64, MdownError> {
+    let data_str = if is_binary {
+        #[allow(deprecated)]
+        base64::encode(data)
+    } else {
+        String::from_utf8(data.to_vec())
+            .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error")))
+            .unwrap()
+    };
+
     match
         conn.execute(
-            "INSERT INTO resources (name, data) VALUES (?1, ?2)
-        ON CONFLICT(name) DO UPDATE SET data = excluded.data",
-            params![name, data]
+            "INSERT INTO resources (name, data, is_binary) VALUES (?1, ?2, ?3)
+                ON CONFLICT(name) DO UPDATE SET data = excluded.data, is_binary = excluded.is_binary",
+            params![name, data_str, is_binary]
         )
     {
         Ok(_) => {
@@ -59,6 +92,13 @@ fn write_resource(conn: &Connection, name: &str, data: &[u8]) -> Result<u64, Mdo
         Err(err) => {
             return Err(MdownError::DatabaseError(err));
         }
+    }
+}
+
+fn delete_resource(conn: &Connection, name: &str) -> Result<(), MdownError> {
+    match conn.execute("DELETE FROM resources WHERE name = ?1", params![name]) {
+        Ok(_) => Ok(()),
+        Err(err) => Err(MdownError::DatabaseError(err)),
     }
 }
 
@@ -89,67 +129,75 @@ pub(crate) async fn init() -> std::result::Result<(), MdownError> {
     let mut ftd = false;
 
     let json_data_string = String::from_utf8_lossy(DATA_JSON).to_string();
-    let json_data = match utils::get_json(&json_data_string) {
-        Ok(json_data) => json_data,
+    let json_data = match serde_json::from_str::<DB>(&json_data_string) {
+        Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::JsonError(String::from(err.to_string())));
         }
     };
 
-    if let Some(files) = json_data.get("files").and_then(Value::as_array) {
-        for file in files.iter() {
-            let typ = match file.get("type").and_then(Value::as_str) {
-                Some(typ) => typ,
-                None => {
-                    return Err(MdownError::JsonError(String::from("type not found")));
+    let files = json_data.files;
+    for file in files.iter() {
+        let mut cont = false;
+        for i in file.dependencies.iter() {
+            if !*args::ARGS_FORCE_SETUP {
+                match i.as_str() {
+                    "web" => {
+                        if !*args::ARGS_WEB {
+                            cont = true;
+                        }
+                    }
+                    "gui" => {
+                        if !*args::ARGS_GUI {
+                            cont = true;
+                        }
+                    }
+                    "server" => {
+                        if !*args::ARGS_SERVER {
+                            cont = true;
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+
+        if cont {
+            continue;
+        }
+
+        let typ = file.r#type.clone();
+
+        if typ == "yt-dlp" {
+            let name = &file.name.clone();
+            let db_name = name.replace(".", "_").replace(" ", "_").to_uppercase();
+
+            let db_item = match read_resource(&conn, &db_name) {
+                Ok(value) => value,
+                Err(err) => {
+                    return Err(err);
                 }
             };
-
-            if typ == "yt-dlp" {
-                let name = match file.get("name").and_then(Value::as_str) {
-                    Some(name) => name,
-                    None => {
-                        return Err(MdownError::JsonError(String::from("name not found")));
-                    }
-                };
-                let db_name = name.replace(".", "_").replace(" ", "_").to_uppercase();
-
-                let db_item = match read_resource(&conn, &db_name) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        return Err(err);
-                    }
-                };
-                if db_item.is_none() {
-                    if !ftd {
-                        println!("First time setup");
-                        sleep(Duration::from_secs(1));
-                    }
-                    if !yt_dlp {
-                        ftd = true;
-                        match download_yt_dlp(&full_path).await {
-                            Ok(_) => (),
-                            Err(err) => {
-                                return Err(err);
-                            }
+            if db_item.is_none() {
+                if !ftd {
+                    println!("First time setup");
+                }
+                if !yt_dlp {
+                    ftd = true;
+                    match download_yt_dlp(&full_path).await {
+                        Ok(_) => (),
+                        Err(err) => {
+                            return Err(err);
                         }
-                        yt_dlp = true;
                     }
-                    let url = match file.get("url").and_then(Value::as_str) {
-                        Some(url) => url,
-                        None => {
-                            return Err(MdownError::JsonError(String::from("url not found")));
-                        }
-                    };
-                    let dmca = match file.get("dmca").and_then(Value::as_str) {
-                        Some(dmca) => dmca,
-                        None => {
-                            return Err(MdownError::JsonError(String::from("dmca not found")));
-                        }
-                    };
+                    yt_dlp = true;
+                }
+                let url = &file.url.clone();
+                let dmca = &file.dmca.clone();
 
-                    println!("{}", dmca);
+                println!("{}", dmca);
 
+                for _ in 0..2 {
                     match
                         Command::new(".\\yt-dlp_min.exe")
                             .arg(url)
@@ -171,45 +219,39 @@ pub(crate) async fn init() -> std::result::Result<(), MdownError> {
                             let status = child.wait().expect("Failed to wait on child");
 
                             if !status.success() {
-                                eprintln!("Process exited with status: {}", status);
-                                return Err(
-                                    MdownError::IoError(
-                                        std::io::Error::new(
-                                            std::io::ErrorKind::Other,
-                                            "Process failed"
-                                        ),
-                                        String::new()
-                                    )
-                                );
+                                eprintln!("\nProcess exited with status: {}\n", status);
+                                continue;
                             }
+                            break;
                         }
-                        Err(err) => {
-                            return Err(MdownError::IoError(err, String::new()));
-                        }
-                    }
-
-                    let file_bytes = match read_file_to_bytes(name) {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(MdownError::IoError(err, String::from(name)));
-                        }
-                    };
-
-                    let initial_data_1: &[u8] = &file_bytes;
-                    match write_resource(&conn, &db_name, initial_data_1) {
-                        Ok(_id) => (),
-                        Err(err) => {
-                            return Err(err);
+                        Err(_err) => {
+                            eprintln!("\nFailed to spawn process\n");
+                            continue;
                         }
                     }
-                    println!("Added {} to database\n", db_name);
-                    match std::fs::remove_file(name) {
-                        Ok(_) => (),
-                        Err(err) => {
-                            return Err(MdownError::IoError(err, String::from(name)));
-                        }
-                    };
                 }
+
+                let file_bytes = match read_file_to_bytes(&name) {
+                    Ok(value) => value,
+                    Err(_err) => {
+                        continue;
+                    }
+                };
+
+                let initial_data_1: &[u8] = &file_bytes;
+                match write_resource(&conn, &db_name, initial_data_1, true) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
+                println!("Added {} to database\n", db_name);
+                match std::fs::remove_file(name) {
+                    Ok(_) => (),
+                    Err(err) => {
+                        return Err(MdownError::IoError(err, String::from(name)));
+                    }
+                };
             }
         }
     }
@@ -223,6 +265,13 @@ pub(crate) async fn init() -> std::result::Result<(), MdownError> {
                 }
             };
         }
+    }
+
+    if *args::ARGS_FORCE_SETUP {
+        if !ftd {
+            println!("All requirements have been already installed");
+        }
+        std::process::exit(0);
     }
 
     Ok(())
@@ -284,7 +333,13 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     };
     let url = "https://github.com/yt-dlp/yt-dlp/releases/download/2024.04.09/yt-dlp_min.exe";
 
-    println!("Fetching {}", url);
+    print!("Fetching {}\r", url);
+    match std::io::stdout().flush() {
+        Ok(()) => (),
+        Err(err) => {
+            return Err(MdownError::IoError(err, String::new()));
+        }
+    }
     let mut response = match client.get(url).send().await {
         Ok(response) => { response }
         Err(err) => {
@@ -327,13 +382,19 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
             let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
             let perc_string = download::get_perc(percentage);
             let message = format!(
-                "Downloading yt-dlp_min.exe {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]",
+                "Downloading yt-dlp_min.exe {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]\r",
                 perc_string,
                 (downloaded as f32) / 1024.0 / 1024.0,
                 final_size,
                 (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
             );
-            println!("{}", message);
+            print!("{}", message);
+            match std::io::stdout().flush() {
+                Ok(()) => (),
+                Err(err) => {
+                    return Err(MdownError::IoError(err, String::new()));
+                }
+            }
             last_check_time = current_time;
             last_size = downloaded as f32;
         }
@@ -346,4 +407,63 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     );
     println!("{}\n", message);
     Ok(())
+}
+
+pub(crate) fn setup_settings() -> Result<String, MdownError> {
+    let db_path = match getter::get_db_path() {
+        Ok(path) => path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    let conn = match Connection::open(&db_path) {
+        Ok(conn) => conn,
+        Err(err) => {
+            return Err(MdownError::DatabaseError(err));
+        }
+    };
+
+    match initialize_db(&conn) {
+        Ok(_) => (),
+        Err(err) => {
+            return Err(err);
+        }
+    }
+    match args::ARGS.lock().subcommands.clone() {
+        Some(args::Commands::Settings { folder }) => {
+            match folder {
+                Some(Some(folder)) => {
+                    match write_resource(&conn, "folder", folder.as_bytes(), false) {
+                        Ok(_id) => (),
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    }
+                }
+                Some(None) =>
+                    match delete_resource(&conn, "folder") {
+                        Ok(_id) => (),
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    }
+                None => (),
+            }
+        }
+        Some(_) => (),
+        None => (),
+    }
+
+    let folder = match read_resource(&conn, "folder") {
+        Ok(Some(value)) =>
+            String::from_utf8(value)
+                .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error")))
+                .unwrap(),
+        Ok(None) => String::from("."),
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    Ok(folder)
 }

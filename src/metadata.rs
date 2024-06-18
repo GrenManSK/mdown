@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::Utc;
 use serde::{ Serialize, Deserialize };
 
@@ -130,10 +132,35 @@ impl LOG {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct DB {
+    pub(crate) files: Vec<DBItem>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct DBItem {
+    pub(crate) r#type: String,
+    pub(crate) url: String,
+    pub(crate) name: String,
+    pub(crate) dmca: String,
+    pub(crate) dependencies: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct DAT {
     pub(crate) data: Vec<MangaMetadata>,
     pub(crate) version: String,
 }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub(crate) struct MangaDownloadLogs {
+    pub(crate) id: String,
+    pub(crate) logs: HashMap<String, Vec<String>>,
+    pub(crate) mwd: String,
+    pub(crate) name: String,
+    pub(crate) time_end: String,
+    pub(crate) time_start: String,
+    pub(crate) r#type: String,
+}
+
+pub(crate) type MdownLogs = HashMap<String, MangaDownloadLogs>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct MangaMetadata {

@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.9.1"
+version = "0.10.0"
 edition = "2021"
 authors = ["GrenManSK"]
 
@@ -9,16 +9,18 @@ build = "src/build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-base64 = { version = "0.22.1", optional = true }
+base64 = "0.22.1"
 chrono = "0.4.35"
 clap = { version = "4.4.18", features = ["derive"] }
 crosscurses = { version = "0.1.0", features = ["win32"] }
+crossterm = "0.27.0"
 ctrlc = { version = "3.4.2", optional = true }
 eframe = { version = "0.27.2", optional = true }
 egui = { version = "0.27.2", optional = true }
 egui_extras = { version = "0.27.2", optional = true }
 futures = "0.3.30"
 if-addrs = { version = "0.12.0", optional = true }
+image = { version = "0.25.1", optional = true }
 lazy_static = "1.4.0"
 parking_lot = "0.12.3"
 percent-encoding = { version = "2.3.1", optional = true }
@@ -47,6 +49,6 @@ h2 = "0.4.4"
 
 [features]
 full = ["web", "gui", "server"]
-web = ["webbrowser", "base64", "ctrlc", "percent-encoding"]
+web = ["webbrowser", "ctrlc", "percent-encoding"]
 server = ["webbrowser", "if-addrs", "percent-encoding", "ctrlc"]
-gui = ["eframe", "egui", "egui_extras"]
+gui = ["eframe", "egui", "egui_extras", "image"]

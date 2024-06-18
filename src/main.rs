@@ -10,18 +10,20 @@ mod db;
 mod download;
 mod error;
 mod getter;
-
-#[cfg(feature = "gui")]
-mod gui;
 mod macros;
 mod metadata;
 mod resolute;
+mod utils;
+mod zip_func;
+
+#[cfg(feature = "gui")]
+mod gui;
+
 #[cfg(feature = "server")]
 mod server;
-mod utils;
+
 #[cfg(feature = "web")]
 mod web;
-mod zip_func;
 
 fn string(y: u32, x: u32, value: &str) {
     if
@@ -69,7 +71,12 @@ async fn main() {
         !*args::ARGS_CHECK &&
         !*args::ARGS_UPDATE &&
         !*args::ARGS_QUIET &&
-        !*args::ARGS_RESET
+        !*args::ARGS_RESET &&
+        !args::ARGS_SHOW.is_some() &&
+        !*args::ARGS_SHOW_ALL &&
+        *args::ARGS_ENCODE != String::new() &&
+        !*args::ARGS_DELETE &&
+        !*args::ARGS_SHOW_LOG
     {
         crosscurses::echo();
         crosscurses::cbreak();
@@ -78,7 +85,15 @@ async fn main() {
         exit(0);
     }
 }
+
 async fn start() -> Result<(), error::MdownError> {
+    let folder = match db::setup_settings() {
+        Ok(folder) => folder,
+        Err(_err) => String::from("."),
+    };
+
+    args::ARGS.lock().change("folder", args::Value::Str(folder));
+
     if *args::ARGS_ENCODE != "" {
         #[cfg(feature = "web")]
         println!("{}", web::encode(&*args::ARGS_ENCODE));
@@ -114,6 +129,13 @@ async fn start() -> Result<(), error::MdownError> {
         };
     }
 
+    if *args::ARGS_SHOW_LOG {
+        return match resolute::show_log().await {
+            Ok(()) => Ok(()),
+            Err(err) => Err(err),
+        };
+    }
+
     match utils::create_cache_folder() {
         Ok(()) => (),
         Err(err) => {
@@ -129,6 +151,7 @@ async fn start() -> Result<(), error::MdownError> {
         *crate::args::ARGS_LOG ||
         *args::ARGS_SERVER
     {
+        tokio::spawn(async { utils::log_handler() });
         match utils::setup_subscriber() {
             Ok(()) => (),
             Err(err) => {
@@ -139,7 +162,7 @@ async fn start() -> Result<(), error::MdownError> {
 
     *resolute::LANGUAGE.lock() = args::ARGS.lock().lang.clone();
 
-    if *args::ARGS_SHOW || *args::ARGS_SHOW_ALL {
+    if args::ARGS_SHOW.is_some() || *args::ARGS_SHOW_ALL {
         match resolute::show().await {
             Ok(()) => (),
             Err(err) => {
@@ -167,8 +190,6 @@ async fn start() -> Result<(), error::MdownError> {
         };
     }
 
-    tokio::spawn(async { utils::log_handler() });
-
     if *args::ARGS_SERVER {
         #[cfg(feature = "server")]
         return match server::start() {
@@ -179,7 +200,11 @@ async fn start() -> Result<(), error::MdownError> {
         {
             println!("Server is not supported");
             *resolute::ENDED.lock() = true;
-            return Ok(());
+
+            return match utils::remove_cache() {
+                Ok(()) => Ok(()),
+                Err(err) => Err(err),
+            };
         }
     }
 
@@ -194,7 +219,11 @@ async fn start() -> Result<(), error::MdownError> {
         {
             println!("Gui is not supported");
             *resolute::ENDED.lock() = true;
-            return Ok(());
+
+            return match utils::remove_cache() {
+                Ok(()) => Ok(()),
+                Err(err) => Err(err),
+            };
         }
     }
 
@@ -209,7 +238,11 @@ async fn start() -> Result<(), error::MdownError> {
         {
             println!("Web is not supported");
             *resolute::ENDED.lock() = true;
-            return Ok(());
+
+            return match utils::remove_cache() {
+                Ok(()) => Ok(()),
+                Err(err) => Err(err),
+            };
         }
     }
 
@@ -286,13 +319,7 @@ async fn start() -> Result<(), error::MdownError> {
                     status_code = match
                         reqwest::StatusCode::from_u16(match status_code_tmp.parse::<u16>() {
                             Ok(code) => code,
-                            Err(err) => {
-                                return Err(
-                                    error::MdownError::ConversionError(
-                                        format!("status_code {}", err.to_string())
-                                    )
-                                );
-                            }
+                            Err(_err) => 0,
                         })
                     {
                         Ok(code) => code,
@@ -378,6 +405,7 @@ pub(crate) async fn download_manga(
                 let array_item = getter::get_attr_as_same_from_vec(&data_array, item);
                 let value = getter::get_attr_as_same(array_item, "id").to_string();
                 let id = value.trim_matches('"');
+                *resolute::CHAPTER_ID.lock() = id.to_string().clone();
 
                 let message = format!("({}) Found chapter with id: {}", item as u32, id);
                 if
@@ -916,8 +944,6 @@ pub(crate) async fn download_chapter(
                                     );
                                     let full_path = format!(".cache/{}/{}", folder_name, file_name);
 
-                                    string(3 + 1 + (page as u32), 0, " Pending");
-
                                     tokio::spawn(async move {
                                         match
                                             download::download_image(
@@ -931,9 +957,9 @@ pub(crate) async fn download_chapter(
                                                 &lock_file,
                                                 &full_path,
                                                 saver,
-                                                start,
-                                                iter,
-                                                i
+                                                start
+                                                // iter,
+                                                // i
                                             ).await
                                         {
                                             Ok(()) => (),
@@ -986,6 +1012,13 @@ pub(crate) async fn download_chapter(
             eprintln!("JSON is not an object.");
         }
     }
+
+    resolute::CURRENT_CHAPTER.lock().clear();
+    *resolute::CURRENT_PAGE.lock() = 0;
+    *resolute::CURRENT_PAGE_MAX.lock() = 0;
+    *resolute::CURRENT_PERCENT.lock() = 0.0;
+    *resolute::CURRENT_SIZE.lock() = 0.0;
+    *resolute::CURRENT_SIZE_MAX.lock() = 0.0;
 
     Ok(())
 }

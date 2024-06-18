@@ -1,6 +1,5 @@
 use eframe::egui;
 use egui::{ containers::*, * };
-
 use serde_json::Value;
 use tracing::info;
 
@@ -25,7 +24,7 @@ pub(crate) fn start() -> Result<(), MdownError> {
 pub(crate) fn app() -> Result<(), eframe::Error> {
     info!("Starting gui");
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([500.0, 500.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([500.0, 600.0]),
         ..Default::default()
     };
     eframe::run_native(
@@ -52,6 +51,9 @@ struct App {
     saver: bool,
     stat: bool,
     force: bool,
+    texture_handle: Option<TextureHandle>,
+    image_size: u64,
+    times: u32,
 }
 
 impl App {
@@ -87,6 +89,9 @@ impl App {
             saver: saver,
             stat: stat,
             force: force,
+            texture_handle: None,
+            image_size: 0,
+            times: 0,
         }
     }
 }
@@ -190,7 +195,7 @@ impl eframe::App for App {
                             ui.ctx().request_repaint();
                             let time = ui.input(|i| i.time);
 
-                            let desired_size = ui.available_width() * vec2(1.0, 0.35);
+                            let desired_size = (ui.available_width() / 3.0) * 2.0 * vec2(1.0, 0.35);
                             let (_id, rect) = ui.allocate_space(desired_size);
 
                             let to_screen = emath::RectTransform::from_to(
@@ -224,6 +229,7 @@ impl eframe::App for App {
 
                             ui.painter().extend(shapes);
                         });
+
                         ui.label(format!("Downloading {}", resolute::MANGA_NAME.lock()));
                         ui.label(format!("Chapter: {}", resolute::CURRENT_CHAPTER.lock()));
                         ui.label(
@@ -258,6 +264,55 @@ impl eframe::App for App {
                                         ui.label(i);
                                     }
                                 });
+                            }
+
+                            if self.texture_handle.is_some() {
+                                match std::fs::metadata(".cache\\preview\\preview.png") {
+                                    Ok(metadata) => {
+                                        let size = metadata.len();
+
+                                        if size != self.image_size {
+                                            self.texture_handle = None;
+                                        }
+                                    }
+                                    Err(_err) => (),
+                                };
+                            }
+                            if let Some(texture_handle) = &self.texture_handle {
+                                ui.image(texture_handle);
+                            } else {
+                                self.times += 1;
+                                if
+                                    let Ok(metadata) = std::fs::metadata(
+                                        ".cache\\preview\\preview.png"
+                                    )
+                                {
+                                    self.image_size = metadata.len();
+                                }
+
+                                if self.times == 10 {
+                                    self.times = 0;
+                                    match image::open(".cache\\preview\\preview.png") {
+                                        Ok(img) => {
+                                            let img_rgba8 = img.to_rgba8();
+                                            let size = [
+                                                img_rgba8.width() as usize,
+                                                img_rgba8.height() as usize,
+                                            ];
+                                            let color_image = ColorImage::from_rgba_unmultiplied(
+                                                size,
+                                                &img_rgba8
+                                            );
+                                            let texture_handle = ctx.load_texture(
+                                                "my_image",
+                                                color_image,
+                                                TextureOptions::default()
+                                            );
+                                            self.texture_handle = Some(texture_handle);
+                                        }
+                                        Err(_err) => (),
+                                    }
+                                }
                             }
                         })
                     });
