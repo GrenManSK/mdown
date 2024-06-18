@@ -266,26 +266,35 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
             if let Some(id) = query_params.get("id").cloned() {
                 log!("REQUEST RECEIVED", id.clone().into_boxed_str());
                 log!("REQUEST Type: progress", id.clone().into_boxed_str());
-                match parse_request(String::from("progress")) {
-                    Ok(value) => {
-                        response = value;
-                    }
+        
+                let total_chapters = 24;
+                let mut progress_response = String::new();
+        
+                for current_chapter in (0..=total_chapters).step_by(2) {
+                    progress_response.push_str(&format!("{}{}/{}\n", if progress_response.is_empty() { "" } else { " " }, current_chapter, total_chapters));
+                }
+        
+                let response = match parse_request(String::from("progress")) {
+                    Ok(value) => value,
                     Err(err) => {
                         handle_error!(&err, String::from("main"));
-                        response = String::from(
-                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
-                        );
+                        String::from("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}")
                     }
                 };
+        
+                let final_response = format!("{}\n{}", response, progress_response);
+        
+                match stream.write_all(final_response.as_bytes()) {
+                    Ok(()) => (),
+                    Err(_err) => (),
+                }
             } else {
-                response = String::from(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
-                );
-            }
-            match stream.write_all(response.as_bytes()) {
-                Ok(()) => (),
-                Err(_err) => (),
-            }
+                let response = String::from("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}");
+                match stream.write_all(response.as_bytes()) {
+                    Ok(()) => (),
+                    Err(_err) => (),
+                }
+            }        
         } else if path.starts_with("/__version__") {
             response = format!(
                 "{}{}",
