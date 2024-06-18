@@ -460,7 +460,7 @@ pub(crate) fn setup_settings() -> Result<String, MdownError> {
             String::from_utf8(value)
                 .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error")))
                 .unwrap(),
-        Ok(None) => String::from("."),
+        Ok(None) => args::ARGS.lock().folder.clone(),
         Err(err) => {
             return Err(err);
         }
