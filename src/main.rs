@@ -89,7 +89,7 @@ async fn main() {
 async fn start() -> Result<(), error::MdownError> {
     let folder = match db::setup_settings() {
         Ok(folder) => folder,
-        Err(_err) => String::from("."),
+        Err(_err) => args::ARGS.lock().folder.clone(),
     };
 
     args::ARGS.lock().change("folder", args::Value::Str(folder));
