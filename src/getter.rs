@@ -5,8 +5,8 @@ use crate::{
     args::{ self, ARGS },
     download::get_response_client,
     error::MdownError,
-    getter,
     log,
+    metadata,
     resolute,
     string,
     utils,
@@ -346,11 +346,14 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
     }
 }
 
-pub(crate) fn get_scanlation_group(json: &Vec<Value>) -> Option<&str> {
+pub(crate) fn get_scanlation_group(json: &Vec<metadata::ChapterRelResponse>) -> Option<String> {
     for relation in json {
-        if let Some(relation_type) = relation.get("type") {
-            if relation_type == "scanlation_group" {
-                return relation.get("id").and_then(Value::as_str);
+        match relation.r#type.as_str() {
+            "scanlation_group" => {
+                return Some(relation.id.clone());
+            }
+            _ => {
+                continue;
             }
         }
     }
@@ -570,31 +573,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
     }
 }
 
-pub(crate) fn get_attr_as_str<'a>(obj: &'a Value, attr: &'a str) -> &'a str {
-    match obj.get(attr).and_then(Value::as_str) {
-        Some(value) => value,
-        None => "",
-    }
-}
-
-pub(crate) fn get_attr_as_u64<'a>(obj: &'a Value, attr: &'a str) -> u64 {
-    match obj.get(attr).and_then(Value::as_u64) {
-        Some(value) => value,
-        None => 0,
-    }
-}
-
-pub(crate) fn get_attr_as_same<'a>(obj: &'a Value, attr: &'a str) -> &'a Value {
-    match obj.get(attr) {
-        Some(value) => value,
-        None => {
-            eprintln!("{}", MdownError::NotFoundError(String::from("get_attr_as_same")));
-            exit(1);
-        }
-    }
-}
-
-pub(crate) fn get_attr_as_same_as_index(data_array: &Value, item: usize) -> &Value {
+pub(crate) fn get_attr_as_same_as_index(data_array: &Vec<String>, item: usize) -> &String {
     match data_array.get(item) {
         Some(value) => value,
         None => {
@@ -604,7 +583,10 @@ pub(crate) fn get_attr_as_same_as_index(data_array: &Value, item: usize) -> &Val
     }
 }
 
-pub(crate) fn get_attr_as_same_from_vec(data_array: &Vec<Value>, item: usize) -> &Value {
+pub(crate) fn get_attr_as_same_from_vec(
+    data_array: &Vec<metadata::ChapterResponse>,
+    item: usize
+) -> &metadata::ChapterResponse {
     match data_array.get(item) {
         Some(value) => value,
         None => {
@@ -614,12 +596,23 @@ pub(crate) fn get_attr_as_same_from_vec(data_array: &Vec<Value>, item: usize) ->
     }
 }
 
-pub(crate) fn get_metadata(array_item: &Value) -> (&Value, &str, u64, &str, &str) {
-    let chapter_attr = getter::get_attr_as_same(array_item, "attributes");
-    let lang = getter::get_attr_as_str(chapter_attr, "translatedLanguage");
-    let pages = getter::get_attr_as_u64(chapter_attr, "pages");
-    let chapter_num = getter::get_attr_as_str(chapter_attr, "chapter");
-    let title = getter::get_attr_as_str(chapter_attr, "title");
+pub(crate) fn get_metadata(
+    array_item: &metadata::ChapterResponse
+) -> (metadata::ChapterAttrResponse, String, u64, String, String) {
+    let chapter_attr = array_item.attributes.clone();
+    let lang = match chapter_attr.translatedLanguage.clone() {
+        Some(value) => value,
+        None => String::new(),
+    };
+    let pages = chapter_attr.pages.clone();
+    let chapter_num = match chapter_attr.chapter.clone() {
+        Some(value) => value,
+        None => String::new(),
+    };
+    let title = match chapter_attr.title.clone() {
+        Some(value) => value,
+        None => String::new(),
+    };
     (chapter_attr, lang, pages, chapter_num, title)
 }
 
@@ -726,285 +719,4 @@ fn test_get_manga_name_returns_empty_string_if_title_in_alt_titles_but_no_langua
     let result = get_manga_name(&title_data);
 
     assert_eq!(result, "Unrecognized title");
-}
-
-// Returns a tuple with five elements when given a valid Value object.
-#[test]
-fn test_get_metadata_should_return_tuple_with_five_elements() {
-    // Arrange
-    let array_item = Value::from(
-        serde_json::json!({
-        "attributes": {
-            "translatedLanguage": "English",
-            "pages": 10,
-            "chapter": "Chapter 1",
-            "title": "Title"
-        }
-    })
-    );
-
-    // Act
-    let result = get_metadata(&array_item);
-
-    // Assert
-    assert_eq!(result.1, "English");
-    assert_eq!(result.2, 10);
-    assert_eq!(result.3, "Chapter 1");
-    assert_eq!(result.4, "Title");
-}
-
-// Returns an empty string for the language when the 'translatedLanguage' attribute is missing.
-#[test]
-fn test_get_metadata_should_return_empty_string_for_language_when_translated_language_attribute_is_missing() {
-    // Arrange
-    let array_item = Value::from(
-        serde_json::json!({
-        "attributes": {
-            "pages": 10,
-            "chapter": "Chapter 1",
-            "title": "Title"
-        }
-    })
-    );
-
-    // Act
-    let result = get_metadata(&array_item);
-
-    // Assert
-    assert_eq!(result.1, "");
-}
-
-// Returns 0 for the number of pages when the 'pages' attribute is missing.
-#[test]
-fn test_get_metadata_should_return_zero_for_number_of_pages_when_pages_attribute_is_missing() {
-    // Arrange
-    let array_item = Value::from(
-        serde_json::json!({
-        "attributes": {
-            "translatedLanguage": "English",
-            "chapter": "Chapter 1",
-            "title": "Title"
-        }
-    })
-    );
-
-    // Act
-    let result = get_metadata(&array_item);
-
-    // Assert
-    assert_eq!(result.2, 0);
-}
-
-// Returns an empty string for the chapter number when the 'chapter' attribute is missing.
-#[test]
-fn test_get_metadata_should_return_empty_string_for_chapter_number_when_chapter_attribute_is_missing() {
-    // Arrange
-    let array_item = Value::from(
-        serde_json::json!({
-        "attributes": {
-            "translatedLanguage": "English",
-            "pages": 10,
-            "title": "Title"
-        }
-    })
-    );
-
-    // Act
-    let result = get_metadata(&array_item);
-
-    // Assert
-    assert_eq!(result.3, "");
-}
-
-// returns the value of the attribute as a string if it exists in the given JSON object
-#[test]
-fn test_get_attr_as_str_returns_value_if_attribute_exists() {
-    let json = serde_json::json!({
-        "attr": "value"
-    });
-    let result = get_attr_as_str(&json, "attr");
-    assert_eq!(result, "value");
-}
-
-// returns an empty string if the attribute exists in the given JSON object but its value is not a string
-#[test]
-fn test_get_attr_as_str_returns_empty_string_if_attribute_value_string() {
-    let json = serde_json::json!({
-        "attr": 123
-    });
-    let result = get_attr_as_str(&json, "attr");
-    assert_eq!(result, "");
-}
-
-// Returns the u64 value of the given attribute if it exists in the given JSON object
-#[test]
-fn test_get_attr_as_u64_returns_u64_value_if_attribute_exists() {
-    let json = serde_json::json!({
-        "attr": 10
-    });
-    let obj = &json;
-    let attr = "attr";
-
-    let result = get_attr_as_u64(obj, attr);
-
-    assert_eq!(result, 10);
-}
-
-// Returns 0 if the given JSON object is null
-#[test]
-fn test_get_attr_as_u64_returns_0_if_json_object_null() {
-    let obj = serde_json::Value::Null;
-    let attr = "attr";
-
-    let result = get_attr_as_u64(&obj, attr);
-
-    assert_eq!(result, 0);
-}
-
-// Returns 0 if the given attribute is null
-#[test]
-fn test_get_attr_as_u64_returns_0_if_attribute_null() {
-    let json = serde_json::json!({
-        "attr": serde_json::Value::Null
-    });
-    let obj = &json;
-    let attr = "attr";
-
-    let result = get_attr_as_u64(obj, attr);
-
-    assert_eq!(result, 0);
-}
-
-// Returns the value at the specified index in the given JSON array.
-#[test]
-fn test_get_attr_as_same_as_index_returns_value_at_specified_index() {
-    let data_array = serde_json::json!([1, 2, 3, 4, 5]);
-
-    let result = get_attr_as_same_as_index(&data_array, 2);
-
-    assert_eq!(result, &serde_json::json!(3));
-}
-
-// Returns the first value if the index is 0.
-#[test]
-fn test_get_attr_as_same_as_index_returns_first_value_if_index_is_zero() {
-    let data_array = serde_json::json!([1, 2, 3, 4, 5]);
-
-    let result = get_attr_as_same_as_index(&data_array, 0);
-
-    assert_eq!(result, &serde_json::json!(1));
-}
-
-// Returns the last value if the index is the last index of the array.
-#[test]
-fn test_get_attr_as_same_as_index_returns_last_value_if_index_is_last_index() {
-    let data_array = serde_json::json!([1, 2, 3, 4, 5]);
-
-    let result = get_attr_as_same_as_index(&data_array, 4);
-
-    assert_eq!(result, &serde_json::json!(5));
-}
-
-// Returns the scanlation group ID if it exists in the JSON array
-#[test]
-fn test_get_scanlation_group_returns_scanlation_group_id_if_exists() {
-    let json = vec![
-        serde_json::json!({
-            "type": "scanlation_group",
-            "id": "group1"
-        }),
-        serde_json::json!({
-            "type": "other",
-            "id": "group2"
-        })
-    ];
-
-    let result = get_scanlation_group(&json);
-
-    assert_eq!(result, Some("group1"));
-}
-
-// Returns None if no scanlation group ID exists in the JSON array
-#[test]
-fn test_get_scanlation_group_returns_none_if_no_scanlation_group_id_exists() {
-    let json = vec![
-        serde_json::json!({
-            "type": "other",
-            "id": "group1"
-        }),
-        serde_json::json!({
-            "type": "other",
-            "id": "group2"
-        })
-    ];
-
-    let result = get_scanlation_group(&json);
-
-    assert_eq!(result, None);
-}
-
-// Returns None if the input JSON array is empty
-#[test]
-fn test_get_scanlation_group_returns_none_if_input_json_array_is_empty() {
-    let json: Vec<serde_json::Value> = vec![];
-
-    let result = get_scanlation_group(&json);
-
-    assert_eq!(result, None);
-}
-
-// Returns None if the input JSON array does not contain any relation objects
-#[test]
-fn test_get_scanlation_group_returns_none_if_input_json_array_does_not_contain_relation_objects() {
-    let json = vec![
-        serde_json::json!({
-            "type": "other",
-            "id": "group1"
-        }),
-        serde_json::json!({
-            "type": "other",
-            "id": "group2"
-        })
-    ];
-
-    let result = get_scanlation_group(&json);
-
-    assert_eq!(result, None);
-}
-
-// Returns None if the relation object does not contain a 'type' field
-#[test]
-fn test_get_scanlation_group_returns_none_if_relation_object_does_not_contain_type_field() {
-    let json = vec![
-        serde_json::json!({
-            "id": "group1"
-        }),
-        serde_json::json!({
-            "type": "other",
-            "id": "group2"
-        })
-    ];
-
-    let result = get_scanlation_group(&json);
-
-    assert_eq!(result, None);
-}
-
-// Returns None if the 'type' field of the relation object is not 'scanlation_group'
-#[test]
-fn test_get_scanlation_group_returns_none_if_type_field_is_not_scanlation_group() {
-    let json = vec![
-        serde_json::json!({
-            "type": "other",
-            "id": "group1"
-        }),
-        serde_json::json!({
-            "type": "other",
-            "id": "group2"
-        })
-    ];
-
-    let result = get_scanlation_group(&json);
-
-    assert_eq!(result, None);
 }

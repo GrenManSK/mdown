@@ -377,14 +377,9 @@ pub(crate) async fn download_manga(
             return Err(err);
         }
     };
-    match json_value {
-        Value::Object(obj) => {
-            let data_array = utils::sort(match obj.get("data").and_then(Value::as_array) {
-                Some(value) => value,
-                None => {
-                    return Err(error::MdownError::NotFoundError(String::from("download_manga")));
-                }
-            });
+    match serde_json::from_value::<metadata::MangaResponse>(json_value) {
+        Ok(obj) => {
+            let data_array = utils::sort(&obj.data);
             let data_len = data_array.len();
             *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() = data_len as u64;
             for item in 0..data_len {
@@ -403,7 +398,7 @@ pub(crate) async fn download_manga(
                     string(0, MAXPOINTS.max_x - (parsed.len() as u32), &parsed);
                 }
                 let array_item = getter::get_attr_as_same_from_vec(&data_array, item);
-                let value = getter::get_attr_as_same(array_item, "id").to_string();
+                let value = array_item.id.clone();
                 let id = value.trim_matches('"');
                 *resolute::CHAPTER_ID.lock() = id.to_string().clone();
 
@@ -424,12 +419,19 @@ pub(crate) async fn download_manga(
 
                 title = resolute::title(title);
 
-                let vol = match getter::get_attr_as_str(chapter_attr, "volume") {
+                let vol = match
+                    (
+                        match chapter_attr.volume {
+                            Some(value) => value,
+                            None => String::new(),
+                        }
+                    ).as_str()
+                {
                     "" => String::new(),
                     value => format!("Vol.{} ", value),
                 };
 
-                let con_chap = resolute::resolve_skip(arg_chapter, chapter_num);
+                let con_chap = resolute::resolve_skip(arg_chapter, &chapter_num);
                 let con_vol = resolute::resolve_skip(arg_volume, &vol);
 
                 filename = utils::FileName {
@@ -453,13 +455,13 @@ pub(crate) async fn download_manga(
                     })
                 {
                     let mut cont = true;
-                    let update_date = getter::get_attr_as_str(chapter_attr, "updatedAt");
-                    match DateTime::parse_from_rfc3339(update_date) {
+                    let update_date = chapter_attr.updatedAt.clone();
+                    match DateTime::parse_from_rfc3339(&update_date) {
                         Ok(datetime) => {
                             let mut dates = resolute::CHAPTER_DATES.lock();
                             let empty = String::new();
 
-                            let cur_date = match dates.get(chapter_num) {
+                            let cur_date = match dates.get(&chapter_num) {
                                 Some(date) => date.to_owned(),
                                 None => empty,
                             };
@@ -469,13 +471,13 @@ pub(crate) async fn download_manga(
                                     if datetime_cur < datetime {
                                         date_change = true;
                                         cont = false;
-                                        dates.remove(chapter_num);
+                                        dates.remove(&chapter_num);
                                         if *args::ARGS_UPDATE {
                                             resolute::CHAPTERS_TO_REMOVE
                                                 .lock()
                                                 .push(
                                                     metadata::ChapterMetadata::new(
-                                                        chapter_num,
+                                                        &chapter_num,
                                                         &cur_date,
                                                         id
                                                     )
@@ -487,7 +489,7 @@ pub(crate) async fn download_manga(
                                             .lock()
                                             .push(
                                                 metadata::ChapterMetadata::new(
-                                                    chapter_num,
+                                                    &chapter_num,
                                                     &cur_date,
                                                     id
                                                 )
@@ -508,7 +510,7 @@ pub(crate) async fn download_manga(
                     {
                         resolute::CHAPTERS
                             .lock()
-                            .push(metadata::ChapterMetadata::new(&chapter_num, update_date, id));
+                            .push(metadata::ChapterMetadata::new(&chapter_num, &update_date, id));
                         moves = utils::skip(
                             utils::process_filename(&folder_path),
                             item,
@@ -543,15 +545,15 @@ pub(crate) async fn download_manga(
                         let dates = resolute::CHAPTER_DATES.lock();
                         let empty = String::new();
 
-                        let cur_date = match dates.get(chapter_num) {
+                        let cur_date = match dates.get(&chapter_num) {
                             Some(date) => date.to_owned(),
                             None => empty,
                         };
                         resolute::CHAPTERS_TO_REMOVE
                             .lock()
-                            .push(metadata::ChapterMetadata::new(chapter_num, &cur_date, id));
+                            .push(metadata::ChapterMetadata::new(&chapter_num, &cur_date, id));
                     }
-                    let update_date = getter::get_attr_as_str(chapter_attr, "updatedAt");
+                    let update_date = chapter_attr.updatedAt.clone();
                     *resolute::CURRENT_CHAPTER_PARSED.lock() += 1;
                     if arg_offset > times {
                         moves = utils::skip_offset(item, moves, hist);
@@ -568,7 +570,7 @@ pub(crate) async fn download_manga(
                         pages,
                         vol,
                         chapter_num,
-                        match title {
+                        match title.as_str() {
                             "" => String::new(),
                             _ => format!(";Title: {}", title),
                         }
@@ -611,17 +613,31 @@ pub(crate) async fn download_manga(
                         let (name, website) = (name.as_str(), website.as_str());
                         match getter::get_chapter(id).await {
                             Ok(json) => {
+                                let json_value = match utils::get_json(&json) {
+                                    Ok(value) => value,
+                                    Err(err) => {
+                                        return Err(err);
+                                    }
+                                };
+                                let obj = match
+                                    serde_json::from_value::<metadata::ChapterData>(json_value)
+                                {
+                                    Ok(value) => value,
+                                    Err(err) => {
+                                        return Err(error::MdownError::JsonError(err.to_string()));
+                                    }
+                                };
                                 match
                                     download_chapter(
                                         id,
-                                        json,
+                                        obj,
                                         array_item,
                                         &manga_name,
-                                        title,
+                                        &title,
                                         &vol,
-                                        chapter_num,
+                                        &chapter_num,
                                         &filename,
-                                        update_date,
+                                        &update_date,
                                         &name,
                                         &website
                                     ).await
@@ -702,8 +718,8 @@ pub(crate) async fn download_manga(
                 }
             }
         }
-        _ => {
-            eprintln!("JSON is not an object.");
+        Err(err) => {
+            return Err(error::MdownError::JsonError(err.to_string()));
         }
     }
     if *args::ARGS_DEBUG {
@@ -717,8 +733,8 @@ pub(crate) async fn download_manga(
 
 pub(crate) async fn download_chapter(
     id: &str,
-    manga_chapter_json: String,
-    manga_json: &Value,
+    obj: metadata::ChapterData,
+    manga_json: &metadata::ChapterResponse,
     manga_name: &str,
     title: &str,
     vol: &str,
@@ -742,275 +758,199 @@ pub(crate) async fn download_chapter(
         drop(current_chapter);
         log!(&format!("Downloading images in folder: {}", filename.get_folder_name()));
     }
-    let json_value = match utils::get_json(&manga_chapter_json) {
-        Ok(value) => value,
+    let image_base_url = obj.baseUrl.clone();
+    let data_array = obj.chapter;
+    let chapter_hash = data_array.hash;
+    let saver = get_saver!();
+    let mut images = match saver {
+        metadata::Saver::data => data_array.data.clone(),
+        metadata::Saver::dataSaver =>
+            match data_array.dataSaver {
+                Some(ref data) => data.clone(),
+                None => Vec::new(),
+            }
+    };
+    if images.is_empty() {
+        images = match get_saver!(true) {
+            metadata::Saver::data => data_array.data,
+            metadata::Saver::dataSaver =>
+                match data_array.dataSaver {
+                    Some(data) => data,
+                    None => Vec::new(),
+                }
+        };
+    }
+    let images_length = images.len();
+
+
+    *resolute::CURRENT_PAGE.lock() = 0;
+    *resolute::CURRENT_PAGE_MAX.lock() = images_length.clone() as u64;
+
+    let lock_file = filename.get_lock();
+    let mut lock_file_inst = match File::create(&lock_file) {
+        Ok(file) => file,
         Err(err) => {
-            return Err(err);
+            return Err(error::MdownError::IoError(err, lock_file.clone()));
         }
     };
-    match json_value {
-        Value::Object(obj) => {
-            let image_base_url = match obj.get("baseUrl").and_then(Value::as_str) {
-                Some(value) => value,
-                None => "https://uploads.mangadex.org",
+    match write!(lock_file_inst, "0") {
+        Ok(()) => (),
+        Err(err) => {
+            eprintln!("Error: writing in chapter lock file {}", err);
+        }
+    }
+    match fs::create_dir_all(filename.get_folder_w_end()) {
+        Ok(()) => (),
+        Err(err) => eprintln!("Error: creating directory {} {}", filename.get_folder_w_end(), err),
+    }
+
+    let mut metadata_file = match File::create(format!("{}_metadata", filename.get_folder_w_end())) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(error::MdownError::IoError(err, lock_file.clone()));
+        }
+    };
+    let attr = manga_json.attributes.clone();
+
+    let pages = attr.pages.to_string();
+
+    let scanlation = metadata::ScanlationMetadata::new(name, website);
+    let response_map = metadata::ChapterMetadataIn::new(
+        resolute::MANGA_NAME.lock().to_string(),
+        resolute::MANGA_ID.lock().to_string(),
+        *resolute::SAVER.lock(),
+        title.to_string(),
+        pages,
+        chapter.to_string(),
+        vol.to_string(),
+        scanlation
+    );
+
+    let json = match serde_json::to_string_pretty(&response_map) {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(error::MdownError::JsonError(err.to_string()));
+        }
+    };
+    match write!(metadata_file, "{}", json) {
+        Ok(()) => (),
+        Err(err) => {
+            eprintln!("Error: writing in chapter metadata file {}", err);
+        }
+    }
+
+    let lock_file_wait = filename.get_folder_name();
+
+    tokio::spawn(async move { utils::wait_for_end(&lock_file_wait, images_length).await });
+    match fs::create_dir_all(filename.get_folder_w_end()) {
+        Ok(()) => (),
+        Err(err) => eprintln!("Error: creating directory {} {}", filename.get_folder_w_end(), err),
+    }
+    let start = MAXPOINTS.max_x / 3 - (images_length as u32) / 2;
+
+    let iter = match args::ARGS.lock().max_consecutive.parse() {
+        Ok(x) => x,
+        Err(_err) => {
+            resolute::SUSPENDED
+                .lock()
+                .push(
+                    error::MdownError::ConversionError(
+                        String::from("Failed to parse max_consecutive")
+                    )
+                );
+            40 as usize
+        }
+    };
+
+    let loop_for = ((images_length as f32) / (iter as f32)).ceil();
+
+    let mut images_length_temp = images_length;
+
+    for i in 0..loop_for as usize {
+        let end_task;
+        if images_length_temp > iter {
+            end_task = (i + 1) * iter;
+            images_length_temp -= iter;
+        } else {
+            end_task = images_length;
+            images_length_temp = 0;
+        }
+        let start_task = i * iter;
+
+        let tasks = (start_task..end_task).map(|item| {
+            let image_temp = getter::get_attr_as_same_as_index(&images, item).to_string();
+            let chapter_hash = Arc::from(chapter_hash.clone());
+            let saver = Arc::from(match saver {
+                metadata::Saver::data => "data",
+                metadata::Saver::dataSaver => "data-saver",
+            });
+            let image = Arc::from(image_temp.trim_matches('"'));
+            let image_base_url = Arc::from(image_base_url.clone());
+            let page = item + 1;
+            let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
+
+            let pr_title = match title != "" {
+                true => format!(" - {}", title),
+                false => String::new(),
             };
-            if let Some(data_array) = obj.get("chapter") {
-                if let Some(chapter_hash) = data_array.get("hash").and_then(Value::as_str) {
-                    let saver = get_saver!();
-                    let mut images1 = data_array.get(saver.clone()).and_then(Value::as_array);
-                    if images1.is_none() {
-                        images1 = data_array.get(get_saver!(true)).and_then(Value::as_array);
+            let folder_name = utils::process_filename(
+                &format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title)
+            );
+            let file_name = utils::process_filename(
+                &format!("{} - {}Ch.{}{} - {}.jpg", manga_name, vol, chapter, pr_title, page)
+            );
+            let file_name_brief = utils::process_filename(
+                &format!("{}Ch.{} - {}.jpg", vol, chapter, page)
+            );
+
+            let lock_file = utils::process_filename(&format!(".cache\\{}.lock", folder_name));
+            let full_path = format!(".cache/{}/{}", folder_name, file_name);
+
+            tokio::spawn(async move {
+                match
+                    download::download_image(
+                        image_base_url,
+                        chapter_hash,
+                        image,
+                        page,
+                        &page_str,
+                        &folder_name,
+                        &file_name_brief,
+                        &lock_file,
+                        &full_path,
+                        saver,
+                        start
+                    ).await
+                {
+                    Ok(()) => (),
+                    Err(err) => {
+                        handle_error!(&err, String::from("image"));
                     }
-                    if let Some(images1) = images1 {
-                        let images_length = images1.len();
+                };
+            })
+        });
 
-                        *resolute::CURRENT_PAGE.lock() = 0;
-                        *resolute::CURRENT_PAGE_MAX.lock() = images_length.clone() as u64;
+        utils::progress_bar_preparation(start, images_length, 4);
 
-                        if let Some(images) = data_array.get(saver.clone()) {
-                            let lock_file = filename.get_lock();
-                            let mut lock_file_inst = match File::create(&lock_file) {
-                                Ok(file) => file,
-                                Err(err) => {
-                                    return Err(error::MdownError::IoError(err, lock_file.clone()));
-                                }
-                            };
-                            match write!(lock_file_inst, "0") {
-                                Ok(()) => (),
-                                Err(err) => {
-                                    eprintln!("Error: writing in chapter lock file {}", err);
-                                }
-                            }
-                            match fs::create_dir_all(filename.get_folder_w_end()) {
-                                Ok(()) => (),
-                                Err(err) =>
-                                    eprintln!(
-                                        "Error: creating directory {} {}",
-                                        filename.get_folder_w_end(),
-                                        err
-                                    ),
-                            }
+        futures::future::join_all(tasks).await;
 
-                            let mut metadata_file = match
-                                File::create(format!("{}_metadata", filename.get_folder_w_end()))
-                            {
-                                Ok(file) => file,
-                                Err(err) => {
-                                    return Err(error::MdownError::IoError(err, lock_file.clone()));
-                                }
-                            };
-                            let attr = match manga_json.get("attributes") {
-                                Some(attr) => attr,
-                                None => {
-                                    return Err(
-                                        error::MdownError::NotFoundError(
-                                            String::from("attributes not found")
-                                        )
-                                    );
-                                }
-                            };
-
-                            let pages = match
-                                serde_json::to_string(match attr.get("pages") {
-                                    Some(pages) => pages,
-                                    None => {
-                                        return Err(
-                                            error::MdownError::JsonError(
-                                                String::from("pages not found")
-                                            )
-                                        );
-                                    }
-                                })
-                            {
-                                Ok(pages) => pages,
-                                Err(_err) => "null".to_string(),
-                            };
-
-                            let scanlation = metadata::ScanlationMetadata::new(name, website);
-                            let response_map = metadata::ChapterMetadataIn::new(
-                                resolute::MANGA_NAME.lock().to_string(),
-                                resolute::MANGA_ID.lock().to_string(),
-                                *resolute::SAVER.lock(),
-                                title.to_string(),
-                                pages,
-                                chapter.to_string(),
-                                vol.to_string(),
-                                scanlation
-                            );
-
-                            let json = match serde_json::to_string_pretty(&response_map) {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(error::MdownError::JsonError(err.to_string()));
-                                }
-                            };
-                            match write!(metadata_file, "{}", json) {
-                                Ok(()) => (),
-                                Err(err) => {
-                                    eprintln!("Error: writing in chapter metadata file {}", err);
-                                }
-                            }
-
-                            let lock_file_wait = filename.get_folder_name();
-
-                            tokio::spawn(async move {
-                                utils::wait_for_end(&lock_file_wait, images_length).await
-                            });
-                            match fs::create_dir_all(filename.get_folder_w_end()) {
-                                Ok(()) => (),
-                                Err(err) =>
-                                    eprintln!(
-                                        "Error: creating directory {} {}",
-                                        filename.get_folder_w_end(),
-                                        err
-                                    ),
-                            }
-                            let start = MAXPOINTS.max_x / 3 - (images_length as u32) / 2;
-
-                            let iter = match args::ARGS.lock().max_consecutive.parse() {
-                                Ok(x) => x,
-                                Err(_err) => {
-                                    resolute::SUSPENDED
-                                        .lock()
-                                        .push(
-                                            error::MdownError::ConversionError(
-                                                String::from("Failed to parse max_consecutive")
-                                            )
-                                        );
-                                    40 as usize
-                                }
-                            };
-
-                            let loop_for = ((images_length as f32) / (iter as f32)).ceil();
-
-                            let mut images_length_temp = images_length;
-
-                            for i in 0..loop_for as usize {
-                                let end_task;
-                                if images_length_temp > iter {
-                                    end_task = (i + 1) * iter;
-                                    images_length_temp -= iter;
-                                } else {
-                                    end_task = images_length;
-                                    images_length_temp = 0;
-                                }
-                                let start_task = i * iter;
-
-                                let tasks = (start_task..end_task).map(|item| {
-                                    let image_temp = getter
-                                        ::get_attr_as_same_as_index(images, item)
-                                        .to_string();
-                                    let chapter_hash = Arc::from(chapter_hash);
-                                    let saver = Arc::from(match saver.as_str() {
-                                        "data" => "data",
-                                        "dataSaver" => "data-saver",
-                                        _ => "data",
-                                    });
-                                    let image = Arc::from(image_temp.trim_matches('"'));
-                                    let image_base_url = Arc::from(image_base_url);
-                                    let page = item + 1;
-                                    let page_str =
-                                        page.to_string() + &" ".repeat(3 - page.to_string().len());
-
-                                    let pr_title = match title != "" {
-                                        true => format!(" - {}", title),
-                                        false => String::new(),
-                                    };
-                                    let folder_name = utils::process_filename(
-                                        &format!(
-                                            "{} - {}Ch.{}{}",
-                                            manga_name,
-                                            vol,
-                                            chapter,
-                                            pr_title
-                                        )
-                                    );
-                                    let file_name = utils::process_filename(
-                                        &format!(
-                                            "{} - {}Ch.{}{} - {}.jpg",
-                                            manga_name,
-                                            vol,
-                                            chapter,
-                                            pr_title,
-                                            page
-                                        )
-                                    );
-                                    let file_name_brief = utils::process_filename(
-                                        &format!("{}Ch.{} - {}.jpg", vol, chapter, page)
-                                    );
-
-                                    let lock_file = utils::process_filename(
-                                        &format!(".cache\\{}.lock", folder_name)
-                                    );
-                                    let full_path = format!(".cache/{}/{}", folder_name, file_name);
-
-                                    tokio::spawn(async move {
-                                        match
-                                            download::download_image(
-                                                image_base_url,
-                                                chapter_hash,
-                                                image,
-                                                page,
-                                                &page_str,
-                                                &folder_name,
-                                                &file_name_brief,
-                                                &lock_file,
-                                                &full_path,
-                                                saver,
-                                                start
-                                                // iter,
-                                                // i
-                                            ).await
-                                        {
-                                            Ok(()) => (),
-                                            Err(err) => {
-                                                handle_error!(&err, String::from("image"));
-                                            }
-                                        };
-                                    })
-                                });
-
-                                utils::progress_bar_preparation(start, images_length, 4);
-
-                                futures::future::join_all(tasks).await;
-
-                                if *IS_END.lock() {
-                                    std::thread::sleep(std::time::Duration::from_millis(1000));
-                                    *IS_END.lock() = false;
-                                    return Ok(());
-                                }
-                            }
-
-                            let chapter_met = metadata::ChapterMetadata::new(
-                                chapter,
-                                update_date,
-                                id
-                            );
-                            resolute::CHAPTERS.lock().push(chapter_met);
-
-                            match resolute::resolve_dat() {
-                                Ok(()) => (),
-                                Err(err) =>
-                                    eprintln!("resolute::resolve_dat() in download_chapter() Error: {}", err),
-                            }
-                            match fs::remove_file(&lock_file) {
-                                Ok(()) => (),
-                                Err(_err) => (), // Removing .cache/NAME - CH.X.lock file will result in error
-                            };
-                        }
-                    } else {
-                        eprintln!("Missing data for chapter");
-                    }
-                } else {
-                    eprintln!("Chapter number missing");
-                }
-            } else {
-                eprintln!("JSON does not contain a 'chapter' array.");
-            }
+        if *IS_END.lock() {
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+            *IS_END.lock() = false;
+            return Ok(());
         }
-        _ => {
-            eprintln!("JSON is not an object.");
-        }
+    }
+
+    let chapter_met = metadata::ChapterMetadata::new(chapter, update_date, id);
+    resolute::CHAPTERS.lock().push(chapter_met);
+
+    match resolute::resolve_dat() {
+        Ok(()) => (),
+        Err(err) => eprintln!("resolute::resolve_dat() in download_chapter() Error: {}", err),
+    }
+    match fs::remove_file(&lock_file) {
+        Ok(()) => (),
+        Err(_err) => (), // Removing .cache/NAME - CH.X.lock file will result in error
     }
 
     resolute::CURRENT_CHAPTER.lock().clear();

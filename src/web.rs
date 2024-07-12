@@ -364,7 +364,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
     Ok(())
 }
 
-fn parse_request(url: String) -> std::result::Result<String, MdownError> {
+fn parse_request(url: String) -> Result<String, MdownError> {
     if url == String::from("main") {
         let html = get_html();
         Ok(format!("{}{}", "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n", html))

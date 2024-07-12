@@ -102,7 +102,7 @@ fn delete_resource(conn: &Connection, name: &str) -> Result<(), MdownError> {
     }
 }
 
-pub(crate) async fn init() -> std::result::Result<(), MdownError> {
+pub(crate) async fn init() -> Result<(), MdownError> {
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {

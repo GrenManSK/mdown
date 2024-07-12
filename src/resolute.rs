@@ -14,6 +14,7 @@ use crate::{
     log,
     log_end,
     metadata::{
+        self,
         ChapterMetadata,
         MangaDownloadLogs,
         MangaMetadata,
@@ -29,20 +30,20 @@ use crate::{
 };
 
 lazy_static! {
-    pub(crate) static ref SCANLATION_GROUPS: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
+    pub(crate) static ref SCANLATION_GROUPS: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new()); // ID, name
     pub(crate) static ref WEB_DOWNLOADED: Mutex<Vec<String>> = Mutex::new(Vec::new()); // filenames
     pub(crate) static ref MANGA_NAME: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref MANGA_ID: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref CHAPTER_ID: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref LOGS: Mutex<Vec<LOG>> = Mutex::new(Vec::new());
-    pub(crate) static ref HANDLE_ID: Mutex<Box<str>> = Mutex::new(String::new().into_boxed_str());
-    pub(crate) static ref HANDLE_ID_END: Mutex<Vec<Box<str>>> = Mutex::new(Vec::new());
-    pub(crate) static ref CHAPTERS: Mutex<Vec<ChapterMetadata>> = Mutex::new(Vec::new());
-    pub(crate) static ref CHAPTERS_TO_REMOVE: Mutex<Vec<ChapterMetadata>> = Mutex::new(Vec::new());
+    pub(crate) static ref HANDLE_ID: Mutex<Box<str>> = Mutex::new(String::new().into_boxed_str()); // handle id
+    pub(crate) static ref HANDLE_ID_END: Mutex<Vec<Box<str>>> = Mutex::new(Vec::new()); // handle id to end
+    pub(crate) static ref CHAPTERS: Mutex<Vec<ChapterMetadata>> = Mutex::new(Vec::new()); // chapter metadata
+    pub(crate) static ref CHAPTERS_TO_REMOVE: Mutex<Vec<ChapterMetadata>> = Mutex::new(Vec::new()); // chapters to remove from database
     pub(crate) static ref MWD: Mutex<String> = Mutex::new(String::new());
-    pub(crate) static ref TO_DOWNLOAD: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    pub(crate) static ref TO_DOWNLOAD_DATE: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    pub(crate) static ref CURRENT_CHAPTER: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref TO_DOWNLOAD: Mutex<Vec<String>> = Mutex::new(Vec::new()); // chapter number to download
+    pub(crate) static ref TO_DOWNLOAD_DATE: Mutex<Vec<String>> = Mutex::new(Vec::new()); // chapter number to download because of date
+    pub(crate) static ref CURRENT_CHAPTER: Mutex<String> = Mutex::new(String::new()); // filename.get_folder_name()
     pub(crate) static ref CURRENT_PAGE: Mutex<u64> = Mutex::new(0);
     pub(crate) static ref CURRENT_PAGE_MAX: Mutex<u64> = Mutex::new(0);
     pub(crate) static ref CURRENT_PERCENT: Mutex<f64> = Mutex::new(0.0);
@@ -52,19 +53,18 @@ lazy_static! {
     pub(crate) static ref CURRENT_CHAPTER_PARSED_MAX: Mutex<u64> = Mutex::new(0);
     pub(crate) static ref DOWNLOADING: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref COVER: Mutex<bool> = Mutex::new(false);
-    pub(crate) static ref SUSPENDED: Mutex<Vec<MdownError>> = Mutex::new(Vec::new());
-    pub(crate) static ref ENDED: Mutex<bool> = Mutex::new(false);
-    pub(crate) static ref FINAL_END: Mutex<bool> = Mutex::new(false);
+    pub(crate) static ref SUSPENDED: Mutex<Vec<MdownError>> = Mutex::new(Vec::new()); // Suspended errors
+    pub(crate) static ref ENDED: Mutex<bool> = Mutex::new(false); // end variable for handlers
+    pub(crate) static ref FINAL_END: Mutex<bool> = Mutex::new(false); // if true at the end it will use std::process::exit(0)
     pub(crate) static ref SAVER: Mutex<bool> = Mutex::new(ARGS.lock().saver.clone());
-    pub(crate) static ref DATE_FETCHED: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    pub(crate) static ref LANGUAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    pub(crate) static ref LANGUAGE: Mutex<String> = Mutex::new(String::new());
-    pub(crate) static ref CHAPTER_DATES: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
-    pub(crate) static ref FIXED_DATES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(crate) static ref DATE_FETCHED: Mutex<Vec<String>> = Mutex::new(Vec::new()); // date of fetching data in format %Y-%m-%d %H:%M:%S
+    pub(crate) static ref LANGUAGES: Mutex<Vec<String>> = Mutex::new(Vec::new()); // vec of all available languages
+    pub(crate) static ref LANGUAGE: Mutex<String> = Mutex::new(String::new()); // current language
+    pub(crate) static ref CHAPTER_DATES: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new()); // chapter number, rime from mangadex database
+    pub(crate) static ref FIXED_DATES: Mutex<Vec<String>> = Mutex::new(Vec::new()); // vec of chapter number which have been fixed
     pub(crate) static ref GENRES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
     pub(crate) static ref THEMES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
 }
-
 pub(crate) fn args_delete() -> Result<(), MdownError> {
     let path = match getter::get_dat_path() {
         Ok(path) => path,
@@ -721,6 +721,9 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                     }
                 }
                 CHAPTERS.lock().clear();
+                TO_DOWNLOAD.lock().clear();
+                TO_DOWNLOAD_DATE.lock().clear();
+                FIXED_DATES.lock().clear();
             }
             for &index in to_remove.iter().rev() {
                 data.remove(index as usize);
@@ -1218,14 +1221,11 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     Ok(manga_name)
 }
 
-pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String), MdownError> {
-    let scanlation_group = match array_item.get("relationships").and_then(Value::as_array) {
-        Some(group) => group,
-        None => {
-            return Ok((String::from("null"), String::from("null")));
-        }
-    };
-    let scanlation_group_id = match get_scanlation_group(scanlation_group) {
+pub(crate) async fn resolve_group(
+    array_item: &metadata::ChapterResponse
+) -> Result<(String, String), MdownError> {
+    let scanlation_group = array_item.relationships.clone();
+    let scanlation_group_id = match get_scanlation_group(&scanlation_group) {
         Some(value) => value,
         None => {
             SUSPENDED.lock().push(MdownError::NotFoundError(String::from("resolve_group")));
@@ -1236,13 +1236,13 @@ pub(crate) async fn resolve_group(array_item: &Value) -> Result<(String, String)
         return Ok((String::from("null"), String::from("null")));
     }
 
-    let (name, website) = match resolve_group_metadata(scanlation_group_id).await {
+    let (name, website) = match resolve_group_metadata(&scanlation_group_id).await {
         Ok((name, website)) => (name, website),
         Err(err) => {
             return Err(err);
         }
     };
-    if name != "Unknown" && !SCANLATION_GROUPS.lock().contains_key(scanlation_group_id) {
+    if name != "Unknown" && !SCANLATION_GROUPS.lock().contains_key(&scanlation_group_id) {
         SCANLATION_GROUPS.lock().insert(String::from(scanlation_group_id), name.clone());
     }
     Ok((name, website))
@@ -1408,14 +1408,14 @@ pub(crate) fn resolve_move(mut moves: u32, hist: &mut Vec<String>, start: u32, e
     moves
 }
 
-pub(crate) fn title(mut title: &str) -> &str {
+pub(crate) fn title(mut title: String) -> String {
     if
         (match title.chars().last() {
             Some(value) => value,
             None => '0',
         }) == '.'
     {
-        title = &title[..title.len() - 1];
+        title = (&title[..title.len() - 1]).to_string();
     }
     title
 }

@@ -30,7 +30,7 @@ pub(crate) fn app() -> Result<(), eframe::Error> {
     eframe::run_native(
         &format!("mdown v{}", env!("CARGO_PKG_VERSION")),
         options,
-        Box::new(|_cc| Box::new(App::new(_cc)))
+        Box::new(|_cc| Ok(Box::new(App::new(_cc))))
     )
 }
 
@@ -146,7 +146,7 @@ impl eframe::App for App {
                             ui.label("Set max consecutive of manga");
                             ui.text_edit_singleline(&mut self.max_consecutive);
                             ui.checkbox(&mut self.saver, "Saver");
-                            ui.checkbox(&mut self.stat, "Stat");
+                            ui.checkbox(&mut self.stat, "Statistics");
                             ui.checkbox(&mut self.force, "Force");
 
                             ui.add_space(5.0);
@@ -167,6 +167,7 @@ impl eframe::App for App {
                                     self.database_offset.clone()
                                 );
                                 let url = self.url.clone();
+                                *resolute::SAVER.lock() = self.saver;
                                 let _ = tokio::spawn(async move {
                                     let _ = resolve_download(&url, handle_id).await;
                                 });

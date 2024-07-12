@@ -13,13 +13,17 @@ fn zip_dir<T>(
 {
     let method = zip::CompressionMethod::Stored;
     let walkdir = WalkDir::new(prefix);
-    let it_temp = &mut walkdir.into_iter().filter_map(|e| e.ok());
-    let dir_entries_vec: Vec<DirEntry> = it_temp.collect();
+    let dir_entries_vec: Vec<DirEntry> = walkdir
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .collect();
     let total_items = dir_entries_vec.len();
     let start = MAXPOINTS.max_x / 3 - ((total_items / 2) as u32) - 1;
     progress_bar_preparation(start, total_items, 5);
     let mut zip = zip::ZipWriter::new(writer);
-    let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
+    let options: FileOptions<'_, zip::write::ExtendedFileOptions> = FileOptions::default()
+        .compression_method(method)
+        .unix_permissions(0o755);
 
     let mut buffer = Vec::new();
     let mut times = 0;
@@ -33,8 +37,7 @@ fn zip_dir<T>(
         };
         if path.is_file() {
             string(5, start + times, "#");
-            #[allow(deprecated)]
-            match zip.start_file_from_path(name, options) {
+            match zip.start_file_from_path(name, options.clone()) {
                 Ok(()) => (),
                 Err(err) => {
                     return Err(error::MdownError::ZipError(err));
@@ -61,8 +64,7 @@ fn zip_dir<T>(
             }
             buffer.clear();
         } else if !name.as_os_str().is_empty() {
-            #[allow(deprecated)]
-            match zip.add_directory_from_path(name, options) {
+            match zip.add_directory_from_path(name, options.clone()) {
                 Ok(()) => (),
                 Err(err) => {
                     return Err(error::MdownError::ZipError(err));

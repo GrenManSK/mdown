@@ -11,7 +11,7 @@ include!(concat!(env!("OUT_DIR"), "/error_404_jpg.rs"));
 
 use crate::{ args, error::MdownError, getter::get_query, handle_error, log, utils, zip_func };
 
-fn get_directory_content(path: &str) -> std::result::Result<Value, MdownError> {
+fn get_directory_content(path: &str) -> Result<Value, MdownError> {
     let mut result = serde_json::Map::new();
     let decoded_str = match percent_encoding::percent_decode_str(path).decode_utf8() {
         Ok(decoded_str) => decoded_str.to_string(),
@@ -83,7 +83,7 @@ fn get_directory_content(path: &str) -> std::result::Result<Value, MdownError> {
     Ok(Value::Object(result))
 }
 
-fn handle_client(stream: TcpStream) -> std::result::Result<(), MdownError> {
+fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
     let mut stream = BufReader::new(stream);
     let mut request_line = String::new();
     match stream.read_line(&mut request_line) {
@@ -378,7 +378,7 @@ fn get_html() -> String {
     }
 }
 
-pub(crate) fn start() -> std::result::Result<(), MdownError> {
+pub(crate) fn start() -> Result<(), MdownError> {
     let mut ips = vec![];
     if let Ok(interfaces) = get_if_addrs() {
         for (times, interface) in interfaces.iter().enumerate() {

@@ -14,6 +14,7 @@ use crate::{
     IS_END,
     log,
     MAXPOINTS,
+    metadata,
     resolute::{ self, CURRENT_PAGE },
     string,
     utils,
@@ -235,56 +236,35 @@ pub(crate) async fn download_stat(
                     return Err(MdownError::JsonError(String::from("Didn't find statistics")));
                 }
             };
-            let comments = match statistics.get("comments") {
-                Some(comm) => comm,
-                None => {
-                    return Err(MdownError::JsonError(String::from("Didn't find comments")));
-                }
-            };
-            let thread_id = match comments.get("threadId").and_then(Value::as_i64) {
-                Some(id) => id,
-                None => -1,
-            };
-            let replies_count = match comments.get("repliesCount").and_then(Value::as_i64) {
-                Some(id) => id,
-                None => -1,
-            };
-            let rating = match statistics.get("rating") {
-                Some(rating) => rating,
-                None => {
-                    return Err(MdownError::JsonError(String::from("Didn't find rating")));
-                }
-            };
-            let average = match rating.get("average").and_then(Value::as_f64) {
-                Some(id) => id,
-                None => -1.0,
-            };
-            let bayesian = match rating.get("bayesian").and_then(Value::as_f64) {
-                Some(id) => id,
-                None => -1.0,
-            };
-            let distribution = match rating.get("distribution") {
-                Some(dist) => dist,
-                None => {
-                    return Err(MdownError::JsonError(String::from("Didn't find distribution")));
-                }
-            };
-            let follows = match statistics.get("follows").and_then(Value::as_i64) {
-                Some(id) => id,
-                None => -1,
-            };
+            match serde_json::from_value::<metadata::Statistics>(statistics.clone()) {
+                Ok(stat) => {
+                    let comments = stat.comments;
 
-            data += &format!("---\n\n## RATING\n\nRating: {}\n\n", average);
-            data += &format!("Bayesian: {}\n\n---\n\n", bayesian);
-            for i in 1..11 {
-                data += &get_dist(&distribution, i);
+                    let thread_id = comments.threadId;
+                    let replies_count = comments.repliesCount;
+                    let rating = stat.rating;
+                    let average = rating.average;
+                    let bayesian = rating.bayesian;
+                    let distribution = rating.distribution;
+                    let follows = stat.follows;
+
+                    data += &format!("---\n\n## RATING\n\nRating: {}\n\n", average);
+                    data += &format!("Bayesian: {}\n\n---\n\n", bayesian);
+                    for i in 1..11 {
+                        data += &get_dist(&distribution, i);
+                    }
+                    data += &format!("## Follows: {}\n\n", follows);
+                    data += &format!(
+                        "## Comments\n\nThread: <https://forums.mangadex.org/threads/{}>\n\nNumber of comments in thread: {}\n",
+                        thread_id,
+                        replies_count
+                    );
+                }
+                Err(err) => {
+                    resolute::SUSPENDED.lock().push(MdownError::JsonError(err.to_string()));
+                    return Ok(());
+                }
             }
-            data += &format!("## Follows: {}\n\n", follows);
-            data += &format!(
-                "## Comments\n\nThread: <https://forums.mangadex.org/threads/{}>\n\nNumber of comments in thread: {}\n",
-                thread_id,
-                replies_count
-            );
         }
         _ => {
             return Err(MdownError::JsonError(String::from("Could not parse statistics json")));
@@ -302,10 +282,21 @@ pub(crate) async fn download_stat(
     Ok(())
 }
 
-fn get_dist(distribution: &Value, i: usize) -> String {
-    let value = match distribution.get(i.to_string()).and_then(Value::as_i64) {
-        Some(value) => value,
-        _ => -1,
+fn get_dist(distribution: &metadata::RatingDistribution, i: usize) -> String {
+    let value = match i {
+        1 => distribution.one,
+        2 => distribution.two,
+        3 => distribution.three,
+        4 => distribution.four,
+        5 => distribution.five,
+        6 => distribution.six,
+        7 => distribution.seven,
+        8 => distribution.eight,
+        9 => distribution.nine,
+        10 => distribution.ten,
+        _ => {
+            return String::from("");
+        }
     };
     format!("{}: {}\n\n", i, value)
 }
@@ -333,8 +324,16 @@ pub(crate) async fn download_image(
         log!(&format!("Starting image download {}", page));
     }
 
+    let download = page + 3 + 1 < (MAXPOINTS.max_y as usize);
+
     string(3 + 1, start + (page as u32) - 1, "|");
-    string(3 + 1 + (page as u32), 0, &format!("   {} Downloading {}", page_str, file_name_brief));
+    if download {
+        string(
+            3 + 1 + (page as u32),
+            0,
+            &format!("   {} Downloading {}", page_str, file_name_brief)
+        );
+    }
     string(3 + 1, start + (page as u32) - 1, "/");
 
     let mut response = match get_response(image_base_url, c_hash, f_name, &saver).await {
@@ -463,7 +462,13 @@ pub(crate) async fn download_image(
             {
                 log!(&message);
             }
-            if !*args::ARGS_WEB && !*args::ARGS_GUI && !*args::ARGS_CHECK && !*args::ARGS_UPDATE {
+            if
+                !*args::ARGS_WEB &&
+                !*args::ARGS_GUI &&
+                !*args::ARGS_CHECK &&
+                !*args::ARGS_UPDATE &&
+                download
+            {
                 string(
                     3 + 1 + (page as u32),
                     0,
@@ -485,26 +490,29 @@ pub(crate) async fn download_image(
     *CURRENT_PAGE.lock() += 1;
 
     if !*args::ARGS_WEB && !*args::ARGS_GUI && !*args::ARGS_CHECK && !*args::ARGS_UPDATE {
-        let message = format!(
-            "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
-            page_str,
-            file_name_brief,
-            100,
-            (downloaded as f32) / 1024.0 / 1024.0,
-            (total_size as f32) / 1024.0 / 1024.0
-        );
-        string(
-            3 + 1 + (page as u32),
-            0,
-            &format!(
-                "{} {}",
-                message,
-                "#".repeat(
-                    ((((MAXPOINTS.max_x - (message.len() as u32)) as f32) / (total_size as f32)) *
-                        (downloaded as f32)) as usize
+        if download {
+            let message = format!(
+                "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
+                page_str,
+                file_name_brief,
+                100,
+                (downloaded as f32) / 1024.0 / 1024.0,
+                (total_size as f32) / 1024.0 / 1024.0
+            );
+            string(
+                3 + 1 + (page as u32),
+                0,
+                &format!(
+                    "{} {}",
+                    message,
+                    "#".repeat(
+                        ((((MAXPOINTS.max_x - (message.len() as u32)) as f32) /
+                            (total_size as f32)) *
+                            (downloaded as f32)) as usize
+                    )
                 )
-            )
-        );
+            );
+        }
         string(3 + 1, start + (page as u32) - 1, "#");
     }
     let mut lock_file = match

@@ -28,20 +28,20 @@ macro_rules! log {
 macro_rules! get_saver {
     () => {
         match *crate::resolute::SAVER.lock() {
-            true => String::from("dataSaver"),
-            false => String::from("data"),
+            true => crate::metadata::Saver::dataSaver,
+            false => crate::metadata::Saver::data,
         }
     };
     ($invert:expr) => {
         if $invert {
             match *resolute::SAVER.lock() {
-                true => String::from("data"),
-                false => String::from("dataSaver"),
+                true => crate::metadata::Saver::data,
+                false => crate::metadata::Saver::dataSaver,
             }
         } else  {
             match *crate::resolute::SAVER.lock()  {
-                true => String::from("dataSaver"),
-                false => String::from("data"),
+                true => crate::metadata::Saver::dataSaver,
+                false => crate::metadata::Saver::data,
             }
         }
     };

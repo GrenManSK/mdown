@@ -62,19 +62,7 @@ lazy_static! {
 #[clap(group = ArgGroup::new("Search-Options").args(&["url", "search"]))]
 #[clap(
     group = ArgGroup::new("Mod-Options").args(
-        &[
-            "web",
-            "server",
-            "gui",
-            "encode",
-            "check",
-            "update",
-            "show",
-            "show_all",
-            "force_delete",
-            "delete",
-            "reset",
-        ]
+        &["web", "server", "gui", "encode", "check", "update", "show", "show_all"]
     )
 )]
 pub(crate) struct ParserArgs {
@@ -192,35 +180,10 @@ pub(crate) struct ParserArgs {
     )] pub(crate) log: bool,
     #[arg(
         long,
-        next_line_help = true,
-        help = "Check downloaded files for errors"
-    )] pub(crate) check: bool,
-    #[arg(
-        long,
-        next_line_help = true,
-        help = "Check downloaded files for errors"
-    )] pub(crate) update: bool,
-    #[arg(
-        long,
         default_value_t = String::from("*"),
         next_line_help = true,
         help = "download manga by manga title\n"
     )] pub(crate) search: String,
-    #[arg(
-        long,
-        next_line_help = true,
-        help = "Shows current manga in database"
-    )] pub(crate) show: Option<Option<String>>,
-    #[arg(
-        long,
-        next_line_help = true,
-        help = "Shows current chapters in database"
-    )] pub(crate) show_all: bool,
-    #[arg(
-        long,
-        next_line_help = true,
-        help = "Shows current logs in database"
-    )] pub(crate) show_log: bool,
     #[arg(
         short,
         long,
@@ -241,6 +204,25 @@ pub(crate) struct ParserArgs {
 
 #[derive(Subcommand, Clone, Debug)]
 pub(crate) enum Commands {
+    Database {
+        #[arg(long, next_line_help = true, help = "Check downloaded files for errors")] check: bool,
+        #[arg(
+            long,
+            next_line_help = true,
+            help = "Check downloaded files for errors"
+        )] update: bool,
+        #[arg(
+            long,
+            next_line_help = true,
+            help = "Shows current manga in database"
+        )] show: Option<Option<String>>,
+        #[arg(
+            long,
+            next_line_help = true,
+            help = "Shows current chapters in database"
+        )] show_all: bool,
+        #[arg(long, next_line_help = true, help = "Shows current logs in database")] show_log: bool,
+    },
     Settings {
         #[arg(
             long,
@@ -263,6 +245,18 @@ pub(crate) enum Commands {
             help = "Delete all files created by program"
         )] reset: bool,
     },
+}
+
+impl Default for Commands {
+    fn default() -> Self {
+        Commands::Database {
+            check: false,
+            update: false,
+            show: None,
+            show_all: false,
+            show_log: false,
+        }
+    }
 }
 
 pub(crate) enum Value {
@@ -314,6 +308,10 @@ impl Args {
 
     pub(crate) fn from_args() -> Args {
         let args = ParserArgs::parse();
+        let subcommands = match args.subcommands {
+            Some(ref value) => value,
+            None => &Commands::default(),
+        };
         Args {
             url: args.url,
             lang: args.lang,
@@ -332,11 +330,26 @@ impl Args {
             cwd: args.cwd,
             encode: args.encode,
             log: args.log,
-            check: args.check,
-            update: args.update,
-            show: args.show,
-            show_all: args.show_all,
-            show_log: args.show_log,
+            check: match subcommands {
+                Commands::Database { check, .. } => *check,
+                _ => false,
+            },
+            update: match subcommands {
+                Commands::Database { update, .. } => *update,
+                _ => false,
+            },
+            show: match subcommands {
+                Commands::Database { show, .. } => show.clone(),
+                _ => None,
+            },
+            show_all: match subcommands {
+                Commands::Database { show_all, .. } => *show_all,
+                _ => false,
+            },
+            show_log: match subcommands {
+                Commands::Database { show_log, .. } => *show_log,
+                _ => false,
+            },
             web: args.web,
             server: args.server,
             search: args.search,

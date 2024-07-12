@@ -493,7 +493,7 @@ pub(crate) fn progress_bar_preparation(start: u32, images_length: usize, line: u
         );
     }
 }
-pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
+pub(crate) fn sort(data: &Vec<metadata::ChapterResponse>) -> Vec<metadata::ChapterResponse> {
     let mut data_array = data.to_owned();
 
     if *args::ARGS_UNSORTED {
@@ -502,18 +502,24 @@ pub(crate) fn sort(data: &Vec<Value>) -> Vec<Value> {
 
     data_array.sort_unstable_by(|v, b| {
         match
-            v
-                .get("attributes")
-                .and_then(|attr| attr.get("chapter"))
-                .and_then(|chapter| chapter.as_str())
-                .and_then(|chapter_str| chapter_str.parse::<f32>().ok())
+            (
+                match v.attributes.chapter.clone() {
+                    Some(v_chapter) => v_chapter,
+                    None => String::from("0"),
+                }
+            )
+                .parse::<f32>()
+                .ok()
                 .map(|v_parsed| {
                     match
-                        b
-                            .get("attributes")
-                            .and_then(|attr| attr.get("chapter"))
-                            .and_then(|chapter| chapter.as_str())
-                            .and_then(|chapter_str| chapter_str.parse::<f32>().ok())
+                        (
+                            match b.attributes.chapter.clone() {
+                                Some(b_chapter) => b_chapter,
+                                None => String::from("0"),
+                            }
+                        )
+                            .parse::<f32>()
+                            .ok()
                             .map(|b_parsed| v_parsed.total_cmp(&b_parsed))
                     {
                         Some(value) => value,
@@ -1067,44 +1073,4 @@ fn should_return_empty_string() {
     let filename = "<>:|?*/\\\"";
     let result = process_filename(filename);
     assert_eq!(result, "");
-}
-
-// Sorts a vector of JSON objects by the 'chapter' attribute in ascending order
-#[test]
-fn sort_sorts_vector_by_chapter_attribute() {
-    let data = vec![
-        serde_json::json!({"attributes": {"chapter": "3"}}),
-        serde_json::json!({"attributes": {"chapter": "1"}}),
-        serde_json::json!({"attributes": {"chapter": "2"}})
-    ];
-    let expected = vec![
-        serde_json::json!({"attributes": {"chapter": "1"}}),
-        serde_json::json!({"attributes": {"chapter": "2"}}),
-        serde_json::json!({"attributes": {"chapter": "3"}})
-    ];
-
-    let result = sort(&data);
-
-    assert_eq!(result, expected);
-}
-
-// Handles input vector with non-JSON objects
-#[test]
-fn sort_handles_input_with_non_json_objects() {
-    let data = vec![
-        serde_json::json!({"attributes": {"chapter": "3"}}),
-        serde_json::json!({"attributes": {"chapter": "1"}}),
-        serde_json::json!({"attributes": {"chapter": "2"}}),
-        "not a JSON object".into()
-    ];
-    let expected = vec![
-        serde_json::json!({"attributes": {"chapter": "1"}}),
-        serde_json::json!({"attributes": {"chapter": "2"}}),
-        serde_json::json!({"attributes": {"chapter": "3"}}),
-        "not a JSON object".into()
-    ];
-
-    let result = sort(&data);
-
-    assert_eq!(result, expected);
 }

@@ -209,3 +209,108 @@ pub(crate) struct MaxPoints {
     pub(crate) max_x: u32,
     pub(crate) max_y: u32,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct MangaResponse {
+    pub(crate) result: String,
+    pub(crate) response: String,
+    pub(crate) data: Vec<ChapterResponse>,
+    pub(crate) limit: u64,
+    pub(crate) offset: u64,
+    pub(crate) total: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct ChapterResponse {
+    pub(crate) id: String,
+    pub(crate) r#type: String,
+    pub(crate) attributes: ChapterAttrResponse,
+    pub(crate) relationships: Vec<ChapterRelResponse>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct ChapterRelResponse {
+    pub(crate) id: String,
+    pub(crate) r#type: String,
+}
+#[allow(non_snake_case)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct ChapterAttrResponse {
+    pub(crate) volume: Option<String>,
+    pub(crate) chapter: Option<String>,
+    pub(crate) title: Option<String>,
+    pub(crate) translatedLanguage: Option<String>,
+    pub(crate) externalUrl: Option<String>,
+    pub(crate) publishAt: String,
+    pub(crate) readableAt: String,
+    pub(crate) createdAt: String,
+    pub(crate) updatedAt: String,
+    pub(crate) pages: u64,
+    pub(crate) version: u64,
+}
+#[allow(non_snake_case)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct ChapterData {
+    pub(crate) result: String,
+    pub(crate) baseUrl: String,
+    pub(crate) chapter: ChapterDataImages,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct ChapterDataImages {
+    pub(crate) hash: String,
+    pub(crate) data: Vec<String>,
+    pub(crate) dataSaver: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct Statistics {
+    pub(crate) comments: Comment,
+    pub(crate) rating: Rating,
+    pub(crate) follows: u64,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct Comment {
+    pub(crate) threadId: u64,
+    pub(crate) repliesCount: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct Rating {
+    pub(crate) average: f64,
+    pub(crate) bayesian: f64,
+    pub(crate) distribution: RatingDistribution,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct RatingDistribution {
+    #[serde(rename = "1")]
+    pub(crate) one: u64,
+    #[serde(rename = "2")]
+    pub(crate) two: u64,
+    #[serde(rename = "3")]
+    pub(crate) three: u64,
+    #[serde(rename = "4")]
+    pub(crate) four: u64,
+    #[serde(rename = "5")]
+    pub(crate) five: u64,
+    #[serde(rename = "6")]
+    pub(crate) six: u64,
+    #[serde(rename = "7")]
+    pub(crate) seven: u64,
+    #[serde(rename = "8")]
+    pub(crate) eight: u64,
+    #[serde(rename = "9")]
+    pub(crate) nine: u64,
+    #[serde(rename = "10")]
+    pub(crate) ten: u64,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone)]
+pub(crate) enum Saver {
+    data,
+    dataSaver,
+}
