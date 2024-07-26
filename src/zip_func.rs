@@ -21,9 +21,7 @@ fn zip_dir<T>(
     let start = MAXPOINTS.max_x / 3 - ((total_items / 2) as u32) - 1;
     progress_bar_preparation(start, total_items, 5);
     let mut zip = zip::ZipWriter::new(writer);
-    let options: FileOptions<'_, zip::write::ExtendedFileOptions> = FileOptions::default()
-        .compression_method(method)
-        .unix_permissions(0o755);
+    let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
 
     let mut buffer = Vec::new();
     let mut times = 0;
@@ -37,6 +35,7 @@ fn zip_dir<T>(
         };
         if path.is_file() {
             string(5, start + times, "#");
+            #[allow(deprecated)]
             match zip.start_file_from_path(name, options.clone()) {
                 Ok(()) => (),
                 Err(err) => {
@@ -64,6 +63,7 @@ fn zip_dir<T>(
             }
             buffer.clear();
         } else if !name.as_os_str().is_empty() {
+            #[allow(deprecated)]
             match zip.add_directory_from_path(name, options.clone()) {
                 Ok(()) => (),
                 Err(err) => {
@@ -136,28 +136,23 @@ pub(crate) fn extract_metadata_from_zip(
     zip_file_path: &str,
     metadata_file_name: &str
 ) -> Result<String, error::MdownError> {
-    let file = match File::open(zip_file_path) {
-        Ok(file) => file,
+    let zip_file = match File::open(zip_file_path) {
+        Ok(zip_file) => zip_file,
         Err(err) => {
             return Err(error::MdownError::IoError(err, zip_file_path.to_string()));
         }
     };
-    let mut archive = match ZipArchive::new(file) {
+    let mut archive = match ZipArchive::new(zip_file) {
         Ok(archive) => archive,
         Err(err) => {
             return Err(error::MdownError::ZipError(err));
         }
     };
 
-    for i in 0..archive.len() {
-        let mut file = match archive.by_index(i) {
-            Ok(file) => file,
-            Err(err) => {
-                return Err(error::MdownError::ZipError(err));
-            }
-        };
-
-        if file.name() == metadata_file_name {
+    let answer = match
+        archive.by_name(metadata_file_name).map_err(|err| error::MdownError::ZipError(err))
+    {
+        Ok(mut file) => {
             let mut content = String::new();
             match file.read_to_string(&mut content) {
                 Ok(_) => (),
@@ -165,15 +160,17 @@ pub(crate) fn extract_metadata_from_zip(
                     return Err(error::MdownError::IoError(err, metadata_file_name.to_string()));
                 }
             }
-            return Ok(content);
+            Ok(content)
         }
-    }
-
-    Err(
-        error::MdownError::NotFoundError(
-            format!("File '{}' not found in the zip archive", metadata_file_name)
-        )
-    )
+        Err(_err) => {
+            Err(
+                error::MdownError::NotFoundError(
+                    format!("File '{}' not found in the zip archive", metadata_file_name)
+                )
+            )
+        }
+    };
+    return answer;
 }
 
 #[cfg(feature = "server")]

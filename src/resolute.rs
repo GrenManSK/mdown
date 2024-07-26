@@ -387,33 +387,17 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                                 }
                             };
 
-                            let name = match obj.get("name").and_then(Value::as_str) {
-                                Some(name) => name.to_string(),
-                                None => String::from("No Name; invalid name"),
-                            };
+                            let name = obj.name;
 
-                            let pages = match obj.get("pages").and_then(Value::as_str) {
-                                Some(pages) => pages.to_string(),
-                                None => String::from("Invalid pages"),
-                            };
+                            let pages = obj.pages;
 
-                            let id = match obj.get("id").and_then(Value::as_str) {
-                                Some(id) => id.to_string(),
-                                None => String::from("Invalid id"),
-                            };
-                            let title = match obj.get("title").and_then(Value::as_str) {
-                                Some(title) => title.to_string(),
-                                None => String::from("Invalid title"),
-                            };
+                            let id = obj.id;
 
-                            let chapter = match obj.get("chapter").and_then(Value::as_str) {
-                                Some(chapter) => chapter.to_string(),
-                                None => String::from("Invalid chapter"),
-                            };
-                            let volume = match obj.get("volume").and_then(Value::as_str) {
-                                Some(volume) => volume.to_string(),
-                                None => String::from("Invalid volume"),
-                            };
+                            let title = obj.title;
+
+                            let chapter = obj.chapter;
+
+                            let volume = obj.volume;
 
                             println!("Name: {}", name);
                             if volume != "null" {
@@ -440,26 +424,23 @@ pub(crate) async fn show() -> Result<(), MdownError> {
 }
 
 pub(crate) fn check_for_metadata_saver(file_path: &str) -> Result<bool, MdownError> {
-    // Returns true if cbz file saver if different than the current one
+    // Returns true if cbz file saver is different than the current one
     let obj = match check_for_metadata(file_path) {
         Ok(metadata) => metadata,
         Err(err) => {
             return Err(err);
         }
     };
-    let saver = match obj.get("saver").and_then(Value::as_bool) {
-        Some(value) => value,
-        None => {
-            return Ok(false);
-        }
-    };
+    let saver = obj.saver;
     if *SAVER.lock() != saver {
         return Ok(true);
     }
     Ok(false)
 }
 
-pub(crate) fn check_for_metadata(file_path: &str) -> Result<Map<String, Value>, MdownError> {
+pub(crate) fn check_for_metadata(
+    file_path: &str
+) -> Result<metadata::ChapterMetadataIn, MdownError> {
     let metadata_file_name = "_metadata";
 
     match zip_func::extract_metadata_from_zip(file_path, metadata_file_name) {
@@ -470,12 +451,12 @@ pub(crate) fn check_for_metadata(file_path: &str) -> Result<Map<String, Value>, 
                     return Err(err);
                 }
             };
-            match json_value {
-                Value::Object(obj) => {
+            match serde_json::from_value::<metadata::ChapterMetadataIn>(json_value) {
+                Ok(obj) => {
                     return Ok(obj);
                 }
-                _ => {
-                    return Err(MdownError::NotFoundError(String::from("")));
+                Err(err) => {
+                    return Err(MdownError::JsonError(err.to_string()));
                 }
             }
         }

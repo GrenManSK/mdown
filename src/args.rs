@@ -62,7 +62,7 @@ lazy_static! {
 #[clap(group = ArgGroup::new("Search-Options").args(&["url", "search"]))]
 #[clap(
     group = ArgGroup::new("Mod-Options").args(
-        &["web", "server", "gui", "encode", "check", "update", "show", "show_all"]
+        &["web", "server", "gui", "encode"]
     )
 )]
 pub(crate) struct ParserArgs {
