@@ -73,7 +73,7 @@ async fn main() {
         !*args::ARGS_QUIET &&
         !*args::ARGS_RESET &&
         !args::ARGS_SHOW.is_some() &&
-        !*args::ARGS_SHOW_ALL &&
+        !args::ARGS_SHOW_ALL.is_some() &&
         *args::ARGS_ENCODE != String::new() &&
         !*args::ARGS_DELETE &&
         !*args::ARGS_SHOW_LOG
@@ -162,7 +162,7 @@ async fn start() -> Result<(), error::MdownError> {
 
     *resolute::LANGUAGE.lock() = args::ARGS.lock().lang.clone();
 
-    if args::ARGS_SHOW.is_some() || *args::ARGS_SHOW_ALL {
+    if args::ARGS_SHOW.is_some() || args::ARGS_SHOW_ALL.is_some() {
         match resolute::show().await {
             Ok(()) => (),
             Err(err) => {

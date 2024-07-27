@@ -282,16 +282,47 @@ pub(crate) async fn show() -> Result<(), MdownError> {
             for item in data.iter() {
                 let id = item.id.clone();
 
+                let mut cont = false;
+                let show;
+                let show_all;
+
                 match ARGS.lock().show {
                     Some(Some(ref filter)) if !filter.is_empty() => {
                         if &id != filter {
-                            continue;
+                            cont = true;
                         }
+                        show = true;
                     }
-                    Some(_) => (),
+                    Some(_) => {
+                        show = true;
+                    }
                     None => {
-                        return Ok(());
+                        show = false;
                     }
+                }
+
+                match ARGS.lock().show_all {
+                    Some(Some(ref filter)) if !filter.is_empty() => {
+                        if &id != filter {
+                            cont = true;
+                        }
+                        show_all = true;
+                    }
+                    Some(_) => {
+                        cont = false;
+                        show_all = true;
+                    }
+                    None => {
+                        show_all = false;
+                    }
+                }
+
+                if !show && !show_all {
+                    return Ok(());
+                }
+
+                if cont {
+                    continue;
                 }
                 println!("");
                 println!("------------------------------------");
@@ -363,7 +394,7 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                 println!("Chapters: {}", chapter_str);
                 println!("");
 
-                if *args::ARGS_SHOW_ALL {
+                if args::ARGS_SHOW_ALL.is_some() {
                     let mut chapters = vec![];
                     if let Ok(entries) = fs::read_dir(&mwd) {
                         for entry in entries {

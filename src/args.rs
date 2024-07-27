@@ -14,7 +14,7 @@ lazy_static! {
     pub(crate) static ref ARGS_UNSORTED: bool = ARGS.lock().unsorted.clone();
     pub(crate) static ref ARGS_SHOW: Option<Option<String>> = ARGS.lock().show.clone();
     pub(crate) static ref ARGS_DEBUG: bool = ARGS.lock().debug.clone();
-    pub(crate) static ref ARGS_SHOW_ALL: bool = ARGS.lock().show_all.clone();
+    pub(crate) static ref ARGS_SHOW_ALL: Option<Option<String>> = ARGS.lock().show_all.clone();
     pub(crate) static ref ARGS_SHOW_LOG: bool = ARGS.lock().show_log.clone();
     pub(crate) static ref ARGS_WEB: bool = ARGS.lock().web.clone();
     pub(crate) static ref ARGS_GUI: bool = ARGS.lock().gui.clone();
@@ -216,7 +216,7 @@ pub(crate) enum Commands {
             long,
             next_line_help = true,
             help = "Shows current chapters in database"
-        )] show_all: bool,
+        )] show_all: Option<Option<String>>,
         #[arg(long, next_line_help = true, help = "Shows current logs in database")] show_log: bool,
     },
     Settings {
@@ -249,7 +249,7 @@ impl Default for Commands {
             check: false,
             update: false,
             show: None,
-            show_all: false,
+            show_all: None,
             show_log: false,
         }
     }
@@ -282,7 +282,7 @@ pub(crate) struct Args {
     pub(crate) update: bool,
     pub(crate) search: String,
     pub(crate) show: Option<Option<String>>,
-    pub(crate) show_all: bool,
+    pub(crate) show_all: Option<Option<String>>,
     pub(crate) show_log: bool,
     pub(crate) web: bool,
     pub(crate) server: bool,
@@ -339,8 +339,8 @@ impl Args {
                 _ => None,
             },
             show_all: match subcommands {
-                Commands::Database { show_all, .. } => *show_all,
-                _ => false,
+                Commands::Database { show_all, .. } => show_all.clone(),
+                _ => None,
             },
             show_log: match subcommands {
                 Commands::Database { show_log, .. } => *show_log,
@@ -392,7 +392,7 @@ impl Args {
             check: *ARGS_CHECK,
             update: *ARGS_UPDATE,
             show: ARGS_SHOW.clone(),
-            show_all: *ARGS_SHOW_ALL,
+            show_all: ARGS_SHOW_ALL.clone(),
             show_log: *ARGS_SHOW_LOG,
             web: *ARGS_WEB,
             server: *ARGS_SERVER,
