@@ -1,8 +1,8 @@
+use crossterm::event::{ self, Event, KeyCode };
+use parking_lot::Mutex;
 use lazy_static::lazy_static;
 use serde_json::{ Map, Value };
 use std::{ collections::HashMap, fs::{ self, File, OpenOptions }, io::{ Read, Write }, sync::Arc };
-use parking_lot::Mutex;
-use crossterm::event::{ self, Event, KeyCode };
 
 use crate::{
     args::{ self, ARGS },
@@ -13,20 +13,20 @@ use crate::{
     handle_error,
     log,
     log_end,
+    MAXPOINTS,
     metadata::{
         self,
         ChapterMetadata,
+        DAT,
+        LOG,
         MangaDownloadLogs,
         MangaMetadata,
         MdownLogs,
         TagMetadata,
-        DAT,
-        LOG,
     },
     string,
     utils::{ self, clear_screen, input },
     zip_func,
-    MAXPOINTS,
 };
 
 lazy_static! {

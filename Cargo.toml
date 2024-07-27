@@ -10,34 +10,34 @@ build = "src/build.rs"
 
 [dependencies]
 base64 = "0.22.1"
-chrono = "0.4.35"
-clap = { version = "4.4.18", features = ["derive"] }
+chrono = "0.4.38"
+clap = { version = "4.5.11", features = ["derive"] }
 crosscurses = { version = "0.1.0", features = ["win32"] }
 crossterm = "0.27.0"
-ctrlc = { version = "3.4.2", optional = true }
+ctrlc = { version = "3.4.4", optional = true }
 eframe = { version = "0.28.1", optional = true }
 egui = { version = "0.28.1", optional = true }
 egui_extras = { version = "0.28.1", optional = true }
 futures = "0.3.30"
-if-addrs = { version = "0.13.0", optional = true }
-image = { version = "0.25.1", optional = true }
+if-addrs = { version = "0.13.1", optional = true }
+image = { version = "0.25.2", optional = true }
 lazy_static = "1.5.0"
 parking_lot = "0.12.3"
 percent-encoding = { version = "2.3.1", optional = true }
 rand = "0.8.5"
-regex = "1.10.3"
-reqwest = { version = "0.12.1", features = ["json"] }
-rusqlite = { version = "0.31.0", features = ["bundled"] }
-serde = { version = "1.0.196", features = ["derive"] }
-serde_json = "1.0.113"
-thiserror = "1.0.61"
-tokio = { version = "1.35.1", features = ["full"] }
+regex = "1.10.5"
+reqwest = { version = "0.12.5", features = ["json"] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+serde = { version = "1.0.204", features = ["derive"] }
+serde_json = "1.0.120"
+thiserror = "1.0.63"
+tokio = { version = "1.39.1", features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
-url = "2.5.0"
-uuid = "1.7.0"
-walkdir = "2.4.0"
-webbrowser = { version = "1", optional = true }
+url = "2.5.2"
+uuid = "1.10.0"
+walkdir = "2.5.0"
+webbrowser = { version = "1.0.1", optional = true }
 zip = "0.6.6"
 
 

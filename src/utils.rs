@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use crosscurses::*;
-use rand::{ Rng, distributions::Alphanumeric };
-use serde_json::{ Value, json };
+use rand::{ distributions::Alphanumeric, Rng };
+use serde_json::{ json, Value };
 use std::{
     cmp::Ordering,
     fs::{ self, File, OpenOptions },
@@ -13,7 +13,7 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    args::{ self, ARGS },
+    args,
     download,
     error::MdownError,
     getter,
@@ -554,7 +554,7 @@ pub(crate) fn get_json(manga_name_json: &str) -> Result<Value, MdownError> {
 
 pub(crate) async fn search() -> Result<String, MdownError> {
     let base_url = "https://api.mangadex.org";
-    let title = &ARGS.lock().search;
+    let title = &args::ARGS.lock().search;
 
     let client = match download::get_client() {
         Ok(client) => client,

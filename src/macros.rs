@@ -2,24 +2,24 @@
 macro_rules! log {
     ($message:expr) => {
         {
-        tracing::info!("@{}  {}", crate::resolute::HANDLE_ID.lock(), $message);
-        crate::resolute::LOGS.lock().push(crate::metadata::LOG::new($message));
+            tracing::info!("@{}  {}", crate::resolute::HANDLE_ID.lock(), $message);
+            crate::resolute::LOGS.lock().push(crate::metadata::LOG::new($message));
         }
     };
     ($message:expr, $name:expr, $to_write:expr) => {
         {
-        if $to_write {
-            tracing::info!("@{}  {}", crate::resolute::HANDLE_ID.lock().clone().into_string(), $message);
-        }
-        crate::resolute::LOGS.lock().push(crate::metadata::LOG::new_with_name($message, $name));
+            if $to_write {
+                tracing::info!("@{}  {}", crate::resolute::HANDLE_ID.lock().clone().into_string(), $message);
+            }
+            crate::resolute::LOGS.lock().push(crate::metadata::LOG::new_with_name($message, $name));
         }
     };
     ($message:expr, $name:expr) => {
         {
-        tracing::info!("@{}  {}", $name, $message);
-        if *args::ARGS_LOG {
-            crate::resolute::LOGS.lock().push(crate::metadata::LOG::new_with_handle_id($message, $name));
-        }
+            tracing::info!("@{}  {}", $name, $message);
+            if *crate::args::ARGS_LOG {
+                crate::resolute::LOGS.lock().push(crate::metadata::LOG::new_with_handle_id($message, $name));
+            }
         }
     };
 }
@@ -34,7 +34,7 @@ macro_rules! get_saver {
     };
     ($invert:expr) => {
         if $invert {
-            match *resolute::SAVER.lock() {
+            match *crate::resolute::SAVER.lock() {
                 true => crate::metadata::Saver::data,
                 false => crate::metadata::Saver::dataSaver,
             }

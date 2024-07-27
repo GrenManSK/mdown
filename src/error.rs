@@ -1,6 +1,6 @@
-use crate::resolute::SUSPENDED;
 use thiserror::Error;
 
+use crate::resolute::SUSPENDED;
 #[derive(Debug, Error)]
 pub enum MdownError {
     #[error("I/O error: {0} ({1})")] IoError(std::io::Error, String),

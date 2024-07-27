@@ -1,7 +1,7 @@
-use rusqlite::{ params, Connection, OptionalExtension };
+use rusqlite::{ Connection, OptionalExtension, params };
 use std::{ io::{ Read, Write }, process::Command, result::Result };
 
-use crate::{ args, download, error::MdownError, getter, resolute, metadata::DB };
+use crate::{ args, download, error::MdownError, getter, metadata::DB, resolute };
 
 include!(concat!(env!("OUT_DIR"), "/data_json.rs"));
 

@@ -1,9 +1,9 @@
+use chrono::DateTime;
 use crosscurses::stdscr;
 use lazy_static::lazy_static;
-use chrono::DateTime;
+use parking_lot::Mutex;
 use serde_json::Value;
 use std::{ env, fs::{ self, File }, io::Write, process::exit, sync::Arc };
-use parking_lot::Mutex;
 
 mod args;
 mod db;
@@ -781,7 +781,6 @@ pub(crate) async fn download_chapter(
         };
     }
     let images_length = images.len();
-
 
     *resolute::CURRENT_PAGE.lock() = 0;
     *resolute::CURRENT_PAGE_MAX.lock() = images_length.clone() as u64;

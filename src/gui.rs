@@ -3,7 +3,7 @@ use egui::{ containers::*, * };
 use serde_json::Value;
 use tracing::info;
 
-use crate::{ args, getter, resolute, utils, args::ARGS, error::MdownError, resolute::MANGA_ID };
+use crate::{ args::{ self, ARGS }, error::MdownError, getter, resolute, utils };
 
 pub(crate) fn start() -> Result<(), MdownError> {
     match app() {
@@ -367,7 +367,7 @@ async fn resolve_download(url: &str, handle_id: Box<str>) -> Result<String, Mdow
 
     if id != "*" {
         let id = id.as_str();
-        *MANGA_ID.lock() = id.to_string();
+        *resolute::MANGA_ID.lock() = id.to_string();
         info!("@{} Found {}", handle_id, id);
         match getter::get_manga_json(id).await {
             Ok(manga_name_json) => {

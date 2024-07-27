@@ -1,4 +1,4 @@
-use clap::{ Parser, ArgGroup, Subcommand };
+use clap::{ ArgGroup, Parser, Subcommand };
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 
@@ -60,11 +60,7 @@ lazy_static! {
     after_help = "Thanks for using Mdown"
 )]
 #[clap(group = ArgGroup::new("Search-Options").args(&["url", "search"]))]
-#[clap(
-    group = ArgGroup::new("Mod-Options").args(
-        &["web", "server", "gui", "encode"]
-    )
-)]
+#[clap(group = ArgGroup::new("Mod-Options").args(&["web", "server", "gui", "encode"]))]
 pub(crate) struct ParserArgs {
     #[arg(
         short,
