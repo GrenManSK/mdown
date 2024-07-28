@@ -102,22 +102,22 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
     match serde_json::from_value::<MdownLogs>(json) {
         Ok(logs) => {
             println!(
-                "N     ID            In brackets is probable type (it may not be same real type)"
+                "N     ID            Name        In brackets is probable type (it may not be same real type)"
             );
             let data = logs.clone();
 
-            let mut names: Vec<String> = Vec::new();
-            for (name, _) in data.iter() {
-                names.push(name.to_string());
+            let mut names: Vec<(String, String)> = Vec::new();
+            for (name, log) in data.iter() {
+                names.push((name.to_string(), log.name.clone()));
             }
             names.sort();
-            for (times, name) in names.iter().enumerate() {
+            for (times, (name, log)) in names.iter().enumerate() {
                 let typ = match name.len() {
                     12 => "web",
                     16 => "downloader",
                     _ => "unknown",
                 };
-                println!("{}: {} ({})", times, name, typ);
+                println!("{}: {} {} ({})", times, name, log, typ);
             }
 
             let vstup = match input("> ") {
@@ -140,7 +140,7 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
             }
 
             let name = match names.get(code) {
-                Some(name) => name,
+                Some((name, _)) => name,
                 None => {
                     return Err(MdownError::ConversionError(String::from("name")));
                 }
@@ -1184,7 +1184,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         match download::download_stat(&id, &folder, &manga_name).await {
             Ok(()) => (),
             Err(err) => {
-                crate::handle_error!(&err, String::from("statistics"));
+                handle_error!(&err, String::from("statistics"));
             }
         };
     }

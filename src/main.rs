@@ -74,7 +74,7 @@ async fn main() {
         !*args::ARGS_RESET &&
         !args::ARGS_SHOW.is_some() &&
         !args::ARGS_SHOW_ALL.is_some() &&
-        *args::ARGS_ENCODE != String::new() &&
+        *args::ARGS_ENCODE == String::new() &&
         !*args::ARGS_DELETE &&
         !*args::ARGS_SHOW_LOG
     {
@@ -97,6 +97,8 @@ async fn start() -> Result<(), error::MdownError> {
     if *args::ARGS_ENCODE != "" {
         #[cfg(feature = "web")]
         println!("{}", web::encode(&*args::ARGS_ENCODE));
+        #[cfg(not(feature = "web"))]
+        println!("Encode is not supported; You have to enable web feature");
         return Ok(());
     }
 
@@ -148,7 +150,7 @@ async fn start() -> Result<(), error::MdownError> {
         *args::ARGS_WEB ||
         *args::ARGS_GUI ||
         *args::ARGS_UPDATE ||
-        *crate::args::ARGS_LOG ||
+        *args::ARGS_LOG ||
         *args::ARGS_SERVER
     {
         tokio::spawn(async { utils::log_handler() });
@@ -279,10 +281,18 @@ async fn start() -> Result<(), error::MdownError> {
             }
         };
     } else if let Some(id_temp) = utils::resolve_regex(&url) {
-        id = id_temp.as_str().to_string();
+        if utils::is_valid_uuid(id_temp.as_str()) {
+            id = id_temp.as_str().to_string();
+        } else {
+            string(3, 0, &format!("Wrong format of UUID ({})", id_temp.as_str()));
+            string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
+            id = String::from("*");
+        }
     } else if utils::is_valid_uuid(&args::ARGS.lock().url) {
         id = args::ARGS.lock().url.clone();
     } else {
+        string(3, 0, &format!("Wrong format of UUID ({})", url));
+        string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
         id = String::from("*");
     }
     if id != String::from("*") {
@@ -311,7 +321,7 @@ async fn start() -> Result<(), error::MdownError> {
                 }
             }
             Err(code) => {
-                string(2, 0, &format!("Getting manga information ERROR"));
+                string(1, 0, &format!("Getting manga information ERROR"));
                 let code = code.into();
                 let parts: Vec<&str> = code.split_whitespace().collect();
 
@@ -408,7 +418,7 @@ pub(crate) async fn download_manga(
                     *args::ARGS_GUI ||
                     *args::ARGS_CHECK ||
                     *args::ARGS_UPDATE ||
-                    *crate::args::ARGS_LOG
+                    *args::ARGS_LOG
                 {
                     log!(&message);
                 }
@@ -580,7 +590,7 @@ pub(crate) async fn download_manga(
                         *args::ARGS_GUI ||
                         *args::ARGS_CHECK ||
                         *args::ARGS_UPDATE ||
-                        *crate::args::ARGS_LOG
+                        *args::ARGS_LOG
                     {
                         log!(&message);
                     }
@@ -709,7 +719,7 @@ pub(crate) async fn download_manga(
                         *args::ARGS_GUI ||
                         *args::ARGS_CHECK ||
                         *args::ARGS_UPDATE ||
-                        *crate::args::ARGS_LOG
+                        *args::ARGS_LOG
                     {
                         log!(&format!("({}) {}", item, message));
                     }
@@ -750,7 +760,7 @@ pub(crate) async fn download_chapter(
         *args::ARGS_GUI ||
         *args::ARGS_CHECK ||
         *args::ARGS_UPDATE ||
-        *crate::args::ARGS_LOG
+        *args::ARGS_LOG
     {
         let mut current_chapter = resolute::CURRENT_CHAPTER.lock();
         current_chapter.clear();

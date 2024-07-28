@@ -241,18 +241,7 @@ pub(crate) enum Commands {
             help = "Delete all files created by program"
         )] reset: bool,
     },
-}
-
-impl Default for Commands {
-    fn default() -> Self {
-        Commands::Database {
-            check: false,
-            update: false,
-            show: None,
-            show_all: None,
-            show_log: false,
-        }
-    }
+    Default,
 }
 
 pub(crate) enum Value {
@@ -306,7 +295,7 @@ impl Args {
         let args = ParserArgs::parse();
         let subcommands = match args.subcommands {
             Some(ref value) => value,
-            None => &Commands::default(),
+            None => &Commands::Default,
         };
         Args {
             url: args.url,

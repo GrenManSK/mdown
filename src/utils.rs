@@ -833,7 +833,7 @@ pub(crate) fn resolve_end(
             0,
             0,
             &format!(
-                "Either --url or --search was not specified or website is not in pattern of https://mangadex.org/title/[id]/"
+                "Either --url or --search was not specified or website is not in pattern of UUID | https://mangadex.org/title/[UUID]/ or UUID is not valid"
             )
         );
         string(1, 0, "See readme.md for more information");
