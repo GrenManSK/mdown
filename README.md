@@ -4,6 +4,29 @@
 
 See [site](https://mangadex.org/) for finding manga
 
+## Install
+
+Firstly you have to install [Rust](https://www.rust-lang.org/tools/install)
+
+`cargo build -r` will compile app and put it in this location `target/release/mdown.exe`
+
+`cargo run -r` will compile and run app
+
+`cargo run -r --` after this you can put arguments that will be pushed to the app see [usage](https://github.com/GrenManSK/mdown?tab=readme-ov-file#usage)
+
+If you have EXE file in CWD (current working directory) all you need to do is run `mdown` or with arguments e.g. `mdown --url [UUID]`
+
+### Features
+
+- web
+- server
+- gui
+- full (contain all features)
+
+To add feature run `cargo build -r -F [feature]`
+
+If you want to add more features run `cargo build -r -F [feature1] -F [feature2]`
+
 ---
 
 ## usage
@@ -52,6 +75,8 @@ See [site](https://mangadex.org/) for finding manga
 `--server` - will start server from which you can download manga through local internet
 
 ## Subcommands
+
+e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 
 ### app
 
