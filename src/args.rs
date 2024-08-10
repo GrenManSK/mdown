@@ -2,6 +2,9 @@ use clap::{ ArgGroup, Parser, Subcommand };
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 
+const MAX_CONSECUTIVE: &str = "40";
+const DEFAULT_LANG: &str = "en";
+
 lazy_static! {
     pub(crate) static ref ARGS: Mutex<Args> = Mutex::new(Args::from_args());
     pub(crate) static ref ARGS_CHECK: bool = ARGS.lock().check.clone();
@@ -10,6 +13,7 @@ lazy_static! {
     pub(crate) static ref ARGS_LOG: bool = ARGS.lock().log.clone();
     pub(crate) static ref ARGS_ENCODE: String = ARGS.lock().encode.clone();
     pub(crate) static ref ARGS_DEV: bool = ARGS.lock().dev.clone();
+    pub(crate) static ref ARGS_MUSIC: Option<Option<String>> = ARGS.lock().music.clone();
     pub(crate) static ref ARGS_CWD: String = ARGS.lock().cwd.clone();
     pub(crate) static ref ARGS_UNSORTED: bool = ARGS.lock().unsorted.clone();
     pub(crate) static ref ARGS_SHOW: Option<Option<String>> = ARGS.lock().show.clone();
@@ -79,7 +83,7 @@ pub(crate) struct ParserArgs {
         short,
         long,
         value_name = "LANGUAGE",
-        default_value_t = String::from("en"),
+        default_value_t = String::from(DEFAULT_LANG),
         next_line_help = true,
         help = "language of manga to download; \"*\" is for all languages\n"
     )] pub(crate) lang: String,
@@ -128,7 +132,7 @@ pub(crate) struct ParserArgs {
     #[arg(
         short,
         long,
-        default_value_t = String::from("40"),
+        default_value_t = String::from(MAX_CONSECUTIVE),
         next_line_help = true,
         help = "download manga images by supplied number at once;\nit is highly recommended to use MAX 50 because of lack of performance and non complete manga downloading,\nmeaning chapter will not download correctly, meaning missing or corrupt pages\n"
     )] pub(crate) max_consecutive: String,
@@ -166,7 +170,7 @@ pub(crate) struct ParserArgs {
         short,
         long,
         next_line_help = true,
-        default_value_t = String::from(""),
+        default_value_t = String::new(),
         help = "print url in program readable format\n"
     )] pub(crate) encode: String,
     #[arg(
@@ -186,6 +190,11 @@ pub(crate) struct ParserArgs {
         next_line_help = true,
         help = "enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed gradually during download process"
     )] pub(crate) web: bool,
+    #[arg(
+        long,
+        next_line_help = true,
+        help = "Will play music during downloading\n1. Wushu Dolls\n2. Militech\n3. Musorshchiki\n[default: 1]"
+    )] pub(crate) music: Option<Option<String>>,
     #[arg(long, next_line_help = true, help = "Starts server")] pub(crate) server: bool,
     /// Reset-Options
     #[arg(long, next_line_help = true, help = "Gui version of mdown")]
@@ -210,12 +219,12 @@ pub(crate) enum Commands {
         #[arg(
             long,
             next_line_help = true,
-            help = "Shows current manga in database"
+            help = "Shows current manga in database; you can put id of manga that you want to show [default: will show all manga in database]"
         )] show: Option<Option<String>>,
         #[arg(
             long,
             next_line_help = true,
-            help = "Shows current chapters in database"
+            help = "Shows current chapters in database; you can put id of manga that you want to show [default: will show all manga in database]"
         )] show_all: Option<Option<String>>,
         #[arg(long, next_line_help = true, help = "Shows current logs in database")] show_log: bool,
     },
@@ -223,7 +232,7 @@ pub(crate) enum Commands {
         #[arg(
             long,
             next_line_help = true,
-            help = "set default name of folder"
+            help = "set default name of folder\n[default: Will remove current folder setting]"
         )] folder: Option<Option<String>>,
     },
     App {
@@ -278,6 +287,7 @@ pub(crate) struct Args {
     pub(crate) gui: bool,
     pub(crate) debug: bool,
     pub(crate) dev: bool,
+    pub(crate) music: Option<Option<String>>,
     pub(crate) subcommands: Option<Commands>,
 }
 
@@ -341,6 +351,7 @@ impl Args {
             gui: args.gui,
             debug: args.debug,
             dev: args.dev,
+            music: args.music,
             subcommands: args.subcommands,
         }
     }
@@ -389,6 +400,7 @@ impl Args {
             gui: *ARGS_GUI,
             debug: *ARGS_DEBUG,
             dev: *ARGS_DEV,
+            music: ARGS_MUSIC.clone(),
             subcommands: ARGS.lock().subcommands.clone(),
         }
     }

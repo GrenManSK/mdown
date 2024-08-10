@@ -16,6 +16,9 @@ mod resolute;
 mod utils;
 mod zip_func;
 
+#[cfg(feature = "music")]
+mod music;
+
 #[cfg(feature = "gui")]
 mod gui;
 
@@ -143,6 +146,13 @@ async fn start() -> Result<(), error::MdownError> {
         Err(err) => {
             return Err(err);
         }
+    }
+
+    if args::ARGS_MUSIC.is_some() {
+        #[cfg(feature = "music")]
+        tokio::spawn(async { music::start() });
+        #[cfg(not(feature = "music"))]
+        eprintln!("Music feature is not enabled; You have to enable music feature");
     }
 
     // subscriber
@@ -290,6 +300,8 @@ async fn start() -> Result<(), error::MdownError> {
         }
     } else if utils::is_valid_uuid(&args::ARGS.lock().url) {
         id = args::ARGS.lock().url.clone();
+    } else if url == "UNSPECIFIED" {
+        id = String::from("*");
     } else {
         string(3, 0, &format!("Wrong format of UUID ({})", url));
         string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
@@ -302,6 +314,7 @@ async fn start() -> Result<(), error::MdownError> {
         match getter::get_manga_json(&id).await {
             Ok(manga_name_json) => {
                 string(1, 0, &format!("Getting manga information DONE"));
+                *resolute::MUSIC_STAGE.lock() = String::from("init");
                 let json_value = match utils::get_json(&manga_name_json) {
                     Ok(value) => value,
                     Err(err) => {
@@ -637,6 +650,7 @@ pub(crate) async fn download_manga(
                                         return Err(error::MdownError::JsonError(err.to_string()));
                                     }
                                 };
+                                *resolute::MUSIC_STAGE.lock() = String::from("start");
                                 match
                                     download_chapter(
                                         id,

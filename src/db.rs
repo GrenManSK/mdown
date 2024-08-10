@@ -36,17 +36,33 @@ pub(crate) fn read_resource(conn: &Connection, name: &str) -> Result<Option<Vec<
     match
         stmt
             .query_row(params![name], |row| {
-                let data: String = row.get(0).unwrap();
-                let is_binary: bool = row.get(1).unwrap();
+                let data: String = match row.get(0) {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(err);
+                    }
+                };
+                let is_binary: bool = match row.get(1) {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(err);
+                    }
+                };
 
                 if is_binary {
                     #[allow(deprecated)]
-                    let decoded_data = base64
-                        ::decode(&data)
-                        .map_err(|e|
-                            MdownError::CustomError(e.to_string(), String::from("Base64Error"))
-                        )
-                        .unwrap();
+                    let decoded_data = match
+                        base64
+                            ::decode(&data)
+                            .map_err(|e|
+                                MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                            )
+                    {
+                        Ok(value) => value,
+                        Err(_err) => {
+                            return Err(rusqlite::Error::InvalidQuery);
+                        }
+                    };
                     Ok(Some(decoded_data))
                 } else {
                     Ok(Some(data.into_bytes()))
@@ -73,9 +89,16 @@ fn write_resource(
         #[allow(deprecated)]
         base64::encode(data)
     } else {
-        String::from_utf8(data.to_vec())
-            .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error")))
-            .unwrap()
+        match
+            String::from_utf8(data.to_vec()).map_err(|e|
+                MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+            )
+        {
+            Ok(value) => value,
+            Err(err) => {
+                return Err(err);
+            }
+        }
     };
 
     match
@@ -210,13 +233,25 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                             .spawn()
                     {
                         Ok(mut child) => {
-                            let stdout = child.stdout.take().expect("Failed to capture stdout");
-                            let stderr = child.stderr.take().expect("Failed to capture stderr");
+                            if let Some(stdout) = child.stdout.take() {
+                                print_output(stdout, "stdout".to_string());
+                            } else {
+                                eprintln!("\nFailed to capture stdout\n");
+                            }
 
-                            print_output(stdout, "stdout".to_string());
-                            print_output(stderr, "stderr".to_string());
+                            if let Some(stderr) = child.stderr.take() {
+                                print_output(stderr, "stderr".to_string());
+                            } else {
+                                eprintln!("\nFailed to capture stderr\n");
+                            }
 
-                            let status = child.wait().expect("Failed to wait on child");
+                            let status = match child.wait() {
+                                Ok(status) => status,
+                                Err(_err) => {
+                                    eprintln!("\nFailed to wait for process\n");
+                                    continue;
+                                }
+                            };
 
                             if !status.success() {
                                 eprintln!("\nProcess exited with status: {}\n", status);
@@ -296,7 +331,13 @@ fn print_output<R: Read + Send + 'static>(reader: R, label: String) {
                         }
                     }
                     use std::io::Write;
-                    std::io::stdout().flush().unwrap();
+                    match std::io::stdout().flush() {
+                        Ok(_) => (),
+                        Err(err) => {
+                            eprintln!("Error flushing stdout: {}", err);
+                            break;
+                        }
+                    };
                 }
                 Err(e) => {
                     eprintln!("Error reading {}: {}", label, e);
@@ -457,9 +498,16 @@ pub(crate) fn setup_settings() -> Result<String, MdownError> {
 
     let folder = match read_resource(&conn, "folder") {
         Ok(Some(value)) =>
-            String::from_utf8(value)
-                .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error")))
-                .unwrap(),
+            match
+                String::from_utf8(value).map_err(|e|
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                )
+            {
+                Ok(folder) => folder,
+                Err(err) => {
+                    return Err(err);
+                }
+            }
         Ok(None) => args::ARGS.lock().folder.clone(),
         Err(err) => {
             return Err(err);

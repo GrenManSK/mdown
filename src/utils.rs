@@ -673,7 +673,7 @@ pub(crate) async fn ctrl_handler(file: &str) {
         }
     }
     if resolve_final_end() || *resolute::ENDED.lock() {
-        return;
+        exit(0);
     }
     clear_screen(0);
     string(0, 0, "CTRL_C: Cleaning up");

@@ -371,7 +371,12 @@ async fn resolve_download(url: &str, handle_id: Box<str>) -> Result<String, Mdow
         info!("@{} Found {}", handle_id, id);
         match getter::get_manga_json(id).await {
             Ok(manga_name_json) => {
-                let json_value = serde_json::from_str(&manga_name_json).unwrap();
+                let json_value = match serde_json::from_str(&manga_name_json) {
+                    Ok(value) => value,
+                    Err(_) => {
+                        return Err(MdownError::JsonError(String::from("Invalid JSON")));
+                    }
+                };
                 if let Value::Object(obj) = json_value {
                     return resolute::resolve(obj, id).await;
                 } else {

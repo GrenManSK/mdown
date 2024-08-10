@@ -21,11 +21,14 @@ If you have EXE file in CWD (current working directory) all you need to do is ru
 - web
 - server
 - gui
-- full (contain all features)
+- music
+- full (contains all features)
 
 To add feature run `cargo build -r -F [feature]`
 
 If you want to add more features run `cargo build -r -F [feature1] -F [feature2]`
+
+**IMPORTANT**  If you want to use music feature you would have to use music you need to download music zip file from [pre-release](https://github.com/GrenManSK/mdown/releases/tag/music) and extract it to `resources/music/`
 
 ---
 
@@ -74,6 +77,8 @@ If you want to add more features run `cargo build -r -F [feature1] -F [feature2]
 
 `--server` - will start server from which you can download manga through local internet
 
+`--music` - will play music during downloading 1. Wushu Dolls, 2. Militech, 3. Musorshchiki
+
 ## Subcommands
 
 e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
@@ -103,6 +108,10 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 ### settings
 
 `--folder` - will set default folder name; if its left empty then it will remove the default folder
+
+## Help
+
+- There are some function that will work with or without specifying argument e.g. `--music`. You can see it with `--help` flag and if there is \<ARG\> you need to specify argument else if [\<ARG\>] you don't need to specify argument, it will be defaulted
 
 ---
 

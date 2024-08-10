@@ -295,7 +295,7 @@ fn get_dist(distribution: &metadata::RatingDistribution, i: usize) -> String {
         9 => distribution.nine,
         10 => distribution.ten,
         _ => {
-            return String::from("");
+            return String::new();
         }
     };
     format!("{}: {}\n\n", i, value)

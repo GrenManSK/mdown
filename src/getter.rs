@@ -19,7 +19,7 @@ fn get_exe_path() -> Result<String, MdownError> {
             return Err(
                 MdownError::IoError(
                     err,
-                    String::from("? your path to your exe file is invalid bro")
+                    String::from(" your path to your exe file is invalid bro")
                 )
             );
         }
@@ -89,11 +89,11 @@ pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, S
             let mut iter = param.split('=');
             let key = match iter.next() {
                 Some(key) => key.to_string(),
-                None => String::from(""),
+                None => String::new(),
             };
             let value = match iter.next() {
                 Some(key) => key.to_string(),
-                None => String::from(""),
+                None => String::new(),
             };
             Some((key, value))
         })

@@ -64,6 +64,8 @@ lazy_static! {
     pub(crate) static ref FIXED_DATES: Mutex<Vec<String>> = Mutex::new(Vec::new()); // vec of chapter number which have been fixed
     pub(crate) static ref GENRES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
     pub(crate) static ref THEMES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
+    pub(crate) static ref MUSIC_STAGE: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref MUSIC_END: Mutex<bool> = Mutex::new(false);
 }
 pub(crate) fn args_delete() -> Result<(), MdownError> {
     let path = match getter::get_dat_path() {
@@ -222,13 +224,25 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
 
             for (times, name) in items.iter().enumerate() {
                 if times >= lines + 100 {
-                    write!(
-                        stdout,
-                        "Press Enter to print the next line, or space to print the next 100 lines.\r"
-                    ).unwrap();
-                    stdout.flush().unwrap();
+                    match
+                        write!(
+                            stdout,
+                            "Press Enter to print the next line, or space to print the next 100 lines.\r"
+                        )
+                    {
+                        Ok(_) => {}
+                        Err(err) => {
+                            return Err(MdownError::IoError(err, String::from("stdout")));
+                        }
+                    }
+                    match stdout.flush() {
+                        Ok(_) => {}
+                        Err(err) => {
+                            return Err(MdownError::IoError(err, String::from("stdout")));
+                        }
+                    }
 
-                    if let Event::Key(key_event) = event::read().unwrap() {
+                    if let Ok(Event::Key(key_event)) = event::read() {
                         match key_event.code {
                             KeyCode::Enter => {
                                 lines += 2;
@@ -492,7 +506,7 @@ pub(crate) fn check_for_metadata(
             }
         }
         Err(_err) => {
-            return Err(MdownError::NotFoundError(String::from("")));
+            return Err(MdownError::NotFoundError(String::new()));
         }
     }
 }
@@ -523,6 +537,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
             let mut iter: i32 = -1;
             let mut to_remove = vec![];
             for item in data.iter_mut() {
+                *MUSIC_STAGE.lock() = String::from("init");
                 iter += 1;
                 let manga_name = item.name.clone();
                 println!("Checking {}\r", manga_name);
@@ -737,6 +752,8 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                 TO_DOWNLOAD_DATE.lock().clear();
                 FIXED_DATES.lock().clear();
             }
+            *MUSIC_STAGE.lock() = String::from("end");
+            *MUSIC_END.lock() = true;
             for &index in to_remove.iter().rev() {
                 data.remove(index as usize);
             }
@@ -1220,6 +1237,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         log!("Downloaded manga");
     }
     *DOWNLOADING.lock() = false;
+    *MUSIC_STAGE.lock() = String::from("end");
     CHAPTERS.lock().clear();
     MANGA_ID.lock().clear();
     CURRENT_CHAPTER.lock().clear();

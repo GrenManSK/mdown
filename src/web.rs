@@ -418,7 +418,7 @@ fn parse_request(url: String) -> Result<String, MdownError> {
         };
         Ok(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}", json))
     } else {
-        Err(MdownError::NotFoundError(String::from("")))
+        Err(MdownError::NotFoundError(String::new()))
     }
 }
 
