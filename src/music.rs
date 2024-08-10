@@ -66,10 +66,10 @@ pub(crate) fn start() {
                 Some(value) => {
                     match value.parse::<u32>() {
                         Ok(value) => value.clone(),
-                        Err(_) => 0,
+                        Err(_) => 1,
                     }
                 }
-                None => 0,
+                None => 1,
             };
         }
         None => {
