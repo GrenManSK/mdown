@@ -17,10 +17,7 @@ fn get_exe_path() -> Result<String, MdownError> {
         Ok(value) => value,
         Err(err) => {
             return Err(
-                MdownError::IoError(
-                    err,
-                    String::from(" your path to your exe file is invalid bro")
-                )
+                MdownError::IoError(err, String::from(" your path to your exe file is invalid bro"))
             );
         }
     };
@@ -101,7 +98,7 @@ pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, S
 }
 
 pub(crate) fn get_folder_name<'a>(manga_name: &'a str) -> &'a str {
-    let folder_name = ARGS.lock().folder.clone();
+    let folder_name = utils::process_filename(&ARGS.lock().folder.clone());
     if folder_name == "name" {
         manga_name
     } else {
@@ -212,11 +209,8 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
         .replace("?", "")
         .trim()
         .to_string();
-    if name.len() > 70 {
-        return format!("{}__", &name[0..70]);
-    } else {
-        name
-    }
+    let name = if name.len() > 70 { format!("{}__", &name[0..70]) } else { name };
+    return utils::process_filename(&name);
 }
 
 pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {

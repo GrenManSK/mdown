@@ -534,12 +534,7 @@ pub(crate) async fn download_manga(
                         resolute::CHAPTERS
                             .lock()
                             .push(metadata::ChapterMetadata::new(&chapter_num, &update_date, id));
-                        moves = utils::skip(
-                            utils::process_filename(&folder_path),
-                            item,
-                            moves,
-                            &mut hist
-                        );
+                        moves = utils::skip(folder_path, item, moves, &mut hist);
                         continue;
                     }
                 }
@@ -869,7 +864,11 @@ pub(crate) async fn download_chapter(
         Ok(()) => (),
         Err(err) => eprintln!("Error: creating directory {} {}", filename.get_folder_w_end(), err),
     }
-    let start = MAXPOINTS.max_x / 3 - (images_length as u32) / 2;
+    let start = if MAXPOINTS.max_x / 3 < (images_length as u32) / 2 {
+        1
+    } else {
+        MAXPOINTS.max_x / 3 - (images_length as u32) / 2
+    };
 
     let iter = match args::ARGS.lock().max_consecutive.parse() {
         Ok(x) => x,
@@ -926,7 +925,7 @@ pub(crate) async fn download_chapter(
                 &format!("{}Ch.{} - {}.jpg", vol, chapter, page)
             );
 
-            let lock_file = utils::process_filename(&format!(".cache\\{}.lock", folder_name));
+            let lock_file = format!(".cache\\{}.lock", folder_name);
             let full_path = format!(".cache/{}/{}", folder_name, file_name);
 
             tokio::spawn(async move {

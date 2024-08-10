@@ -18,7 +18,12 @@ fn zip_dir<T>(
         .filter_map(|e| e.ok())
         .collect();
     let total_items = dir_entries_vec.len();
-    let start = MAXPOINTS.max_x / 3 - ((total_items / 2) as u32) - 1;
+
+    let start = if MAXPOINTS.max_x / 3 < ((total_items / 2) as u32) - 1 {
+        1
+    } else {
+        MAXPOINTS.max_x / 3 - ((total_items / 2) as u32) - 1
+    };
     progress_bar_preparation(start, total_items, 5);
     let mut zip = zip::ZipWriter::new(writer);
     let options = FileOptions::default().compression_method(method).unix_permissions(0o755);

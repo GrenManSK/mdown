@@ -893,7 +893,9 @@ impl FileName {
                 )
             );
         } else {
-            return format!("{} - {}Ch.{}", self.manga_name, self.vol, self.chapter_num);
+            return process_filename(
+                &format!("{} - {}Ch.{}", self.manga_name, self.vol, self.chapter_num)
+            );
         }
     }
     pub(crate) fn get_file_w_folder(&self) -> String {
