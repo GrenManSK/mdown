@@ -18,8 +18,8 @@ If you have EXE file in CWD (current working directory) all you need to do is ru
 
 ### Features
 
-- web
-- server
+- web (default)
+- server (default)
 - gui
 - music
 - full (contains all features)
