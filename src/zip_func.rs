@@ -2,7 +2,15 @@ use std::{ fs::File, io::{ Read, Seek, Write }, path::Path };
 use walkdir::{ DirEntry, WalkDir };
 use zip::{ result::ZipError, write::FileOptions, ZipArchive };
 
-use crate::{ args, error, log, MAXPOINTS, string, utils::progress_bar_preparation };
+use crate::{
+    args,
+    error,
+    log,
+    MAXPOINTS,
+    metadata,
+    string,
+    utils::{ self, progress_bar_preparation },
+};
 
 fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
@@ -137,10 +145,10 @@ pub(crate) fn to_zip(src_dir: &str, dst_file: &str) {
     }
 }
 
-pub(crate) fn extract_metadata_from_zip(
+pub(crate) fn extract_file_from_zip(
     zip_file_path: &str,
     metadata_file_name: &str
-) -> Result<String, error::MdownError> {
+) -> Result<metadata::ChapterMetadataIn, error::MdownError> {
     let zip_file = match File::open(zip_file_path) {
         Ok(zip_file) => zip_file,
         Err(err) => {
@@ -158,14 +166,27 @@ pub(crate) fn extract_metadata_from_zip(
         archive.by_name(metadata_file_name).map_err(|err| error::MdownError::ZipError(err))
     {
         Ok(mut file) => {
-            let mut content = String::new();
-            match file.read_to_string(&mut content) {
+            let mut metadata_content = String::new();
+            match file.read_to_string(&mut metadata_content) {
                 Ok(_) => (),
                 Err(err) => {
                     return Err(error::MdownError::IoError(err, metadata_file_name.to_string()));
                 }
             }
-            Ok(content)
+            let json_value = match utils::get_json(&metadata_content) {
+                Ok(value) => value,
+                Err(err) => {
+                    return Err(err);
+                }
+            };
+            match serde_json::from_value::<metadata::ChapterMetadataIn>(json_value) {
+                Ok(obj) => {
+                    return Ok(obj);
+                }
+                Err(err) => {
+                    return Err(error::MdownError::JsonError(err.to_string()));
+                }
+            }
         }
         Err(_err) => {
             Err(

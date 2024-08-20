@@ -193,7 +193,7 @@ pub(crate) struct ParserArgs {
     #[arg(
         long,
         next_line_help = true,
-        help = "Will play music during downloading\n1. Wushu Dolls\n2. Militech\n3. Musorshchiki\n[default: 1]"
+        help = "Will play music during downloading\n1. Wushu Dolls\n2. Militech\n3. Musorshchiki\n4. Valentinos\n[default: 1]"
     )] pub(crate) music: Option<Option<String>>,
     #[arg(long, next_line_help = true, help = "Starts server")] pub(crate) server: bool,
     /// Reset-Options

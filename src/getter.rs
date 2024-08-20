@@ -4,6 +4,7 @@ use std::process::exit;
 use crate::{
     args::{ self, ARGS },
     download::get_response_client,
+    debug,
     error::MdownError,
     log,
     metadata,
@@ -115,11 +116,13 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                 .and_then(|attr_data| attr_data.get(lang.clone()))
                 .and_then(Value::as_str)
         {
+            // If there is manga name with language from args
             Some(manga_name) => {
                 drop(lang);
                 manga_name.to_string()
             }
             None => {
+                // Check altTitles for language that corresponds to args language
                 drop(lang);
                 let mut return_title = String::from("*");
                 let get = title_data.get("altTitles").and_then(|val| val.as_array());
@@ -139,21 +142,26 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                         break;
                     }
                     if return_title == "*" {
-                        return_title = match
-                            title_data
-                                .get("title")
-                                .and_then(|attr_data| attr_data.get("ja-ro"))
-                                .and_then(Value::as_str)
-                        {
-                            Some(value) => value.to_string(),
-                            None => String::from("*"),
-                        };
-                    } else {
-                        return return_title.replace("\"", "");
+                        // If not found check for japanese and english language
+                        for i in vec!["ja-ro", "en"].iter() {
+                            return_title = match
+                                title_data
+                                    .get("title")
+                                    .and_then(|attr_data| attr_data.get(i))
+                                    .and_then(Value::as_str)
+                            {
+                                Some(value) => {
+                                    value.to_string();
+                                    break;
+                                }
+                                None => String::from("*"),
+                            };
+                        }
                     }
-                    let get = title_data.get("altTitles").and_then(|val| val.as_array());
 
-                    if let Some(get) = get {
+                    // If still not found checks for english and japanese title in title data
+
+                    if return_title == "*" {
                         let mut get_final: serde_json::Map<String, Value> = serde_json::Map::new();
 
                         for obj in get {
@@ -163,45 +171,18 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                                 }
                             }
                         }
-                        for (lang, title) in &get_final {
-                            if *lang == *resolute::LANGUAGE.lock() {
+                        for (lang, title) in get_final {
+                            if lang == "en" || lang == "ja-ro" {
                                 return_title = title.to_string();
                                 break;
                             }
                         }
-                        if return_title == String::from("*") {
-                            for (lang, title) in get_final {
-                                if lang == "en" {
-                                    return_title = title.to_string();
-                                    break;
-                                }
-                            }
-                        }
+                    }
+                    if return_title == "*" {
+                        return_title = String::from("Unrecognized title");
                     }
                 }
-                if return_title == String::from("*") {
-                    match
-                        title_data
-                            .get("title")
-                            .and_then(|attr_data| attr_data.get("en"))
-                            .and_then(Value::as_str)
-                    {
-                        Some(manga_name) => manga_name.to_string(),
-                        None => {
-                            match
-                                title_data
-                                    .get("title")
-                                    .and_then(|attr_data| attr_data.get("ja-ro"))
-                                    .and_then(Value::as_str)
-                            {
-                                Some(manga_name) => manga_name.to_string(),
-                                None => String::from("Unrecognized title"),
-                            }
-                        }
-                    }
-                } else {
-                    return_title
-                }
+                return_title
             }
         }
     )
@@ -223,7 +204,10 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
         }
     };
 
+    debug!("got response (get_manga_response)");
+
     if response.status().is_success() {
+        debug!("response is success (get_manga_response)");
         return match response.text().await {
             Ok(text) => Ok(text),
             Err(err) =>
@@ -241,6 +225,7 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
                 ),
         };
     } else {
+        debug!("response is error (get_manga_response)");
         eprintln!(
             "Error: get manga json Failed to fetch data from the API. Status code: {:?}",
             response.status()
@@ -258,7 +243,9 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, MdownError> {
             return Err(err);
         }
     };
+    debug!("got response (get_statistic_json)");
     if response.status().is_success() {
+        debug!("response is success (get_statistic_json)");
         let json = match response.text().await {
             Ok(res) => res,
             Err(err) => {
@@ -268,6 +255,7 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, MdownError> {
 
         Ok(json)
     } else {
+        debug!("response is error (get_statistic_json)");
         eprintln!(
             "Error: get statistic json Failed to fetch data from the API. Status code: {:?}",
             response.status()
@@ -289,7 +277,11 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
                 return Err(err);
             }
         };
+
+        debug!("got response of chapter images");
+
         if response.status().is_success() {
+            debug!("response is success");
             let json = match response.text().await {
                 Ok(text) => text,
                 Err(err) => {
@@ -311,6 +303,7 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
             string(3, 0, "Retrieving chapter info DONE");
             return Ok(json);
         } else {
+            debug!("response is not successful");
             string(
                 5,
                 0,
@@ -359,6 +352,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
     let mut json;
     let mut json_2 = String::new();
     let mut times_offset: u32;
+    let max_per_session = 500;
     let stat = match ARGS.lock().stat {
         true => 1,
         false => 0,
@@ -375,9 +369,11 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                 times_offset.to_string()
             )
         );
+        debug!("fetching data with offset {}", times_offset);
         let full_url = format!(
-            "https://api.mangadex.org/manga/{}/feed?limit=500&offset={}",
+            "https://api.mangadex.org/manga/{}/feed?limit={}&offset={}",
             id,
+            max_per_session,
             times_offset
         );
 
@@ -387,182 +383,140 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                 return Err(err);
             }
         };
-        if response.status().is_success() {
-            json = match response.text().await {
-                Ok(text) => text,
-                Err(err) => {
-                    return Err(
-                        MdownError::StatusError(match err.status() {
-                            Some(status) => status,
-                            None => {
-                                return Err(
-                                    MdownError::NotFoundError(
-                                        String::from("StatusCode (get_manga)")
-                                    )
-                                );
-                            }
-                        })
-                    );
-                }
-            };
-            if times == 0 {
-                json_2 = json.clone();
-            }
-            let mut offset_temp: usize = 0;
-            let json_value = match utils::get_json(&json) {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(err);
-                }
-            };
-            match json_value {
-                Value::Object(obj) => {
-                    if let Some(data_array) = obj.get("data").and_then(Value::as_array) {
-                        let naive_time_str = chrono::Utc
-                            ::now()
-                            .naive_utc()
-                            .format("%Y-%m-%d %H:%M:%S")
-                            .to_string();
-
-                        resolute::DATE_FETCHED.lock().push(naive_time_str);
-                        let message = format!(
-                            "{} Data fetched with offset {}   ",
-                            times.to_string(),
-                            offset.to_string()
-                        );
-                        string(3 + times + stat, 0, &message);
-                        if
-                            *args::ARGS_WEB ||
-                            *args::ARGS_GUI ||
-                            *args::ARGS_CHECK ||
-                            *args::ARGS_UPDATE ||
-                            *args::ARGS_LOG
-                        {
-                            log!(&message);
-                        }
-                        offset_temp = data_array.len();
-                        if offset_temp >= 500 {
-                            if times > 0 {
-                                let mut data1 = match utils::get_json(&json) {
-                                    Ok(value) => value,
-                                    Err(err) => {
-                                        return Err(err);
-                                    }
-                                };
-                                let data2 = match utils::get_json(&json_2) {
-                                    Ok(value) => value,
-                                    Err(err) => {
-                                        return Err(err);
-                                    }
-                                };
-
-                                let data1_array = match data1.get_mut("data") {
-                                    Some(value) => value,
-                                    None => {
-                                        return Err(
-                                            MdownError::JsonError(String::from("Didn't found data"))
-                                        );
-                                    }
-                                };
-                                let data2_array = match data2.get("data") {
-                                    Some(value) => value,
-                                    None => {
-                                        return Err(
-                                            MdownError::JsonError(String::from("Didn't found data"))
-                                        );
-                                    }
-                                };
-                                let empty_array = vec![];
-
-                                if let Some(data1_array) = data1_array.as_array_mut() {
-                                    data1_array.extend(
-                                        (
-                                            match data2_array.as_array() {
-                                                Some(array) => array,
-                                                None => &empty_array,
-                                            }
-                                        ).clone()
-                                    );
-                                }
-
-                                json = match serde_json::to_string(&data1) {
-                                    Ok(value) => value,
-                                    Err(err) => {
-                                        return Err(MdownError::JsonError(err.to_string()));
-                                    }
-                                };
-                            }
-                            json_2 = json;
-                            times += 1;
-                            continue;
-                        } else {
-                            offset_temp = data_array.len();
-                        }
-                        if times > 0 {
-                            let mut data1 = match utils::get_json(&json) {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(err);
-                                }
-                            };
-                            let data2 = match utils::get_json(&json_2) {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(err);
-                                }
-                            };
-
-                            let data1_array = match data1.get_mut("data") {
-                                Some(value) => value,
-                                None => {
-                                    return Err(
-                                        MdownError::JsonError(String::from("Did not find data"))
-                                    );
-                                }
-                            };
-                            let data2_array = match data2.get("data") {
-                                Some(value) => value,
-                                None => {
-                                    return Err(
-                                        MdownError::JsonError(String::from("Did not find data"))
-                                    );
-                                }
-                            };
-
-                            let empty_array = vec![];
-                            if let Some(data1_array) = data1_array.as_array_mut() {
-                                data1_array.extend(
-                                    (
-                                        match data2_array.as_array() {
-                                            Some(array) => array,
-                                            None => &empty_array,
-                                        }
-                                    ).clone()
-                                );
-                            }
-
-                            json = match serde_json::to_string(&data1) {
-                                Ok(value) => value,
-                                Err(err) => {
-                                    return Err(MdownError::JsonError(err.to_string()));
-                                }
-                            };
-                        }
-                    }
-                }
-                _ => {
-                    return Err(MdownError::JsonError(String::from("Could not parse manga json")));
-                }
-            }
-
-            return Ok((json, offset_temp));
-        } else {
+        debug!("got response");
+        if !response.status().is_success() {
+            debug!("response is not a success");
             eprintln!(
                 "Error: get manga Failed to fetch data from the API. Status code: {:?} ({})",
                 response.status(),
                 full_url
             );
             exit(1);
+        }
+        json = match response.text().await {
+            Ok(text) => text,
+            Err(err) => {
+                return Err(
+                    MdownError::StatusError(match err.status() {
+                        Some(status) => status,
+                        None => {
+                            return Err(
+                                MdownError::NotFoundError(String::from("StatusCode (get_manga)"))
+                            );
+                        }
+                    })
+                );
+            }
+        };
+        if times == 0 {
+            json_2 = json.clone();
+        }
+        let mut offset_temp: usize = 0;
+        let json_value = match utils::get_json(&json) {
+            Ok(value) => value,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+        debug!("data parsed");
+        match json_value {
+            Value::Object(obj) => {
+                if let Some(data_array) = obj.get("data").and_then(Value::as_array) {
+                    let naive_time_str = chrono::Utc
+                        ::now()
+                        .naive_utc()
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string();
+
+                    resolute::DATE_FETCHED.lock().push(naive_time_str);
+                    let message = format!(
+                        "{} Data fetched with offset {}   ",
+                        times.to_string(),
+                        offset.to_string()
+                    );
+                    string(3 + times + stat, 0, &message);
+                    if
+                        *args::ARGS_WEB ||
+                        *args::ARGS_GUI ||
+                        *args::ARGS_CHECK ||
+                        *args::ARGS_UPDATE ||
+                        *args::ARGS_LOG
+                    {
+                        log!(&message);
+                    }
+                    offset_temp = data_array.len();
+                    if offset_temp >= max_per_session {
+                        debug!("data is at or exceeded maximum {}", max_per_session);
+                        json_2 = json;
+                        times += 1;
+                        continue;
+                    } else {
+                        offset_temp = data_array.len();
+                    }
+                    if times > 0 {
+                        debug!("joining data");
+                        json = match crossfade_data(&json, &json_2) {
+                            Ok(value) => value,
+                            Err(err) => {
+                                return Err(err);
+                            }
+                        };
+                    }
+                }
+            }
+            _ => {
+                return Err(MdownError::JsonError(String::from("Could not parse manga json")));
+            }
+        }
+
+        return Ok((json, offset_temp));
+    }
+}
+
+fn crossfade_data(json: &str, json_2: &str) -> Result<String, MdownError> {
+    // Add json_2.data to json.data
+    let mut data1 = match utils::get_json(json) {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    let data2 = match utils::get_json(json_2) {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    let data1_array = match data1.get_mut("data") {
+        Some(value) => value,
+        None => {
+            return Err(MdownError::JsonError(String::from("Didn't found data")));
+        }
+    };
+    let data2_array = match data2.get("data") {
+        Some(value) => value,
+        None => {
+            return Err(MdownError::JsonError(String::from("Didn't found data")));
+        }
+    };
+    let empty_array = vec![];
+
+    if let Some(data1_array) = data1_array.as_array_mut() {
+        data1_array.extend(
+            (
+                match data2_array.as_array() {
+                    Some(array) => array,
+                    None => &empty_array,
+                }
+            ).clone()
+        );
+    }
+
+    match serde_json::to_string(&data1) {
+        Ok(value) => Ok(value),
+        Err(err) => {
+            return Err(MdownError::JsonError(err.to_string()));
         }
     }
 }

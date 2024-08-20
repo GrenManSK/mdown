@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     args,
+    debug,
     download,
     error::MdownError,
     getter,
@@ -664,6 +665,7 @@ pub(crate) async fn ctrl_handler(file: &str) {
             None => Input::Character('a'),
         };
         if key == Input::from(crosscurses::Input::Character('\u{3}')) {
+            debug!("ctrl-c was received");
             *IS_END.lock() = true;
             if *args::ARGS_LOG {
                 log!("CTRL+C received");
@@ -752,12 +754,14 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
                         !file_name.ends_with("_scanlation_groups.txt") &&
                         !file_name.ends_with("_statistics.md")
                     {
+                        debug!("file is not service file");
                         should_delete += 1;
                     }
                 }
             }
 
             if should_delete == 0 {
+                debug!("deleting manga folder because it didn't download anything");
                 match fs::remove_dir_all(&path) {
                     Ok(()) => (),
                     Err(err) => eprintln!("Error: removing directory '{}' {}", path, err),

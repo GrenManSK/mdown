@@ -23,6 +23,16 @@ macro_rules! log {
         }
     };
 }
+#[macro_export]
+macro_rules! debug {
+    ($($arg:tt)*) => {
+        {
+            if *crate::args::ARGS_DEBUG {
+                println!($($arg)*);
+            }
+        }
+    };
+}
 
 #[macro_export]
 macro_rules! get_saver {

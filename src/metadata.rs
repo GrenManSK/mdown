@@ -25,6 +25,7 @@ impl ChapterMetadata {
 pub(crate) struct ChapterMetadataIn {
     pub(crate) name: String,
     pub(crate) id: String,
+    pub(crate) manga_id: String,
     pub(crate) saver: bool,
     pub(crate) title: String,
     pub(crate) pages: String,
@@ -37,6 +38,7 @@ impl ChapterMetadataIn {
     pub(crate) fn new(
         name: String,
         id: String,
+        manga_id: String,
         saver: bool,
         title: String,
         pages: String,
@@ -47,6 +49,7 @@ impl ChapterMetadataIn {
         ChapterMetadataIn {
             name: name,
             id: id,
+            manga_id: manga_id,
             saver: saver,
             title: title,
             pages: pages,
