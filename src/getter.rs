@@ -76,14 +76,12 @@ pub(crate) fn get_log_lock_path() -> Result<String, MdownError> {
 
 #[cfg(any(feature = "server", feature = "web"))]
 pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, String> {
-    (
-        match parts[1].split('?').nth(1) {
-            Some(value) => value,
-            None => "",
-        }
-    )
+    parts[1]
+        .split('?')
+        .nth(1)
+        .unwrap_or_default()
         .split('&')
-        .filter_map(|param| {
+        .map(|param| {
             let mut iter = param.split('=');
             let key = match iter.next() {
                 Some(key) => key.to_string(),
@@ -93,12 +91,12 @@ pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, S
                 Some(key) => key.to_string(),
                 None => String::new(),
             };
-            Some((key, value))
+            (key, value)
         })
         .collect()
 }
 
-pub(crate) fn get_folder_name<'a>(manga_name: &'a str) -> &'a str {
+pub(crate) fn get_folder_name(manga_name: &str) -> &str {
     let folder_name = utils::process_filename(&ARGS.lock().folder.clone());
     if folder_name == "name" {
         manga_name
@@ -127,7 +125,7 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                 let mut return_title = String::from("*");
                 let get = title_data.get("altTitles").and_then(|val| val.as_array());
                 if let Some(get) = get {
-                    for title_object in get {
+                    if let Some(title_object) = get.iter().next() {
                         if let Some(lang_object) = title_object.as_object() {
                             for (lang, title) in lang_object.iter() {
                                 if lang == "en" {
@@ -139,11 +137,10 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                                 }
                             }
                         }
-                        break;
                     }
                     if return_title == "*" {
                         // If not found check for japanese and english language
-                        for i in vec!["ja-ro", "en"].iter() {
+                        for i in ["ja-ro", "en"].iter() {
                             return_title = match
                                 title_data
                                     .get("title")
@@ -191,7 +188,7 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
         .trim()
         .to_string();
     let name = if name.len() > 70 { format!("{}__", &name[0..70]) } else { name };
-    return utils::process_filename(&name);
+    utils::process_filename(&name)
 }
 
 pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
@@ -208,7 +205,7 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
 
     if response.status().is_success() {
         debug!("response is success (get_manga_response)");
-        return match response.text().await {
+        match response.text().await {
             Ok(text) => Ok(text),
             Err(err) =>
                 Err(
@@ -223,7 +220,7 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
                         }
                     })
                 ),
-        };
+        }
     } else {
         debug!("response is error (get_manga_response)");
         eprintln!(
@@ -362,12 +359,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
         string(
             3 + times + stat,
             0,
-            &format!(
-                "{} {} {}   ",
-                times.to_string(),
-                "Fetching data with offset",
-                times_offset.to_string()
-            )
+            &format!("{} {} {}   ", times, "Fetching data with offset", times_offset)
         );
         debug!("fetching data with offset {}", times_offset);
         let full_url = format!(
@@ -429,11 +421,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                         .to_string();
 
                     resolute::DATE_FETCHED.lock().push(naive_time_str);
-                    let message = format!(
-                        "{} Data fetched with offset {}   ",
-                        times.to_string(),
-                        offset.to_string()
-                    );
+                    let message = format!("{} Data fetched with offset {}   ", times, offset);
                     string(3 + times + stat, 0, &message);
                     if
                         *args::ARGS_WEB ||
@@ -515,13 +503,11 @@ fn crossfade_data(json: &str, json_2: &str) -> Result<String, MdownError> {
 
     match serde_json::to_string(&data1) {
         Ok(value) => Ok(value),
-        Err(err) => {
-            return Err(MdownError::JsonError(err.to_string()));
-        }
+        Err(err) => { Err(MdownError::JsonError(err.to_string())) }
     }
 }
 
-pub(crate) fn get_attr_as_same_as_index(data_array: &Vec<String>, item: usize) -> &String {
+pub(crate) fn get_attr_as_same_as_index(data_array: &[String], item: usize) -> &String {
     match data_array.get(item) {
         Some(value) => value,
         None => {
@@ -532,7 +518,7 @@ pub(crate) fn get_attr_as_same_as_index(data_array: &Vec<String>, item: usize) -
 }
 
 pub(crate) fn get_attr_as_same_from_vec(
-    data_array: &Vec<metadata::ChapterResponse>,
+    data_array: &[metadata::ChapterResponse],
     item: usize
 ) -> &metadata::ChapterResponse {
     match data_array.get(item) {
@@ -548,19 +534,10 @@ pub(crate) fn get_metadata(
     array_item: &metadata::ChapterResponse
 ) -> (metadata::ChapterAttrResponse, String, u64, String, String) {
     let chapter_attr = array_item.attributes.clone();
-    let lang = match chapter_attr.translatedLanguage.clone() {
-        Some(value) => value,
-        None => String::new(),
-    };
-    let pages = chapter_attr.pages.clone();
-    let chapter_num = match chapter_attr.chapter.clone() {
-        Some(value) => value,
-        None => String::new(),
-    };
-    let title = match chapter_attr.title.clone() {
-        Some(value) => value,
-        None => String::new(),
-    };
+    let lang = chapter_attr.translatedLanguage.clone().unwrap_or_default();
+    let pages = chapter_attr.pages;
+    let chapter_num = chapter_attr.chapter.clone().unwrap_or_default();
+    let title = chapter_attr.title.clone().unwrap_or_default();
     (chapter_attr, lang, pages, chapter_num, title)
 }
 

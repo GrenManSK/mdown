@@ -94,22 +94,18 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
     }
 
     let parts: Vec<&str> = request_line.split_whitespace().collect();
-    let path = match request_line.split_whitespace().nth(1) {
-        Some(value) => value,
-        None => "/",
-    };
+    let path = request_line.split_whitespace().nth(1).unwrap_or("/");
     if parts.len() >= 2 {
+        let query_params = get_query(parts);
         if path.starts_with("/__search__") {
-            let file_path: String;
-            if path.starts_with("/__search__?") {
-                let query_params = get_query(parts);
-                file_path = match query_params.get("path").cloned() {
+            let file_path: String = if path.starts_with("/__search__?") {
+                match query_params.get("path").cloned() {
                     Some(value) => value,
                     None => String::from("."),
-                };
+                }
             } else {
-                file_path = String::from(".");
-            }
+                String::from(".")
+            };
             let json_response = match get_directory_content(&file_path) {
                 Ok(value) => value,
                 Err(err) => {
@@ -135,7 +131,6 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 }
             };
         } else if path.starts_with("/__preview__?") {
-            let query_params = get_query(parts);
             let file_path = match query_params.get("path").cloned() {
                 Some(value) => format!(".\\{}", value),
                 None => {
@@ -150,22 +145,21 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 }
             };
 
-            let contents;
-            if decoded_str.ends_with(".cbz") {
-                contents = match zip_func::extract_image_from_zip(&decoded_str) {
+            let contents = if decoded_str.ends_with(".cbz") {
+                match zip_func::extract_image_from_zip(&decoded_str) {
                     Ok(contents) => contents,
                     Err(err) => {
                         return Err(err);
                     }
-                };
+                }
             } else {
-                contents = match fs::read(&decoded_str) {
+                match fs::read(&decoded_str) {
                     Ok(contents) => contents,
                     Err(err) => {
                         return Err(MdownError::IoError(err, decoded_str));
                     }
-                };
-            }
+                }
+            };
 
             let mut response = String::new();
             response.push_str("HTTP/1.1 200 OK\r\n");
@@ -187,7 +181,6 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 }
             }
         } else if path.starts_with("/__download__?") {
-            let query_params = get_query(parts);
             let file_path = match query_params.get("path").cloned() {
                 Some(value) => value,
                 None => {
@@ -258,7 +251,6 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 }
             };
         } else if path.starts_with("/__get__?") {
-            let query_params = get_query(parts);
             let file_path = match query_params.get("path").cloned() {
                 Some(value) => value,
                 None => {
@@ -277,7 +269,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                     );
                 }
             };
-            match stream.get_mut().write_all(&content) {
+            match stream.get_mut().write_all(content) {
                 Ok(_n) => (),
                 Err(err) => {
                     return Err(MdownError::IoError(err, String::new()));
@@ -425,25 +417,25 @@ pub(crate) fn start() -> Result<(), MdownError> {
         }
     };
 
-    match
-        ctrlc::set_handler(|| {
-            log!("[user] Ctrl+C received! Exiting...");
-            log!("[web] Closing server");
+    let handler = ctrlc::set_handler(|| {
+        log!("[user] Ctrl+C received! Exiting...");
+        log!("[web] Closing server");
 
-            match utils::remove_cache() {
-                Ok(()) => (),
-                Err(err) => {
-                    handle_error!(&err, String::from("ctrl_handler"));
-                }
+        match utils::remove_cache() {
+            Ok(()) => (),
+            Err(err) => {
+                handle_error!(&err, String::from("ctrl_handler"));
             }
-            std::process::exit(0);
-        })
-    {
+        }
+        std::process::exit(0);
+    });
+
+    match handler {
         Ok(()) => (),
         Err(err) => {
             return Err(
                 MdownError::CustomError(
-                    format!("Failed setting up ctrl handler, {}", err.to_string()),
+                    format!("Failed setting up ctrl handler, {}", err),
                     String::from("CTRL_handler")
                 )
             );
@@ -463,14 +455,12 @@ pub(crate) fn start() -> Result<(), MdownError> {
         eprintln!("Error opening web browser: {}", err);
     }
 
-    for stream in listener.incoming() {
-        if let Ok(stream) = stream {
-            thread::spawn(move || {
-                if let Err(err) = handle_client(stream) {
-                    eprintln!("Error handling client: {}", err);
-                }
-            });
-        }
+    for stream in listener.incoming().flatten() {
+        thread::spawn(move || {
+            if let Err(err) = handle_client(stream) {
+                eprintln!("Error handling client: {}", err);
+            }
+        });
     }
 
     Ok(())

@@ -4,7 +4,7 @@ use glob::glob;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use serde_json::Value;
-use std::{ env, fs::{ self, File }, io::Write, process::exit, sync::Arc };
+use std::{ cmp::Ordering, env, fs::{ self, File }, io::Write, process::exit, sync::Arc };
 
 mod args;
 mod db;
@@ -102,10 +102,10 @@ async fn start() -> Result<(), error::MdownError> {
 
     args::ARGS.lock().change("folder", args::Value::Str(folder));
 
-    if *args::ARGS_ENCODE != "" {
+    if !(*args::ARGS_ENCODE).is_empty() {
         debug!("Start web");
         #[cfg(feature = "web")]
-        println!("{}", web::encode(&*args::ARGS_ENCODE));
+        println!("{}", web::encode(&args::ARGS_ENCODE));
         #[cfg(not(feature = "web"))]
         println!("Encode is not supported; You have to enable web feature");
         return Ok(());
@@ -284,7 +284,7 @@ async fn start() -> Result<(), error::MdownError> {
 
     let id;
 
-    if args::ARGS.lock().search != String::from("*") {
+    if args::ARGS.lock().search != *"*" {
         debug!("using search");
         id = match utils::search().await {
             Ok(id) => id,
@@ -311,14 +311,14 @@ async fn start() -> Result<(), error::MdownError> {
         string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
         id = String::from("*");
     }
-    if id != String::from("*") {
+    if id != *"*" {
         debug!("id acquired");
         *resolute::MANGA_ID.lock() = id.clone();
         string(0, 0, &format!("Extracted ID: {}", id));
-        string(1, 0, &format!("Getting manga information ..."));
+        string(1, 0, "Getting manga information ...");
         match getter::get_manga_json(&id).await {
             Ok(manga_name_json) => {
-                string(1, 0, &format!("Getting manga information DONE"));
+                string(1, 0, "Getting manga information DONE");
                 *resolute::MUSIC_STAGE.lock() = String::from("init");
                 let json_value = match utils::get_json(&manga_name_json) {
                     Ok(value) => value,
@@ -340,11 +340,11 @@ async fn start() -> Result<(), error::MdownError> {
                 }
             }
             Err(code) => {
-                string(1, 0, &format!("Getting manga information ERROR"));
+                string(1, 0, "Getting manga information ERROR");
                 let code = code.into();
                 let parts: Vec<&str> = code.split_whitespace().collect();
 
-                if let Some(status_code_tmp) = parts.get(0) {
+                if let Some(status_code_tmp) = parts.first() {
                     status_code = match
                         reqwest::StatusCode::from_u16(match status_code_tmp.parse::<u16>() {
                             Ok(code) => code,
@@ -396,7 +396,7 @@ pub(crate) async fn download_manga(
         Ok(value) => value,
         Err(_err) => 0,
     };
-    let (mut downloaded, mut hist) = (vec![], &mut vec![]);
+    let (mut downloaded, hist) = (vec![], &mut vec![]);
     let (mut times, mut moves) = (0, 0);
     let language = resolute::LANGUAGE.lock().clone();
     let mut filename;
@@ -468,14 +468,7 @@ pub(crate) async fn download_manga(
 
                 title = resolute::title(title);
 
-                let vol = match
-                    (
-                        match chapter_attr.volume {
-                            Some(value) => value,
-                            None => String::new(),
-                        }
-                    ).as_str()
-                {
+                let vol = match chapter_attr.volume.unwrap_or_default().as_str() {
                     "" => String::new(),
                     value => format!("Vol.{} ", value),
                 };
@@ -508,11 +501,7 @@ pub(crate) async fn download_manga(
                                 Some(id) => id,
                                 None => &String::new(),
                             };
-                            if data_id != id && *data_id != String::new() {
-                                false
-                            } else {
-                                true
-                            }
+                            !(data_id != id && *data_id != String::new())
                         } else {
                             true
                         }
@@ -533,14 +522,14 @@ pub(crate) async fn download_manga(
 
                             match DateTime::parse_from_rfc3339(&cur_date) {
                                 Ok(datetime_cur) => {
-                                    if datetime_cur < datetime {
-                                        debug!(
-                                            "dates didn't match so program will download it if update flag is set"
-                                        );
-                                        date_change = true;
-                                        cont = false;
-                                        dates.remove(&chapter_num);
-                                        if *args::ARGS_UPDATE {
+                                    match datetime_cur.cmp(&datetime) {
+                                        Ordering::Greater => {
+                                            debug!(
+                                                "dates didn't match bu date in local database was ahead of the date in mangadex database"
+                                            );
+                                            resolute::FIXED_DATES
+                                                .lock()
+                                                .push(chapter_num.to_string());
                                             resolute::CHAPTERS_TO_REMOVE
                                                 .lock()
                                                 .push(
@@ -551,20 +540,26 @@ pub(crate) async fn download_manga(
                                                     )
                                                 );
                                         }
-                                    } else if datetime_cur > datetime {
-                                        debug!(
-                                            "dates didn't match bu date in local database was ahead of the date in mangadex database"
-                                        );
-                                        resolute::FIXED_DATES.lock().push(chapter_num.to_string());
-                                        resolute::CHAPTERS_TO_REMOVE
-                                            .lock()
-                                            .push(
-                                                metadata::ChapterMetadata::new(
-                                                    &chapter_num,
-                                                    &cur_date,
-                                                    id
-                                                )
+                                        Ordering::Less => {
+                                            debug!(
+                                                "dates didn't match so program will download it if update flag is set"
                                             );
+                                            date_change = true;
+                                            cont = false;
+                                            dates.remove(&chapter_num);
+                                            if *args::ARGS_UPDATE {
+                                                resolute::CHAPTERS_TO_REMOVE
+                                                    .lock()
+                                                    .push(
+                                                        metadata::ChapterMetadata::new(
+                                                            &chapter_num,
+                                                            &cur_date,
+                                                            id
+                                                        )
+                                                    );
+                                            }
+                                        }
+                                        Ordering::Equal => (),
                                     }
                                 }
                                 Err(_err) => (),
@@ -574,33 +569,30 @@ pub(crate) async fn download_manga(
                         Err(_err) => (),
                     }
                     *resolute::CURRENT_CHAPTER_PARSED.lock() += 1;
-                    if
-                        cont &&
-                        (lang == language || language == "*")
-                    {
+                    if cont && (lang == language || language == "*") {
                         resolute::CHAPTERS
                             .lock()
                             .push(metadata::ChapterMetadata::new(&chapter_num, &update_date, id));
-                        moves = utils::skip(folder_path, item, moves, &mut hist);
+                        moves = utils::skip(folder_path, item, moves, hist);
                         continue;
                     }
                 }
 
                 if con_vol {
                     debug!("skipping because volume didn't match");
-                    moves = utils::skip_didnt_match("volume", item, moves, &mut hist);
+                    moves = utils::skip_didnt_match("volume", item, moves, hist);
                     continue;
                 }
                 if con_chap {
                     debug!("skipping because chapter didn't match");
-                    moves = utils::skip_didnt_match("chapter", item, moves, &mut hist);
+                    moves = utils::skip_didnt_match("chapter", item, moves, hist);
                     continue;
                 }
                 if pages == 0 {
                     debug!(
                         "skipping because variable pages is 0; probably because chapter is not supported on mangadex, third party"
                     );
-                    moves = utils::skip_custom("pages is 0", item, moves, &mut hist);
+                    moves = utils::skip_custom("pages is 0", item, moves, hist);
                     continue;
                 }
                 if
@@ -665,7 +657,7 @@ pub(crate) async fn download_manga(
                         !resolute::CHAPTERS
                             .lock()
                             .iter()
-                            .any(|chapter| chapter.number == chapter_num.to_string())
+                            .any(|chapter| chapter.number == chapter_num)
                     {
                         if *args::ARGS_CHECK {
                             debug!("was added to to download list because check flag is set");
@@ -711,14 +703,14 @@ pub(crate) async fn download_manga(
                                         id,
                                         obj,
                                         array_item,
-                                        &manga_name,
+                                        manga_name,
                                         &title,
                                         &vol,
                                         &chapter_num,
                                         &filename,
                                         &update_date,
-                                        &name,
-                                        &website
+                                        name,
+                                        website
                                     ).await
                                 {
                                     Ok(()) => (),
@@ -776,7 +768,7 @@ pub(crate) async fn download_manga(
                     }
                 } else {
                     debug!("skipping because language is wrong");
-                    string(2, 0, &format!("{}", " ".repeat(MAXPOINTS.max_x as usize)));
+                    string(2, 0, &" ".repeat(MAXPOINTS.max_x as usize).to_string());
                     let message = format!(
                         "Skipping because of wrong language; found '{}', target '{}' ...",
                         lang,
@@ -853,17 +845,13 @@ pub(crate) async fn download_chapter(
     if images.is_empty() {
         images = match get_saver!(true) {
             metadata::Saver::data => data_array.data,
-            metadata::Saver::dataSaver =>
-                match data_array.dataSaver {
-                    Some(data) => data,
-                    None => Vec::new(),
-                }
+            metadata::Saver::dataSaver => data_array.dataSaver.unwrap_or_default(),
         };
     }
     let images_length = images.len();
 
     *resolute::CURRENT_PAGE.lock() = 0;
-    *resolute::CURRENT_PAGE_MAX.lock() = images_length.clone() as u64;
+    *resolute::CURRENT_PAGE_MAX.lock() = images_length as u64;
 
     let lock_file = filename.get_lock();
     let mut lock_file_inst = match File::create(&lock_file) {
@@ -942,7 +930,7 @@ pub(crate) async fn download_chapter(
                         String::from("Failed to parse max_consecutive")
                     )
                 );
-            40 as usize
+            40_usize
         }
     };
 
@@ -973,7 +961,7 @@ pub(crate) async fn download_chapter(
             let page = item + 1;
             let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
 
-            let pr_title = match title != "" {
+            let pr_title = match !title.is_empty() {
                 true => format!(" - {}", title),
                 false => String::new(),
             };

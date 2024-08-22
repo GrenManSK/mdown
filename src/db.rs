@@ -70,11 +70,7 @@ pub(crate) fn read_resource(conn: &Connection, name: &str) -> Result<Option<Vec<
             })
             .optional()
     {
-        Ok(result) =>
-            Ok(match result {
-                Some(data) => data,
-                None => None,
-            }),
+        Ok(result) => Ok(result.unwrap_or_default()),
         Err(err) => Err(MdownError::DatabaseError(err)),
     }
 }
@@ -112,9 +108,7 @@ fn write_resource(
             let id = conn.last_insert_rowid() as u64;
             Ok(id)
         }
-        Err(err) => {
-            return Err(MdownError::DatabaseError(err));
-        }
+        Err(err) => { Err(MdownError::DatabaseError(err)) }
     }
 }
 
@@ -157,7 +151,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
     let json_data = match serde_json::from_str::<DB>(&json_data_string) {
         Ok(value) => value,
         Err(err) => {
-            return Err(MdownError::JsonError(String::from(err.to_string())));
+            return Err(MdownError::JsonError(err.to_string()));
         }
     };
 
@@ -268,7 +262,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                     }
                 }
 
-                let file_bytes = match read_file_to_bytes(&name) {
+                let file_bytes = match read_file_to_bytes(name) {
                     Ok(value) => value,
                     Err(_err) => {
                         continue;
@@ -293,15 +287,13 @@ pub(crate) async fn init() -> Result<(), MdownError> {
         }
     }
 
-    if yt_dlp {
-        if std::fs::metadata(&full_path).is_ok() {
-            match std::fs::remove_file(&full_path) {
-                Ok(_) => (),
-                Err(err) => {
-                    return Err(MdownError::IoError(err, full_path));
-                }
-            };
-        }
+    if yt_dlp && std::fs::metadata(&full_path).is_ok() {
+        match std::fs::remove_file(&full_path) {
+            Ok(_) => (),
+            Err(err) => {
+                return Err(MdownError::IoError(err, full_path));
+            }
+        };
     }
 
     if *args::ARGS_FORCE_SETUP {
@@ -393,7 +385,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
 
     let (total_size, final_size) = download::get_size(&response);
 
-    let mut file = match std::fs::File::create(&full_path) {
+    let mut file = match std::fs::File::create(full_path) {
         Ok(file) => file,
         Err(err) => {
             return Err(MdownError::IoError(err, full_path.to_string()));

@@ -21,19 +21,12 @@ use crate::{
 };
 
 pub(crate) fn get_client() -> Result<reqwest::Client, reqwest::Error> {
-    match
-        reqwest::Client
-            ::builder()
-            .user_agent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
-            )
-            .build()
-    {
-        Ok(response) => Ok(response),
-        Err(err) => {
-            return Err(err);
-        }
-    }
+    reqwest::Client
+        ::builder()
+        .user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
+        )
+        .build()
 }
 
 pub(crate) async fn get_response(
@@ -48,7 +41,7 @@ pub(crate) async fn get_response(
             return Err(MdownError::NetworkError(err));
         }
     };
-    let base_url = match url::Url::parse(&base_url.to_string()) {
+    let base_url = match url::Url::parse(base_url.as_ref()) {
         Ok(url) => url,
         Err(err) => {
             return Err(MdownError::ConversionError(err.to_string()));
@@ -64,19 +57,12 @@ pub(crate) async fn get_response(
     };
 
     match client.get(full_url).send().await {
-        Ok(response) => {
-            return Ok(response);
-        }
-        Err(err) => {
-            return Err(MdownError::NetworkError(err));
-        }
+        Ok(response) => { Ok(response) }
+        Err(err) => { Err(MdownError::NetworkError(err)) }
     }
 }
 pub(crate) fn get_size(response: &reqwest::Response) -> (u64, f32) {
-    let total_size: u64 = match response.content_length() {
-        Some(value) => value,
-        None => 0,
-    };
+    let total_size: u64 = response.content_length().unwrap_or_default();
     (total_size, (total_size as f32) / 1024.0 / 1024.0)
 }
 
@@ -94,9 +80,7 @@ pub(crate) async fn get_response_client(full_url: &str) -> Result<reqwest::Respo
 
     match client.get(full_url).send().await {
         Ok(response) => Ok(response),
-        Err(err) => {
-            return Err(MdownError::NetworkError(err));
-        }
+        Err(err) => { Err(MdownError::NetworkError(err)) }
     }
 }
 
@@ -577,7 +561,7 @@ pub(crate) async fn download_image(
 #[tokio::test]
 async fn test_get_response_client_valid_url() {
     let url = "https://example.com";
-    let response = get_response_client(&url.to_string()).await;
+    let response = get_response_client(url).await;
     assert!(response.is_ok());
 }
 
@@ -585,7 +569,7 @@ async fn test_get_response_client_valid_url() {
 #[tokio::test]
 async fn test_get_response_client_invalid_url() {
     let url = "invalid_url";
-    let response = get_response_client(&url.to_string()).await;
+    let response = get_response_client(url).await;
     assert!(response.is_err());
 }
 
@@ -593,6 +577,6 @@ async fn test_get_response_client_invalid_url() {
 #[tokio::test]
 async fn test_get_response_client_empty_url() {
     let url = "";
-    let response = get_response_client(&url.to_string()).await;
+    let response = get_response_client(url).await;
     assert!(response.is_err());
 }

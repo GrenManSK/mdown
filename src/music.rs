@@ -3,7 +3,6 @@ use std::{ io::Cursor, thread, time::Duration };
 
 use crate::{ args::ARGS_MUSIC, resolute::{ MUSIC_END, MUSIC_STAGE } };
 
-
 include!(concat!(env!("OUT_DIR"), "/no_mp3.rs"));
 
 #[cfg(music_m1)]

@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::resolute::SUSPENDED;
+
 #[derive(Debug, Error)]
 pub enum MdownError {
     #[error("I/O error: {0} ({1})")] IoError(std::io::Error, String),
@@ -52,12 +53,12 @@ pub(crate) fn handle_error(err: &MdownError, from: Option<String>) {
 macro_rules! handle_error {
     ($err:expr) => {
         {
-            crate::error::handle_error($err, None);
+            $crate::error::handle_error($err, None);
         }
     };
     ($err:expr, $from:expr) => {
         {
-            crate::error::handle_error($err, Some($from));
+            $crate::error::handle_error($err, Some($from));
         }
     };
 }
@@ -73,6 +74,6 @@ pub(crate) fn handle_suspended() {
 }
 
 pub(crate) fn handle_final(err: &MdownError) {
-    handle_error!(err.into());
+    handle_error!(err);
     handle_suspended();
 }

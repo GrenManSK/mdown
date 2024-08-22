@@ -7,22 +7,22 @@ const DEFAULT_LANG: &str = "en";
 
 lazy_static! {
     pub(crate) static ref ARGS: Mutex<Args> = Mutex::new(Args::from_args());
-    pub(crate) static ref ARGS_CHECK: bool = ARGS.lock().check.clone();
-    pub(crate) static ref ARGS_UPDATE: bool = ARGS.lock().update.clone();
-    pub(crate) static ref ARGS_QUIET: bool = ARGS.lock().quiet.clone();
-    pub(crate) static ref ARGS_LOG: bool = ARGS.lock().log.clone();
+    pub(crate) static ref ARGS_CHECK: bool = ARGS.lock().check;
+    pub(crate) static ref ARGS_UPDATE: bool = ARGS.lock().update;
+    pub(crate) static ref ARGS_QUIET: bool = ARGS.lock().quiet;
+    pub(crate) static ref ARGS_LOG: bool = ARGS.lock().log;
     pub(crate) static ref ARGS_ENCODE: String = ARGS.lock().encode.clone();
-    pub(crate) static ref ARGS_DEV: bool = ARGS.lock().dev.clone();
+    pub(crate) static ref ARGS_DEV: bool = ARGS.lock().dev;
     pub(crate) static ref ARGS_MUSIC: Option<Option<String>> = ARGS.lock().music.clone();
     pub(crate) static ref ARGS_CWD: String = ARGS.lock().cwd.clone();
-    pub(crate) static ref ARGS_UNSORTED: bool = ARGS.lock().unsorted.clone();
+    pub(crate) static ref ARGS_UNSORTED: bool = ARGS.lock().unsorted;
     pub(crate) static ref ARGS_SHOW: Option<Option<String>> = ARGS.lock().show.clone();
-    pub(crate) static ref ARGS_DEBUG: bool = ARGS.lock().debug.clone();
+    pub(crate) static ref ARGS_DEBUG: bool = ARGS.lock().debug;
     pub(crate) static ref ARGS_SHOW_ALL: Option<Option<String>> = ARGS.lock().show_all.clone();
-    pub(crate) static ref ARGS_SHOW_LOG: bool = ARGS.lock().show_log.clone();
-    pub(crate) static ref ARGS_WEB: bool = ARGS.lock().web.clone();
-    pub(crate) static ref ARGS_GUI: bool = ARGS.lock().gui.clone();
-    pub(crate) static ref ARGS_SERVER: bool = ARGS.lock().server.clone();
+    pub(crate) static ref ARGS_SHOW_LOG: bool = ARGS.lock().show_log;
+    pub(crate) static ref ARGS_WEB: bool = ARGS.lock().web;
+    pub(crate) static ref ARGS_GUI: bool = ARGS.lock().gui;
+    pub(crate) static ref ARGS_SERVER: bool = ARGS.lock().server;
     pub(crate) static ref ARGS_RESET: bool = match ARGS.lock().subcommands {
         Some(Commands::App { reset, .. }) => reset,
         Some(_) => false,
@@ -115,7 +115,6 @@ pub(crate) struct ParserArgs {
         next_line_help = true,
         help = "download only specified chapter\n"
     )] pub(crate) chapter: String,
-    ///
     #[arg(
         short,
         long,
@@ -293,11 +292,8 @@ pub(crate) struct Args {
 
 impl Args {
     pub(crate) fn change(&mut self, typ: &str, to: Value) {
-        match (typ, to) {
-            ("folder", Value::Str(value)) => {
-                self.folder = value;
-            }
-            _ => (),
+        if let ("folder", Value::Str(value)) = (typ, to) {
+            self.folder = value;
         }
     }
 

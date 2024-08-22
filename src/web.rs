@@ -72,7 +72,7 @@ lazy_static! {
 include!(concat!(env!("OUT_DIR"), "/error_404_jpg.rs"));
 
 fn decode(url: &str) -> String {
-    percent_decode_str(&url).decode_utf8_lossy().to_string()
+    percent_decode_str(url).decode_utf8_lossy().to_string()
 }
 
 pub(crate) fn encode(url: &str) -> String {
@@ -83,7 +83,7 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
     let handle_id = resolute::HANDLE_ID.lock().clone();
     let mut manga_name = String::from("!");
     let id;
-    if let Some(id_temp) = utils::resolve_regex(&url) {
+    if let Some(id_temp) = utils::resolve_regex(url) {
         id = id_temp.as_str();
     } else if utils::is_valid_uuid(url) {
         id = url;
@@ -93,29 +93,26 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
     }
     *resolute::MANGA_ID.lock() = id.to_string();
     log!(&format!("@{} Found {}", handle_id, id), handle_id);
-    match getter::get_manga_json(id).await {
-        Ok(manga_name_json) => {
-            let json_value = match utils::get_json(&manga_name_json) {
-                Ok(value) => value,
-                Err(err) => {
-                    return Err(err);
-                }
-            };
-            match json_value {
-                Value::Object(obj) => {
-                    manga_name = match resolute::resolve(obj, id).await {
-                        Ok(value) => value,
-                        Err(err) => {
-                            return Err(err);
-                        }
-                    };
-                }
-                _ => {
-                    return Err(MdownError::JsonError(String::from("Could not parse manga json")));
-                }
+    if let Ok(manga_name_json) = getter::get_manga_json(id).await {
+        let json_value = match utils::get_json(&manga_name_json) {
+            Ok(value) => value,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+        match json_value {
+            Value::Object(obj) => {
+                manga_name = match resolute::resolve(obj, id).await {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return Err(err);
+                    }
+                };
+            }
+            _ => {
+                return Err(MdownError::JsonError(String::from("Could not parse manga json")));
             }
         }
-        Err(_) => (),
     }
 
     if manga_name.eq("!") {
@@ -172,7 +169,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
 
     if parts.len() >= 2 {
         let response;
-        if path.starts_with("/manga?") && path.contains(&url_param) {
+        if path.starts_with("/manga?") && path.contains(url_param) {
             log!("REQUEST RECEIVED");
             log!("REQUEST Type: download");
 
@@ -245,10 +242,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
             };
 
             #[allow(deprecated)]
-            let base64_content: Vec<String> = content
-                .iter()
-                .map(|image_data| base64::encode(image_data))
-                .collect();
+            let base64_content: Vec<String> = content.iter().map(base64::encode).collect();
 
             match
                 stream.write_all(
@@ -365,10 +359,10 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
 }
 
 fn parse_request(url: String) -> Result<String, MdownError> {
-    if url == String::from("main") {
+    if url == *"main" {
         let html = get_html();
         Ok(format!("{}{}", "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n", html))
-    } else if url == String::from("progress") {
+    } else if url == *"progress" {
         let downloaded_files = WEB_DOWNLOADED.lock().clone();
         let scanlation = SCANLATION_GROUPS.lock().clone();
         let response_map: HashMap<&str, serde_json::Value> = [
@@ -476,25 +470,24 @@ async fn web() -> Result<(), MdownError> {
 }
 
 pub(crate) async fn start() -> Result<(), MdownError> {
-    match
-        ctrlc::set_handler(|| {
-            log!("[user] Ctrl+C received! Exiting...");
-            log!("[web] Closing server");
+    let handler = ctrlc::set_handler(|| {
+        log!("[user] Ctrl+C received! Exiting...");
+        log!("[web] Closing server");
 
-            match utils::remove_cache() {
-                Ok(()) => (),
-                Err(err) => {
-                    handle_error!(&err, String::from("ctrl_handler"));
-                }
+        match utils::remove_cache() {
+            Ok(()) => (),
+            Err(err) => {
+                handle_error!(&err, String::from("ctrl_handler"));
             }
-            std::process::exit(0);
-        })
-    {
+        }
+        std::process::exit(0);
+    });
+    match handler {
         Ok(()) => (),
         Err(err) => {
             return Err(
                 MdownError::CustomError(
-                    format!("Failed setting up ctrl handler, {}", err.to_string()),
+                    format!("Failed setting up ctrl handler, {}", err),
                     String::from("CTRL_handler")
                 )
             );

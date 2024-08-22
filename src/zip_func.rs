@@ -37,8 +37,7 @@ fn zip_dir<T>(
     let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
 
     let mut buffer = Vec::new();
-    let mut times = 0;
-    for entry in it {
+    for (times, entry) in it.enumerate() {
         let path = entry.path();
         let name = match path.strip_prefix(Path::new(prefix)) {
             Ok(name) => name,
@@ -47,9 +46,9 @@ fn zip_dir<T>(
             }
         };
         if path.is_file() {
-            string(5, start + times, "#");
+            string(5, start + times as u32, "#");
             #[allow(deprecated)]
-            match zip.start_file_from_path(name, options.clone()) {
+            match zip.start_file_from_path(name, options) {
                 Ok(()) => (),
                 Err(err) => {
                     return Err(error::MdownError::ZipError(err));
@@ -77,14 +76,13 @@ fn zip_dir<T>(
             buffer.clear();
         } else if !name.as_os_str().is_empty() {
             #[allow(deprecated)]
-            match zip.add_directory_from_path(name, options.clone()) {
+            match zip.add_directory_from_path(name, options) {
                 Ok(()) => (),
                 Err(err) => {
                     return Err(error::MdownError::ZipError(err));
                 }
             };
         }
-        times += 1;
     }
     match zip.finish() {
         Ok(_writer) => (),
@@ -162,9 +160,7 @@ pub(crate) fn extract_file_from_zip(
         }
     };
 
-    let answer = match
-        archive.by_name(metadata_file_name).map_err(|err| error::MdownError::ZipError(err))
-    {
+    let answer = match archive.by_name(metadata_file_name).map_err(error::MdownError::ZipError) {
         Ok(mut file) => {
             let mut metadata_content = String::new();
             match file.read_to_string(&mut metadata_content) {
@@ -196,7 +192,7 @@ pub(crate) fn extract_file_from_zip(
             )
         }
     };
-    return answer;
+    answer
 }
 
 #[cfg(feature = "server")]

@@ -58,7 +58,7 @@ pub(crate) fn log_handler() {
     loop {
         sleep(Duration::from_millis(100));
 
-        let _ = if fs::metadata(&path).is_err() {
+        if fs::metadata(&path).is_err() {
             let mut file = match fs::File::create(&path) {
                 Ok(file) => file,
                 Err(_err) => {
@@ -72,7 +72,7 @@ pub(crate) fn log_handler() {
                 Ok(()) => (),
                 Err(_err) => (),
             };
-        };
+        }
         if *resolute::ENDED.lock() {
             remove_log_lock_file();
             return;
@@ -90,9 +90,9 @@ pub(crate) fn log_handler() {
         let mut messages_lock = resolute::LOGS.lock();
         let mut handle_id_lock = resolute::HANDLE_ID_END.lock();
 
-        let char = vec!["\\n", "\\r", "\\t", "\\\\", "\\'", "\\\"", "\\0"];
+        let char = ["\\n", "\\r", "\\t", "\\\\", "\\'", "\\\"", "\\0"];
 
-        let messages: Vec<metadata::LOG> = messages_lock
+        let messages: Vec<metadata::Log> = messages_lock
             .clone()
             .iter()
             .map(|message| {
@@ -216,7 +216,7 @@ pub(crate) fn reset() -> Result<(), MdownError> {
         }
     };
 
-    if confirmation.to_lowercase() != String::from("y") {
+    if confirmation.to_lowercase() != *"y" {
         return Ok(());
     }
     let dat = match getter::get_dat_path() {
@@ -351,10 +351,7 @@ pub(crate) fn create_cache_folder() -> Result<(), MdownError> {
 }
 
 pub(crate) fn is_valid_uuid(s: &str) -> bool {
-    match Uuid::parse_str(s) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    Uuid::parse_str(s).is_ok()
 }
 
 pub(crate) fn clear_screen(from: u32) {
@@ -366,16 +363,7 @@ pub(crate) fn clear_screen(from: u32) {
 }
 
 pub(crate) fn process_filename(filename: &str) -> String {
-    filename
-        .replace('<', "")
-        .replace('>', "")
-        .replace(':', "")
-        .replace('|', "")
-        .replace('?', "")
-        .replace('*', "")
-        .replace('/', "")
-        .replace('\\', "")
-        .replace('"', "")
+    filename.replace(['<', '>', ':', '|', '?', '*', '/', '\\', '"'], "")
 }
 
 pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Result<(), MdownError> {
@@ -398,7 +386,7 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
                     Ok(_size) => (),
                     Err(err) => eprintln!("Error: reading input {}", err),
                 }
-                if image_content != "" {
+                if !image_content.is_empty() {
                     let image_content: f64 = match image_content.parse() {
                         Ok(value) => value,
                         Err(err) => {
@@ -423,7 +411,7 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
                     Ok(_size) => (),
                     Err(err) => eprintln!("Error: reading input {}", err),
                 }
-                if image_content != "" {
+                if !image_content.is_empty() {
                     let image_content: f64 = match image_content.parse() {
                         Ok(value) => value,
                         Err(err) => {
@@ -438,12 +426,7 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
                 }
             }
         }
-        let percent;
-        if full_size == 0.0 {
-            percent = 0.0;
-        } else {
-            percent = (100.0 / full_size) * size;
-        }
+        let percent = if full_size == 0.0 { 0.0 } else { (100.0 / full_size) * size };
         *CURRENT_PERCENT.lock() = percent;
         *CURRENT_SIZE.lock() = size;
         *CURRENT_SIZE_MAX.lock() = full_size;
@@ -547,7 +530,7 @@ pub(crate) fn remove_log_lock_file() {
 }
 
 pub(crate) fn get_json(manga_name_json: &str) -> Result<Value, MdownError> {
-    match serde_json::from_str(&manga_name_json) {
+    match serde_json::from_str(manga_name_json) {
         Ok(value) => Ok(value),
         Err(err) => Err(MdownError::JsonError(err.to_string())),
     }
@@ -614,7 +597,7 @@ pub(crate) async fn search() -> Result<String, MdownError> {
                 Err(MdownError::NotFoundError(String::from("manga_id in manga_ids in main.rs"))),
         };
     } else {
-        return Err(MdownError::StatusError(response.status()));
+        Err(MdownError::StatusError(response.status()))
     }
 }
 
@@ -664,7 +647,7 @@ pub(crate) async fn ctrl_handler(file: &str) {
             Some(ch) => ch,
             None => Input::Character('a'),
         };
-        if key == Input::from(crosscurses::Input::Character('\u{3}')) {
+        if key == crosscurses::Input::Character('\u{3}') {
             debug!("ctrl-c was received");
             *IS_END.lock() = true;
             if *args::ARGS_LOG {
@@ -685,7 +668,7 @@ pub(crate) async fn ctrl_handler(file: &str) {
         Err(_err) => (),
     }
 
-    delete_dir_if_unfinished(&getter::get_folder_name(&resolute::MANGA_NAME.lock()));
+    delete_dir_if_unfinished(getter::get_folder_name(&resolute::MANGA_NAME.lock()));
     delete_dir();
 
     if is_directory_empty(".cache\\") {
@@ -711,21 +694,19 @@ pub(crate) fn resolve_final_end() -> bool {
         }
         return true;
     }
-    return false;
+    false
 }
 
 pub(crate) fn delete_dir() {
     if let Ok(entries) = fs::read_dir(".cache") {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path = entry.path();
+        for entry in entries.flatten() {
+            let path = entry.path();
 
-                if path.is_file() && path.extension().map_or(false, |ext| ext == "lock") {
-                    match fs::remove_file(&path) {
-                        Ok(()) => (),
-                        Err(err) => eprintln!("Error: removing file '{:?}' {}", path, err),
-                    };
-                }
+            if path.is_file() && path.extension().map_or(false, |ext| ext == "lock") {
+                match fs::remove_file(&path) {
+                    Ok(()) => (),
+                    Err(err) => eprintln!("Error: removing file '{:?}' {}", path, err),
+                };
             }
         }
     }
@@ -736,33 +717,27 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
         Ok(entries) => {
             let mut should_delete = 0;
 
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let file_path = entry.path();
-                    let file_name = match file_path.file_name() {
-                        Some(value) =>
-                            match value.to_str() {
-                                Some(value) => value,
-                                None => "",
-                            }
-                        None => "",
-                    };
+            for entry in entries.flatten() {
+                let file_path = entry.path();
+                let file_name = match file_path.file_name() {
+                    Some(value) => value.to_str().unwrap_or_default(),
+                    None => "",
+                };
 
-                    if
-                        !file_name.ends_with("_cover.png") &&
-                        !file_name.ends_with("_description.txt") &&
-                        !file_name.ends_with("_scanlation_groups.txt") &&
-                        !file_name.ends_with("_statistics.md")
-                    {
-                        debug!("file is not service file");
-                        should_delete += 1;
-                    }
+                if
+                    !file_name.ends_with("_cover.png") &&
+                    !file_name.ends_with("_description.txt") &&
+                    !file_name.ends_with("_scanlation_groups.txt") &&
+                    !file_name.ends_with("_statistics.md")
+                {
+                    debug!("file is not service file");
+                    should_delete += 1;
                 }
             }
 
             if should_delete == 0 {
                 debug!("deleting manga folder because it didn't download anything");
-                match fs::remove_dir_all(&path) {
+                match fs::remove_dir_all(path) {
                     Ok(()) => (),
                     Err(err) => eprintln!("Error: removing directory '{}' {}", path, err),
                 };
@@ -800,12 +775,17 @@ pub(crate) fn resolve_end(
     manga_name: &str,
     status_code: reqwest::StatusCode
 ) -> Result<(), String> {
-    match fs::remove_file(&file_path) {
+    match fs::remove_file(file_path) {
         Ok(()) => (),
         Err(err) => eprintln!("Error: removing file '{}' {}", file_path, err),
     }
     match
-        OpenOptions::new().read(true).write(true).create(true).open(".cache\\mdown_final_end.lock")
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(".cache\\mdown_final_end.lock")
     {
         Ok(_file) => (),
         Err(err) => {
@@ -815,30 +795,28 @@ pub(crate) fn resolve_end(
 
     sleep(Duration::from_millis(110));
     let message = if status_code.is_client_error() {
-        string(0, 0, &format!("Id was not found, please recheck the id and try again"));
-        format!("Ending session: {} has NOT been downloaded, because: {:?}", manga_name, match
-            status_code.canonical_reason()
-        {
-            Some(status_code) => status_code,
-            None => "Didn't find error :/",
-        })
+        string(0, 0, "Id was not found, please recheck the id and try again");
+        format!(
+            "Ending session: {} has NOT been downloaded, because: {:?}",
+            manga_name,
+            status_code.canonical_reason().unwrap_or("Didn't find error :/")
+        )
     } else if status_code.is_server_error() {
         string(
             0,
             0,
-            &format!("Server error: {}: {:?}", status_code, match status_code.canonical_reason() {
-                Some(status_code) => status_code,
-                None => "Didn't find error :/",
-            })
+            &format!(
+                "Server error: {}: {:?}",
+                status_code,
+                status_code.canonical_reason().unwrap_or("Didn't find error :/")
+            )
         );
         format!("Ending session: {} has NOT been downloaded", manga_name)
     } else if manga_name.eq("!") {
         string(
             0,
             0,
-            &format!(
-                "Either --url or --search was not specified or website is not in pattern of UUID | https://mangadex.org/title/[UUID]/ or UUID is not valid"
-            )
+            "Either --url or --search was not specified or website is not in pattern of UUID | https://mangadex.org/title/[UUID]/ or UUID is not valid"
         );
         string(1, 0, "See readme.md for more information");
         string(2, 0, "Or use --help");
@@ -859,13 +837,11 @@ pub(crate) fn is_directory_empty(path: &str) -> bool {
     if let Ok(entries) = std::fs::read_dir(path) {
         let mut count = 0;
 
-        for entry in entries {
-            if let Ok(entry) = entry {
-                count += 1;
-                if let Some(entry_name) = entry.file_name().to_str() {
-                    if entry_name.ends_with("mdown_final_end.lock") {
-                        return true;
-                    }
+        for entry in entries.flatten() {
+            count += 1;
+            if let Some(entry_name) = entry.file_name().to_str() {
+                if entry_name.ends_with("mdown_final_end.lock") {
+                    return true;
                 }
             }
         }
@@ -886,8 +862,8 @@ pub(crate) struct FileName {
 
 impl FileName {
     pub(crate) fn get_folder_name(&self) -> String {
-        if self.title != "" {
-            return process_filename(
+        if !self.title.is_empty() {
+            process_filename(
                 &format!(
                     "{} - {}Ch.{} - {}",
                     self.manga_name,
@@ -895,22 +871,20 @@ impl FileName {
                     self.chapter_num,
                     self.title
                 )
-            );
+            )
         } else {
-            return process_filename(
-                &format!("{} - {}Ch.{}", self.manga_name, self.vol, self.chapter_num)
-            );
+            process_filename(&format!("{} - {}Ch.{}", self.manga_name, self.vol, self.chapter_num))
         }
     }
     pub(crate) fn get_file_w_folder(&self) -> String {
-        format!("{}/{}.cbz", self.folder, format!("{}", process_filename(&self.get_folder_name())))
+        format!("{}/{}.cbz", self.folder, process_filename(&self.get_folder_name()))
     }
     pub(crate) fn get_file_w_folder_w_cwd(&self) -> String {
         format!(
             "{}{}/{}.cbz",
             *args::ARGS_CWD,
             self.folder,
-            format!("{}", process_filename(&self.get_folder_name()))
+            process_filename(&self.get_folder_name())
         )
     }
     pub(crate) fn get_folder_w_end(&self) -> String {
@@ -995,7 +969,7 @@ pub(crate) fn skip_offset(item: usize, moves: u32, hist: &mut Vec<String>) -> u3
 
 pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(), MdownError> {
     let mut file_inst = match
-        std::fs::OpenOptions::new().read(true).write(true).create(true).open(file)
+        std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(file)
     {
         Ok(file) => file,
         Err(err) => {
