@@ -4,7 +4,7 @@
 
 See [site](https://mangadex.org/) for finding manga
 
-## Install
+## Build
 
 Firstly you have to install [Rust](https://www.rust-lang.org/tools/install)
 
