@@ -4,6 +4,13 @@ use std::collections::HashMap;
 
 use crate::resolute;
 
+/// Represents settings for the application, such as folder paths.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Settings {
+    pub(crate) folder: String,
+}
+
+/// Contains metadata for a specific manga chapter.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct ChapterMetadata {
     pub(crate) updated_at: String,
@@ -12,6 +19,17 @@ pub(crate) struct ChapterMetadata {
 }
 
 impl ChapterMetadata {
+    /// Creates a new instance of `ChapterMetadata`.
+    ///
+    /// # Parameters
+    ///
+    /// - `number: &str`: The chapter number.
+    /// - `updated_at: &str`: The date and time when the chapter was last updated.
+    /// - `id: &str`: The unique identifier for the chapter.
+    ///
+    /// # Returns
+    ///
+    /// A `ChapterMetadata` instance with the provided values.
     pub(crate) fn new(number: &str, updated_at: &str, id: &str) -> ChapterMetadata {
         ChapterMetadata {
             updated_at: updated_at.to_owned(),
@@ -21,6 +39,7 @@ impl ChapterMetadata {
     }
 }
 
+/// Contains metadata used for generating chapter information.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct ChapterMetadataIn {
     pub(crate) name: String,
@@ -34,46 +53,14 @@ pub(crate) struct ChapterMetadataIn {
     pub(crate) scanlation: ScanlationMetadata,
 }
 
-impl ChapterMetadataIn {
-    pub(crate) fn new(
-        name: String,
-        id: String,
-        manga_id: String,
-        saver: bool,
-        title: String,
-        pages: String,
-        chapter: String,
-        volume: String,
-        scanlation: ScanlationMetadata
-    ) -> ChapterMetadataIn {
-        ChapterMetadataIn {
-            name,
-            id,
-            manga_id,
-            saver,
-            title,
-            pages,
-            chapter,
-            volume,
-            scanlation,
-        }
-    }
-}
-
+/// Contains metadata about the scanlation group.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct ScanlationMetadata {
     pub(crate) name: String,
     pub(crate) website: String,
 }
 
-impl ScanlationMetadata {
-    pub(crate) fn new(name: &str, website: &str) -> ScanlationMetadata {
-        ScanlationMetadata {
-            name: name.to_owned(),
-            website: website.to_owned(),
-        }
-    }
-}
+/// Contains tag metadata, typically for genres or themes.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct TagMetadata {
     pub(crate) name: String,
@@ -81,6 +68,16 @@ pub(crate) struct TagMetadata {
 }
 
 impl TagMetadata {
+    /// Creates a new instance of `TagMetadata`.
+    ///
+    /// # Parameters
+    ///
+    /// - `name: &str`: The name of the tag.
+    /// - `id: &str`: The unique identifier for the tag.
+    ///
+    /// # Returns
+    ///
+    /// A `TagMetadata` instance with the provided values.
     pub(crate) fn new(name: &str, id: &str) -> TagMetadata {
         TagMetadata {
             name: name.to_owned(),
@@ -88,6 +85,8 @@ impl TagMetadata {
         }
     }
 }
+
+/// Represents a log entry for the application.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct Log {
     pub(crate) handle_id: String,
@@ -95,7 +94,17 @@ pub(crate) struct Log {
     pub(crate) time: String,
     pub(crate) name: String,
 }
+
 impl Log {
+    /// Creates a new log entry with a message and the current time.
+    ///
+    /// # Parameters
+    ///
+    /// - `message: &str`: The log message.
+    ///
+    /// # Returns
+    ///
+    /// A `Log` instance with the current time and provided message.
     pub(crate) fn new(message: &str) -> Log {
         let name = resolute::CURRENT_CHAPTER.lock().clone();
         let handle_id = match resolute::HANDLE_ID.try_lock() {
@@ -110,6 +119,16 @@ impl Log {
         }
     }
 
+    /// Creates a new log entry with a message, a custom name, and the current time.
+    ///
+    /// # Parameters
+    ///
+    /// - `message: &str`: The log message.
+    /// - `name: &str`: The name associated with the log entry.
+    ///
+    /// # Returns
+    ///
+    /// A `Log` instance with the current time, provided message, and name.
     pub(crate) fn new_with_name(message: &str, name: &str) -> Log {
         let handle_id = match resolute::HANDLE_ID.try_lock() {
             Some(handle) => handle.to_string(),
@@ -122,6 +141,17 @@ impl Log {
             name: name.to_string(),
         }
     }
+
+    /// Creates a new log entry with a message, a custom handle ID, and the current time.
+    ///
+    /// # Parameters
+    ///
+    /// - `message: &str`: The log message.
+    /// - `handle_id: Box<str>`: The handle ID associated with the log entry.
+    ///
+    /// # Returns
+    ///
+    /// A `Log` instance with the current time, provided message, and handle ID.
     #[cfg(feature = "web")]
     pub(crate) fn new_with_handle_id(message: &str, handle_id: Box<str>) -> Log {
         Log {
@@ -133,10 +163,13 @@ impl Log {
     }
 }
 
+/// Represents a database of items.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct DB {
     pub(crate) files: Vec<DBItem>,
 }
+
+/// Represents an item in the database.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct DBItem {
     pub(crate) r#type: String,
@@ -146,11 +179,14 @@ pub(crate) struct DBItem {
     pub(crate) dependencies: Vec<String>,
 }
 
+/// Contains data about manga, including metadata and version.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct Dat {
     pub(crate) data: Vec<MangaMetadata>,
     pub(crate) version: String,
 }
+
+/// Contains logs related to manga downloads.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub(crate) struct MangaDownloadLogs {
     pub(crate) id: String,
@@ -164,6 +200,7 @@ pub(crate) struct MangaDownloadLogs {
 
 pub(crate) type MdownLogs = HashMap<String, MangaDownloadLogs>;
 
+/// Contains metadata for manga, including chapters and tags.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct MangaMetadata {
     pub(crate) name: String,
@@ -178,40 +215,14 @@ pub(crate) struct MangaMetadata {
     pub(crate) genre: Vec<TagMetadata>,
 }
 
-impl MangaMetadata {
-    pub(crate) fn new(
-        name: &str,
-        id: &str,
-        chapters: Vec<ChapterMetadata>,
-        mwd: &str,
-        cover: bool,
-        date: Vec<String>,
-        available_languages: Vec<String>,
-        current_language: &str,
-        theme: Vec<TagMetadata>,
-        genre: Vec<TagMetadata>
-    ) -> MangaMetadata {
-        MangaMetadata {
-            name: name.to_owned(),
-            id: id.to_owned(),
-            chapters,
-            mwd: mwd.to_owned(),
-            cover,
-            date,
-            available_languages,
-            current_language: current_language.to_owned(),
-            theme,
-            genre,
-        }
-    }
-}
-
+/// Defines the maximum coordinates for points.
 #[derive(Debug, Clone)]
 pub(crate) struct MaxPoints {
     pub(crate) max_x: u32,
     pub(crate) max_y: u32,
 }
 
+/// Represents the response from a manga API request.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct MangaResponse {
     pub(crate) result: String,
@@ -222,6 +233,7 @@ pub(crate) struct MangaResponse {
     pub(crate) total: u64,
 }
 
+/// Contains information about a specific chapter in the API response.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct ChapterResponse {
     pub(crate) id: String,
@@ -230,11 +242,14 @@ pub(crate) struct ChapterResponse {
     pub(crate) relationships: Vec<ChapterRelResponse>,
 }
 
+/// Contains relationship information for chapters.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct ChapterRelResponse {
     pub(crate) id: String,
     pub(crate) r#type: String,
 }
+
+/// Contains attributes for chapters in the API response.
 #[allow(non_snake_case)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct ChapterAttrResponse {
@@ -250,6 +265,8 @@ pub(crate) struct ChapterAttrResponse {
     pub(crate) pages: u64,
     pub(crate) version: u64,
 }
+
+/// Contains data about a chapter, including image URLs.
 #[allow(non_snake_case)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct ChapterData {
@@ -258,6 +275,7 @@ pub(crate) struct ChapterData {
     pub(crate) chapter: ChapterDataImages,
 }
 
+/// Contains image data for a chapter.
 #[allow(non_snake_case)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct ChapterDataImages {
@@ -266,6 +284,7 @@ pub(crate) struct ChapterDataImages {
     pub(crate) dataSaver: Option<Vec<String>>,
 }
 
+/// Contains statistics for a manga.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct Statistics {
     pub(crate) comments: Comment,
@@ -273,6 +292,7 @@ pub(crate) struct Statistics {
     pub(crate) follows: u64,
 }
 
+/// Contains comment statistics.
 #[allow(non_snake_case)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct Comment {
@@ -280,12 +300,15 @@ pub(crate) struct Comment {
     pub(crate) repliesCount: u64,
 }
 
+/// Contains rating information for a manga.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct Rating {
     pub(crate) average: f64,
     pub(crate) bayesian: f64,
     pub(crate) distribution: RatingDistribution,
 }
+
+/// Contains the distribution of ratings.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct RatingDistribution {
     #[serde(rename = "1")]
@@ -311,7 +334,7 @@ pub(crate) struct RatingDistribution {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone)]
+/// Enum to specify the type of data saving.
 pub(crate) enum Saver {
     data,
     dataSaver,

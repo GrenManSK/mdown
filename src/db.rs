@@ -1,10 +1,31 @@
 use rusqlite::{ Connection, OptionalExtension, params };
 use std::{ io::{ Read, Write }, process::Command, result::Result };
 
-use crate::{ args, download, debug, error::MdownError, getter, metadata::DB, resolute };
+use crate::{ args, download, debug, error::MdownError, getter, metadata };
 
 include!(concat!(env!("OUT_DIR"), "/data_json.rs"));
 
+/// Initializes the database by creating the `resources` table if it does not already exist.
+///
+/// This function executes a SQL statement to create the `resources` table within the provided database connection.
+/// The table includes the following fields:
+/// - `id`: An integer that serves as the primary key.
+/// - `name`: A unique text field that cannot be null.
+/// - `data`: A text field that cannot be null, intended to store the resource's data.
+/// - `is_binary`: A boolean field indicating whether the resource data is binary.
+///
+/// # Arguments
+/// * `conn` - A reference to a `Connection` object representing the database connection.
+///
+/// # Returns
+/// * `Result<(), MdownError>` - Returns `Ok(())` if the table is created successfully or already exists,
+///   or an `MdownError` on failure.
+///
+/// # Errors
+/// * Returns `MdownError::DatabaseError` if there is an issue executing the SQL statement.
+///
+/// # Panics
+/// * This function does not explicitly panic.
 fn initialize_db(conn: &Connection) -> Result<(), MdownError> {
     match
         conn.execute(
@@ -24,47 +45,77 @@ fn initialize_db(conn: &Connection) -> Result<(), MdownError> {
     }
     Ok(())
 }
-
+/// Reads a resource from the database by its name.
+///
+/// This function retrieves the `data` and `is_binary` fields from the `resources` table for a given resource name.
+/// If the resource is found, the data is returned as a `Vec<u8>`. If the data is stored as binary (indicated by the `is_binary` flag),
+/// it is decoded from a base64 string. Otherwise, it is returned as raw bytes.
+///
+/// # Arguments
+/// * `conn` - A reference to a `Connection` object representing the database connection.
+/// * `name` - A string slice that holds the name of the resource to be retrieved.
+///
+/// # Returns
+/// * `Result<Option<Vec<u8>>, MdownError>` - Returns `Ok(Some(Vec<u8>))` if the resource is found,
+///   `Ok(None)` if the resource does not exist, or an `MdownError` on failure.
+///
+/// # Errors
+/// * Returns `MdownError::DatabaseError` if there is an issue with the SQL query.
+/// * Returns `MdownError::CustomError` with a `Base64Error` if there is an issue decoding the base64-encoded data.
+///
+/// # Panics
+/// * This function does not explicitly panic.
+///
+/// # Deprecated
+/// * The `base64::decode` function used in this code is marked as deprecated in some contexts, but it is still used here.
 pub(crate) fn read_resource(conn: &Connection, name: &str) -> Result<Option<Vec<u8>>, MdownError> {
+    // Prepare the SQL statement to select the data and is_binary fields from the resources table
     let mut stmt = match conn.prepare("SELECT data, is_binary FROM resources WHERE name = ?1") {
         Ok(stmt) => stmt,
         Err(err) => {
+            // Return a DatabaseError if preparing the statement fails
             return Err(MdownError::DatabaseError(err));
         }
     };
 
+    // Execute the query and process the result
     match
         stmt
             .query_row(params![name], |row| {
+                // Extract the data and is_binary fields from the row
                 let data: String = match row.get(0) {
                     Ok(value) => value,
                     Err(err) => {
+                        // Return the error if fetching the data field fails
                         return Err(err);
                     }
                 };
                 let is_binary: bool = match row.get(1) {
                     Ok(value) => value,
                     Err(err) => {
+                        // Return the error if fetching the is_binary field fails
                         return Err(err);
                     }
                 };
 
+                // Decode the data based on whether it is binary
                 if is_binary {
                     #[allow(deprecated)]
                     let decoded_data = match
-                        base64
-                            ::decode(&data)
-                            .map_err(|e|
-                                MdownError::CustomError(e.to_string(), String::from("Base64Error"))
-                            )
+                        base64::decode(&data).map_err(|e| {
+                            // Wrap base64 decoding errors in a CustomError
+                            MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                        })
                     {
                         Ok(value) => value,
                         Err(_err) => {
+                            // Return an InvalidQuery error if base64 decoding fails
                             return Err(rusqlite::Error::InvalidQuery);
                         }
                     };
                     Ok(Some(decoded_data))
                 } else {
+                    // Return the data as raw bytes if it is not binary
                     Ok(Some(data.into_bytes()))
                 }
             })
@@ -75,51 +126,135 @@ pub(crate) fn read_resource(conn: &Connection, name: &str) -> Result<Option<Vec<
     }
 }
 
+/// Writes a resource to the database, either inserting a new entry or updating an existing one.
+///
+/// This function adds a new resource to the `resources` table or updates an existing one if a resource with the same name already exists.
+/// The resource data is converted to a string format based on whether it is binary or not. If `is_binary` is true, the data is base64 encoded.
+/// Otherwise, it is converted to a UTF-8 string.
+///
+/// # Arguments
+/// * `conn` - A reference to a `Connection` object representing the database connection.
+/// * `name` - A string slice that holds the name of the resource to be written or updated.
+/// * `data` - A slice of bytes representing the resource data.
+/// * `is_binary` - A boolean indicating whether the data is binary (true) or text (false).
+///
+/// # Returns
+/// * `Result<u64, MdownError>` - Returns `Ok(u64)` with the ID of the inserted or updated resource on success,
+///   or an `MdownError` on failure.
+///
+/// # Errors
+/// * Returns `MdownError::CustomError` with a `Base64Error` if converting the data to a string fails while `is_binary` is false.
+/// * Returns `MdownError::DatabaseError` if there is an issue executing the SQL statement.
+///
+/// # Panics
+/// * This function does not explicitly panic.
+///
+/// # Deprecated
+/// * The `base64::encode` function used in this code is marked as deprecated in some contexts, but it is still used here.
 fn write_resource(
     conn: &Connection,
     name: &str,
     data: &[u8],
     is_binary: bool
 ) -> Result<u64, MdownError> {
+    // Convert data to a string representation based on whether it is binary or not
     let data_str = if is_binary {
         #[allow(deprecated)]
         base64::encode(data)
     } else {
         match
-            String::from_utf8(data.to_vec()).map_err(|e|
+            String::from_utf8(data.to_vec()).map_err(|e| {
+                // Wrap UTF-8 conversion errors in a CustomError
                 MdownError::CustomError(e.to_string(), String::from("Base64Error"))
-            )
+            })
         {
             Ok(value) => value,
             Err(err) => {
+                // Return the error if UTF-8 conversion fails
                 return Err(err);
             }
         }
     };
 
+    // Execute the SQL statement to insert or update the resource
     match
         conn.execute(
             "INSERT INTO resources (name, data, is_binary) VALUES (?1, ?2, ?3)
-                ON CONFLICT(name) DO UPDATE SET data = excluded.data, is_binary = excluded.is_binary",
+            ON CONFLICT(name) DO UPDATE SET data = excluded.data, is_binary = excluded.is_binary",
             params![name, data_str, is_binary]
         )
     {
         Ok(_) => {
+            // Return the ID of the inserted or updated resource
             let id = conn.last_insert_rowid() as u64;
             Ok(id)
         }
-        Err(err) => { Err(MdownError::DatabaseError(err)) }
+        Err(err) => {
+            // Return a DatabaseError if executing the statement fails
+            Err(MdownError::DatabaseError(err))
+        }
     }
 }
 
+/// Deletes a resource from the database by its name.
+///
+/// This function removes a resource entry from the `resources` table based on the provided name.
+/// If the resource exists, it will be deleted from the table.
+///
+/// # Arguments
+/// * `conn` - A reference to a `Connection` object representing the database connection.
+/// * `name` - A string slice that holds the name of the resource to be deleted.
+///
+/// # Returns
+/// * `Result<(), MdownError>` - Returns `Ok(())` if the deletion is successful,
+///   or an `MdownError` on failure.
+///
+/// # Errors
+/// * Returns `MdownError::DatabaseError` if there is an issue executing the SQL statement.
+///
+/// # Panics
+/// * This function does not explicitly panic.
 fn delete_resource(conn: &Connection, name: &str) -> Result<(), MdownError> {
+    // Execute the SQL statement to delete the resource with the given name
     match conn.execute("DELETE FROM resources WHERE name = ?1", params![name]) {
         Ok(_) => Ok(()),
         Err(err) => Err(MdownError::DatabaseError(err)),
     }
 }
 
+/// Initializes the setup process for the application, including database setup and file management.
+///
+/// This asynchronous function performs several tasks to prepare the application:
+/// 1. Initializes the database by calling `initialize_db`.
+/// 2. Reads configuration data from a JSON source to determine which files need to be managed.
+/// 3. Downloads the `yt-dlp` executable if necessary and uses it to process files based on the configuration.
+/// 4. Adds the processed files to the database and cleans up any temporary files.
+///
+/// # Returns
+/// * `Result<(), MdownError>` - Returns `Ok(())` on successful completion of the setup process, or an `MdownError` on failure.
+///
+/// # Errors
+/// * Returns `MdownError::DatabaseError` if there are issues with database operations.
+/// * Returns `MdownError::JsonError` if parsing the JSON configuration fails.
+/// * Returns `MdownError::CustomError` if there are issues with base64 encoding/decoding or other custom errors.
+/// * Returns `MdownError::IoError` if there are issues with file operations, such as removing files.
+///
+/// # Panics
+/// * This function does not explicitly panic.
+///
+/// # Workflow
+/// 1. **Database Initialization:** Opens a connection to the database and sets up the required tables if they do not already exist.
+/// 2. **Configuration Handling:** Reads and parses a JSON configuration to determine which resources need to be handled.
+/// 3. **Resource Handling:**
+///    - For each file specified in the configuration, checks if it is needed based on provided flags.
+///    - Downloads and processes files if they are not already present in the database.
+///    - Updates the database with the newly processed files.
+/// 4. **Cleanup:** Removes temporary files and the `yt-dlp` executable if they are no longer needed.
+/// 5. **Exit Conditions:** Exits the process if `ARGS_FORCE_SETUP` is true, indicating all requirements are installed.
 pub(crate) async fn init() -> Result<(), MdownError> {
+    debug!("initializing database");
+
+    // Get the path to the database
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {
@@ -127,6 +262,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
         }
     };
 
+    // Open a connection to the database
     let conn = match Connection::open(&db_path) {
         Ok(conn) => conn,
         Err(err) => {
@@ -134,6 +270,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
         }
     };
 
+    // Initialize the database schema
     match initialize_db(&conn) {
         Ok(_) => (),
         Err(err) => {
@@ -147,8 +284,9 @@ pub(crate) async fn init() -> Result<(), MdownError> {
     let mut yt_dlp = false;
     let mut ftd = false;
 
+    // Parse JSON configuration data
     let json_data_string = String::from_utf8_lossy(DATA_JSON).to_string();
-    let json_data = match serde_json::from_str::<DB>(&json_data_string) {
+    let json_data = match serde_json::from_str::<metadata::DB>(&json_data_string) {
         Ok(value) => value,
         Err(err) => {
             return Err(MdownError::JsonError(err.to_string()));
@@ -158,7 +296,9 @@ pub(crate) async fn init() -> Result<(), MdownError> {
     let files = json_data.files;
     for file in files.iter() {
         let mut cont = false;
+        let name = &file.name.clone();
         for i in file.dependencies.iter() {
+            // Check dependencies based on flags
             if !*args::ARGS_FORCE_SETUP {
                 match i.as_str() {
                     "web" => {
@@ -181,16 +321,20 @@ pub(crate) async fn init() -> Result<(), MdownError> {
             }
         }
 
+        // Skip download if not needed
         if cont {
+            debug!("Skipping download of {} because it is not needed", name);
             continue;
         }
 
         let typ = file.r#type.clone();
 
+        // Process 'yt-dlp' type files
         if typ == "yt-dlp" {
-            let name = &file.name.clone();
+            debug!("yt-dlp");
             let db_name = name.replace(".", "_").replace(" ", "_").to_uppercase();
 
+            // Check if the file is already in the database
             let db_item = match read_resource(&conn, &db_name) {
                 Ok(value) => value,
                 Err(err) => {
@@ -198,11 +342,13 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                 }
             };
             if db_item.is_none() {
+                debug!("File {} is NOT in database", name);
                 if !ftd {
                     println!("First time setup");
                 }
                 if !yt_dlp {
                     ftd = true;
+                    // Download yt-dlp executable if needed
                     match download_yt_dlp(&full_path).await {
                         Ok(_) => (),
                         Err(err) => {
@@ -216,6 +362,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
 
                 println!("{}", dmca);
 
+                // Execute yt-dlp to process the file
                 for _ in 0..2 {
                     match
                         Command::new(".\\yt-dlp_min.exe")
@@ -262,6 +409,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                     }
                 }
 
+                // Read the processed file and update the database
                 let file_bytes = match read_file_to_bytes(name) {
                     Ok(value) => value,
                     Err(_err) => {
@@ -283,10 +431,13 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                         return Err(MdownError::IoError(err, String::from(name)));
                     }
                 };
+            } else {
+                debug!("File {} is in database", name);
             }
         }
     }
 
+    // Remove yt-dlp executable if it was downloaded
     if yt_dlp && std::fs::metadata(&full_path).is_ok() {
         match std::fs::remove_file(&full_path) {
             Ok(_) => (),
@@ -296,6 +447,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
         };
     }
 
+    // Exit if force setup is enabled
     if *args::ARGS_FORCE_SETUP {
         if !ftd {
             println!("All requirements have been already installed");
@@ -303,9 +455,34 @@ pub(crate) async fn init() -> Result<(), MdownError> {
         std::process::exit(0);
     }
 
+    debug!("database configuration complete\n");
+
     Ok(())
 }
 
+/// Prints the output from a `Read` source to the console with a specified label.
+///
+/// This function spawns a new thread to read from the provided `Read` source and print the output to the console.
+/// The output is labeled with the provided `label`. The function handles carriage returns (`\r`) by overwriting the
+/// previous line with the label and continues printing subsequent bytes as characters.
+///
+/// # Type Parameters
+/// * `R` - A type that implements the `Read` trait, which allows reading bytes from the source.
+///
+/// # Arguments
+/// * `reader` - An instance of a type implementing `Read` from which the output will be read and printed.
+/// * `label` - A string to be used as a label for the output, indicating the source of the data.
+///
+/// # Behavior
+/// * Reads data from the `reader` in chunks of up to 1024 bytes.
+/// * Prints the data to the console, handling carriage returns to overwrite the previous line with the label.
+/// * Flushes the console output to ensure that all data is printed immediately.
+///
+/// # Errors
+/// * Prints an error message to standard error if there is an issue flushing the console or reading from the `reader`.
+///
+/// # Panics
+/// * This function does not explicitly panic.
 fn print_output<R: Read + Send + 'static>(reader: R, label: String) {
     let mut reader = std::io::BufReader::new(reader);
     let mut buffer = [0; 1024];
@@ -313,14 +490,18 @@ fn print_output<R: Read + Send + 'static>(reader: R, label: String) {
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => {
+                    // End of input
                     break;
                 }
                 Ok(n) => {
+                    // Read `n` bytes from the buffer
                     let output = &buffer[..n];
                     for &byte in output {
                         if byte == b'\r' {
+                            // Handle carriage return by printing the label
                             print!("\r{}: ", label);
                         } else {
+                            // Print byte as a character
                             print!("{}", byte as char);
                         }
                     }
@@ -328,12 +509,14 @@ fn print_output<R: Read + Send + 'static>(reader: R, label: String) {
                     match std::io::stdout().flush() {
                         Ok(_) => (),
                         Err(err) => {
+                            // Print an error message if flushing stdout fails
                             eprintln!("Error flushing stdout: {}", err);
                             break;
                         }
                     };
                 }
                 Err(e) => {
+                    // Print an error message if reading from the reader fails
                     eprintln!("Error reading {}: {}", label, e);
                     break;
                 }
@@ -342,24 +525,75 @@ fn print_output<R: Read + Send + 'static>(reader: R, label: String) {
     });
 }
 
+/// Reads the contents of a file into a vector of bytes.
+///
+/// This function opens a file specified by `file_path`, reads its contents, and stores them in a `Vec<u8>`.
+/// If the file cannot be opened or read, it returns an `std::io::Error`.
+///
+/// # Arguments
+/// * `file_path` - A string slice that holds the path to the file to be read.
+///
+/// # Returns
+/// * `std::io::Result<Vec<u8>>` - Returns `Ok(Vec<u8>)` with the file contents as bytes on success,
+///   or an `std::io::Error` on failure.
+///
+/// # Errors
+/// * Returns an `std::io::Error` if the file cannot be opened or read, for example, if the file does not exist
+///   or if there are I/O errors during reading.
+///
+/// # Panics
+/// * This function does not explicitly panic.
 fn read_file_to_bytes(file_path: &str) -> std::io::Result<Vec<u8>> {
+    // Open the file at the specified path
     let mut file = match std::fs::File::open(file_path) {
         Ok(file) => file,
         Err(err) => {
+            // Return the error if the file cannot be opened
             return Err(err);
         }
     };
     let mut buffer = Vec::new();
+    // Read the entire file into the buffer
     match file.read_to_end(&mut buffer) {
         Ok(_) => (),
         Err(err) => {
+            // Return the error if reading the file fails
             return Err(err);
         }
     }
+    // Return the file contents as a vector of bytes
     Ok(buffer)
 }
 
+/// Downloads the `yt-dlp_min.exe` file from a specified URL and saves it to the provided path.
+///
+/// This asynchronous function performs an HTTP GET request to download the `yt-dlp_min.exe` file.
+/// It displays the download progress in the console, handles errors related to network requests,
+/// and manages file writing operations. The function periodically updates the progress of the download
+/// and provides feedback on the console.
+///
+/// # Arguments
+/// * `full_path` - A string slice that holds the path where the downloaded file will be saved.
+///
+/// # Returns
+/// * `Result<(), MdownError>` - Returns `Ok(())` on success or an `MdownError` on failure.
+///
+/// # Errors
+/// * Returns `MdownError::NetworkError` if there is an issue with the network request or reading chunks from the response.
+/// * Returns `MdownError::IoError` if there is an issue with file operations, such as creating or writing to the file.
+///
+/// # Panics
+/// * This function does not explicitly panic.
+///
+/// # Example
+/// ```no_run
+/// #[tokio::main]
+/// async fn main() -> Result<(), MdownError> {
+///     download_yt_dlp("path/to/save/yt-dlp_min.exe").await
+/// }
+/// ```
 async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
+    // Initialize the HTTP client
     let client = match download::get_client() {
         Ok(client) => client,
         Err(err) => {
@@ -368,6 +602,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     };
     let url = "https://github.com/yt-dlp/yt-dlp/releases/download/2024.04.09/yt-dlp_min.exe";
 
+    // Print a message indicating that the download is starting
     print!("Fetching {}\r", url);
     match std::io::stdout().flush() {
         Ok(()) => (),
@@ -375,16 +610,20 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
             return Err(MdownError::IoError(err, String::new()));
         }
     }
+
+    // Send an HTTP GET request to download the file
     let mut response = match client.get(url).send().await {
-        Ok(response) => { response }
+        Ok(response) => response,
         Err(err) => {
             return Err(MdownError::NetworkError(err));
         }
     };
     println!("Fetching {} DONE", url);
 
+    // Get the total size and final size of the file from the response
     let (total_size, final_size) = download::get_size(&response);
 
+    // Create the file where the downloaded data will be saved
     let mut file = match std::fs::File::create(full_path) {
         Ok(file) => file,
         Err(err) => {
@@ -397,22 +636,26 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
 
     while
         //prettier-ignore
+        // Read chunks of data from the response and write them to the file
         let Some(chunk) = match response.chunk().await {
-                Ok(Some(chunk)) => Some(chunk),
-                Ok(None) => None,
-                Err(err) => {
-                    return Err(MdownError::NetworkError(err));
-                }
+            Ok(Some(chunk)) => Some(chunk),
+            Ok(None) => None,
+            Err(err) => {
+                return Err(MdownError::NetworkError(err));
             }
+        }
     {
+        // Write the chunk to the file
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                resolute::SUSPENDED.lock().push(MdownError::IoError(err, full_path.to_string()));
+                return Err(MdownError::IoError(err, full_path.to_string()));
             }
         }
         downloaded += chunk.len() as u64;
         let current_time = std::time::Instant::now();
+
+        // Update the progress display periodically
         if current_time.duration_since(last_check_time) >= interval {
             let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
             let perc_string = download::get_perc(percentage);
@@ -434,6 +677,8 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
             last_size = downloaded as f32;
         }
     }
+
+    // Print the final download progress
     let message = format!(
         "Downloading yt-dlp_min.exe {}% - {:.2}mb of {:.2}mb",
         100,
@@ -444,7 +689,37 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     Ok(())
 }
 
-pub(crate) fn setup_settings() -> Result<String, MdownError> {
+/// Sets up settings by configuring database access and updating settings based on command-line arguments.
+///
+/// This function performs the following tasks:
+/// 1. Retrieves the database path and opens a connection to it.
+/// 2. Initializes the database schema if it hasn't been set up already.
+/// 3. Updates the settings in the database based on command-line arguments (if provided).
+/// 4. Reads the settings from the database and returns them.
+///
+/// # Returns
+/// * `Result<metadata::Settings, MdownError>` - Returns `Ok(metadata::Settings)` with the retrieved settings on success,
+///   or an `MdownError` on failure.
+///
+/// # Errors
+/// * Returns `MdownError::DatabaseError` if there is an issue with the database connection or operations.
+/// * Returns `MdownError::CustomError` if there is an issue with decoding data from the database.
+///
+/// # Panics
+/// * This function does not explicitly panic.
+///
+/// # Example
+/// ```no_run
+/// fn main() -> Result<(), MdownError> {
+///     let settings = setup_settings()?;
+///     // Use settings here
+///     Ok(())
+/// }
+/// ```
+pub(crate) fn setup_settings() -> Result<metadata::Settings, MdownError> {
+    debug!("setup_settings");
+
+    // Retrieve the database path
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {
@@ -452,6 +727,7 @@ pub(crate) fn setup_settings() -> Result<String, MdownError> {
         }
     };
 
+    // Open a connection to the database
     let conn = match Connection::open(&db_path) {
         Ok(conn) => conn,
         Err(err) => {
@@ -459,12 +735,15 @@ pub(crate) fn setup_settings() -> Result<String, MdownError> {
         }
     };
 
+    // Initialize the database schema
     match initialize_db(&conn) {
         Ok(_) => (),
         Err(err) => {
             return Err(err);
         }
     }
+
+    // Update settings in the database based on command-line arguments
     match args::ARGS.lock().subcommands.clone() {
         Some(args::Commands::Settings { folder }) => {
             match folder {
@@ -476,13 +755,14 @@ pub(crate) fn setup_settings() -> Result<String, MdownError> {
                         }
                     }
                 }
-                Some(None) =>
+                Some(None) => {
                     match delete_resource(&conn, "folder") {
                         Ok(_id) => (),
                         Err(err) => {
                             return Err(err);
                         }
                     }
+                }
                 None => (),
             }
         }
@@ -490,6 +770,7 @@ pub(crate) fn setup_settings() -> Result<String, MdownError> {
         None => (),
     }
 
+    // Read the folder setting from the database
     let folder = match read_resource(&conn, "folder") {
         Ok(Some(value)) =>
             match
@@ -497,7 +778,10 @@ pub(crate) fn setup_settings() -> Result<String, MdownError> {
                     MdownError::CustomError(e.to_string(), String::from("Base64Error"))
                 )
             {
-                Ok(folder) => folder,
+                Ok(folder) => {
+                    debug!("folder from database: {:?}", folder);
+                    folder
+                }
                 Err(err) => {
                     return Err(err);
                 }
@@ -507,5 +791,11 @@ pub(crate) fn setup_settings() -> Result<String, MdownError> {
             return Err(err);
         }
     };
-    Ok(folder)
+
+    // Create and return the settings object
+    let settings = metadata::Settings { folder };
+
+    debug!("{:?}\n", settings);
+
+    Ok(settings)
 }

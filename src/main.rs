@@ -1,3 +1,98 @@
+//!# Manga Downloader
+//!
+//!`manga_downloader` is a command-line tool for managing and downloading manga. It supports various functionalities such as downloading manga by title, managing a database of downloaded content, and customizing the download process with various options.
+//!
+//!## Features
+//!
+//!- **Manga Downloading**: Download manga based on URL, language, title, volume, and chapter.
+//!- **Database Management**: Check and update downloaded manga, view current manga and chapters in the database, and show logs.
+//!- **Customization**: Configure the download process with options like maximum consecutive downloads, start offsets, and folder management.
+//!- **Logging**: Enable logging and save logs to a file.
+//!- **Web Mode**: Enter web mode to interact with the application through a web browser.
+//!- **Music**: Play music during the download process with various options.
+//!- **Server Mode**: Start the application in server mode.
+//!- **GUI Support**: Experimental GUI mode available for certain features.
+//!- **Development Options**: Options for debugging and development.
+//!
+//!## Usage
+//!
+//!To use the `manga_downloader` crate, you can run it from the command line with various options and subcommands. Below are some common options:
+//!
+//!- `--url <URL>`: The URL of the manga to download.
+//!- `--lang <LANG>`: The language of the manga.
+//!- `--title <TITLE>`: The title of the manga.
+//!- `--folder <FOLDER>`: The folder to store downloaded manga.
+//!- `--volume <VOLUME>`: The volume number of the manga.
+//!- `--chapter <CHAPTER>`: The chapter number of the manga.
+//!- `--saver`: Enable the saver mode.
+//!- `--stat`: Generate a statistics file.
+//!- `--quiet`: Suppress output.
+//!- `--max_consecutive <NUMBER>`: Maximum number of consecutive downloads of images.
+//!- `--force`: Force download even if the file exists.
+//!- `--offset <OFFSET>`: The start offset for chapters.
+//!- `--database_offset <OFFSET>`: The start offset for the database.
+//!- `--unsorted`: Do not sort the database.
+//!- `--cwd <DIR>`: Change the current working directory.
+//!- `--encode <URL>`: Print URL in a program-readable format.
+//!- `--log`: Enable logging and write to `log.json`.
+//!- `--search <TITLE>`: Search for manga by title.
+//!- `--web`: Enter web mode and open a browser on port 8080.
+//!- `--music <OPTION>`: Play music during downloading.
+//!- `--server`: Start in server mode.
+//!- `--gui`: Experimental GUI version.
+//!- `--debug`: Enable debugging.
+//!- `--debug_file`: Debug file-related operations.
+//!- `--dev`: Enable development mode.
+//!
+//!## Subcommands
+//!
+//!- `database`: Commands related to database management.
+//!  - `--check`: Check downloaded files for errors.
+//!  - `--update`: Update downloaded files.
+//!  - `--show [ID]`: Show current manga in the database or a specific manga by ID.
+//!  - `--show_all [ID]`: Show current chapters in the database or a specific chapter by ID.
+//!  - `--show_log`: Show current logs in the database.
+//!
+//!- `settings`: Commands related to application settings.
+//!  - `--folder [NAME]`: Set or remove the default folder name.
+//!
+//!- `app`: Commands related to application management.
+//!  - `--force_setup`: Force the first-time setup.
+//!  - `--force_delete`: Force delete the `.lock` file.
+//!  - `--delete`: Delete `dat.json`.
+//!  - `--reset`: Delete all files created by the program.
+//!
+//!## Example
+//!
+//!To download a manga with specific options:
+//!
+//!```sh
+//!manga_downloader --url "http://example.com/manga" --lang "en" --title "My Manga" --folder "manga_folder" --volume "1" --chapter "1" --saver --log
+//!
+//!
+//!# Manga Downloader
+//!
+//!This crate is a command-line tool for downloading manga, managing manga databases, and interacting with the application through various modes. It supports functionalities such as downloading manga, checking and updating database entries, and logging.
+//!
+//!## Modules
+//!
+//!- **args**: Handles command-line arguments and configuration.
+//!- **db**: Manages database operations.
+//!- **download**: Manages the manga downloading process.
+//!- **getter**: Provides functions for retrieving data.
+//!- **macros**: Contains custom macros used throughout the crate.
+//!- **metadata**: Manages metadata related to manga.
+//!- **resolute**: Handles finalization and resolution of application state.
+//!- **utils**: Provides utility functions for various tasks.
+//!- **zip_func**: Handles zip file operations.
+//!
+//!### Optional Features
+//!
+//!- **music**: Plays background music during downloads (enabled with the `music` feature).
+//!- **gui**: Provides a graphical user interface (enabled with the `gui` feature).
+//!- **server**: Enables server mode (enabled with the `server` feature).
+//!- **web**: Provides web-based interaction (enabled with the `web` feature).
+
 use chrono::DateTime;
 use crosscurses::stdscr;
 use glob::glob;
@@ -29,6 +124,23 @@ mod server;
 #[cfg(feature = "web")]
 mod web;
 
+/// Displays a string on the screen at the specified coordinates.
+///
+/// This function writes the given `value` string to the terminal screen at the
+/// position specified by `(y, x)` coordinates. It respects the terminal's maximum
+/// width to avoid overwriting other parts of the screen. The output is only refreshed
+/// if certain global flags are not set, which indicates whether the program is running
+/// in web mode, GUI mode, or other special states.
+///
+/// # Parameters
+///
+/// - `y`: The y-coordinate (row) on the screen where the string should be displayed.
+/// - `x`: The x-coordinate (column) on the screen where the string should start.
+/// - `value`: The string to be displayed on the screen.
+///
+/// # Note
+///
+/// This function uses `stdscr()` from the `curses` library to manage terminal output.
 fn string(y: u32, x: u32, value: &str) {
     if
         !*args::ARGS_WEB &&
@@ -42,11 +154,29 @@ fn string(y: u32, x: u32, value: &str) {
     }
 }
 
+/// Logs the end of a process identified by `handle_id`.
+///
+/// This function adds the provided `handle_id` to the list of completed process handles.
+/// This is used for tracking and managing the end of various tasks or operations.
+///
+/// # Parameters
+///
+/// - `handle_id`: A string that represents the unique identifier of the process or operation
+///   that has ended.
+///
+/// # Note
+///
+/// This function utilizes a mutex to ensure thread-safe access to the `HANDLE_ID_END` list.
 fn log_end(handle_id: Box<str>) {
     resolute::HANDLE_ID_END.lock().push(handle_id);
 }
 
 lazy_static! {
+    /// Stores the maximum dimensions of the terminal screen.
+    ///
+    /// This lazy-static variable holds the maximum width (`max_x`) and height (`max_y`) of the
+    /// terminal screen as determined at runtime. It is used to constrain output and ensure that
+    /// it fits within the terminal boundaries.
     pub(crate) static ref MAXPOINTS: metadata::MaxPoints = metadata::MaxPoints {
         max_x: match stdscr().get_max_x() {
             value @ 0.. => value as u32,
@@ -57,11 +187,17 @@ lazy_static! {
             _ => 100,
         },
     };
+
+    /// Indicates whether the final end state has been reached.
+    ///
+    /// This mutex-protected boolean value is used to determine if the program has reached
+    /// its final end state, allowing for graceful exit.
     pub(crate) static ref IS_END: Mutex<bool> = Mutex::new(false);
 }
 
 #[tokio::main]
 async fn main() {
+    // Attempt to start the application and handle any errors that may occur.
     match start().await {
         Ok(()) => error::handle_suspended(),
         Err(err) => {
@@ -69,10 +205,14 @@ async fn main() {
             exit(1);
         }
     }
+
+    // Attempt to remove any cache files and ignore errors.
     match utils::remove_cache() {
         Ok(()) => (),
         Err(_err) => (),
     }
+
+    // If no special flags or arguments are set, configure terminal input modes.
     if
         !*args::ARGS_WEB &&
         !*args::ARGS_GUI &&
@@ -89,21 +229,67 @@ async fn main() {
         crosscurses::echo();
         crosscurses::cbreak();
     }
+
+    // If the final end state has been reached, exit the program successfully.
     if *resolute::FINAL_END.lock() {
         exit(0);
     }
 }
 
+/// Initializes and starts the application based on provided arguments and settings.
+///
+/// This asynchronous function performs the following tasks in order:
+/// 1. **Setup Settings**: Loads configuration settings from the database.
+/// 2. **Argument Handling**: Handles special arguments for encoding, resetting, and other operations.
+/// 3. **Database Initialization**: Initializes the database.
+/// 4. **Current Directory Setup**: Sets the working directory for the application.
+/// 5. **Delete Operation**: Handles deletion of data if the corresponding argument is set.
+/// 6. **Log Display**: Displays logs if the corresponding argument is set.
+/// 7. **Cache Folder Creation**: Creates a cache folder for the application.
+/// 8. **Music Feature**: Starts the music feature if enabled and specified.
+/// 9. **Subscriber Setup**: Sets up subscribers for web, GUI, update, or server modes.
+/// 10. **Log Handler**: Starts the log handler if enabled.
+/// 11. **Language Setup**: Configures the language settings for the application.
+/// 12. **Show or Show All**: Displays additional information if specified.
+/// 13. **Check or Update**: Performs checks or updates if specified.
+/// 14. **Server Mode**: Starts the server if enabled and specified.
+/// 15. **GUI Mode**: Starts the GUI if enabled and specified.
+/// 16. **Web Mode**: Starts the web interface if enabled and specified.
+/// 17. **Resolve Start**: Resolves the starting path and requirements for the application.
+/// 18. **UUID Handling**: Handles and validates UUIDs for data retrieval.
+/// 19. **Manga Information Retrieval**: Retrieves and processes manga information.
+/// 20. **Resolve End**: Finalizes the process and cleans up.
+///
+/// # Returns
+///
+/// This function returns a `Result<(), error::MdownError>`. It returns `Ok(())` if all operations are successful.
+/// Otherwise, it returns an `Err` with details about the encountered error.
+///
+/// # Errors
+///
+/// Possible errors include database setup failures, invalid arguments, file I/O errors, JSON parsing errors,
+/// and HTTP request errors. Each step handles specific errors and reports them accordingly.
+///
+/// # Notes
+///
+/// - The function utilizes conditional compilation to include or exclude features like web, music, server,
+///   and GUI based on feature flags.
+/// - Debug messages are used extensively to trace the execution flow and aid in debugging.
 async fn start() -> Result<(), error::MdownError> {
-    let folder = match db::setup_settings() {
-        Ok(folder) => folder,
-        Err(_err) => args::ARGS.lock().folder.clone(),
+    // Setup configuration settings from the database
+    let settings = match db::setup_settings() {
+        Ok(settings) => settings,
+        Err(err) => {
+            return Err(err);
+        }
     };
 
-    args::ARGS.lock().change("folder", args::Value::Str(folder));
+    // Update arguments with folder settings from the configuration
+    args::ARGS.lock().change("folder", args::Value::Str(settings.folder));
 
+    // Handle encoding argument
     if !(*args::ARGS_ENCODE).is_empty() {
-        debug!("Start web");
+        debug!("start encode");
         #[cfg(feature = "web")]
         println!("{}", web::encode(&args::ARGS_ENCODE));
         #[cfg(not(feature = "web"))]
@@ -111,6 +297,7 @@ async fn start() -> Result<(), error::MdownError> {
         return Ok(());
     }
 
+    // Handle reset argument
     if *args::ARGS_RESET {
         debug!("args_reset");
         return match utils::reset() {
@@ -119,6 +306,7 @@ async fn start() -> Result<(), error::MdownError> {
         };
     }
 
+    // Initialize the database
     match db::init().await {
         Ok(()) => (),
         Err(err) => {
@@ -126,16 +314,15 @@ async fn start() -> Result<(), error::MdownError> {
         }
     }
 
-    // cwd
+    // Set the current working directory
     match env::set_current_dir(args::ARGS_CWD.as_str()) {
-        Ok(()) => (),
+        Ok(()) => debug!("cwd set to {}", *args::ARGS_CWD),
         Err(err) => {
             return Err(error::MdownError::IoError(err, args::ARGS_CWD.to_string()));
         }
     }
 
-    debug!("cwd set to {}", *args::ARGS_CWD);
-
+    // Handle delete argument
     if *args::ARGS_DELETE {
         return match resolute::args_delete() {
             Ok(()) => Ok(()),
@@ -143,6 +330,7 @@ async fn start() -> Result<(), error::MdownError> {
         };
     }
 
+    // Handle show log argument
     if *args::ARGS_SHOW_LOG {
         debug!("show_log");
         return match resolute::show_log().await {
@@ -151,31 +339,25 @@ async fn start() -> Result<(), error::MdownError> {
         };
     }
 
+    // Create cache folder
     match utils::create_cache_folder() {
-        Ok(()) => (),
+        Ok(()) => debug!("created cache folder"),
         Err(err) => {
             return Err(err);
         }
     }
-    debug!("created cache folder");
 
+    // Handle music feature
     if args::ARGS_MUSIC.is_some() {
-        debug!("music");
         #[cfg(feature = "music")]
         tokio::spawn(async { music::start() });
+        debug!("music instance started");
         #[cfg(not(feature = "music"))]
         eprintln!("Music feature is not enabled; You have to enable music feature");
     }
 
-    // subscriber
-    if
-        *args::ARGS_WEB ||
-        *args::ARGS_GUI ||
-        *args::ARGS_UPDATE ||
-        *args::ARGS_LOG ||
-        *args::ARGS_SERVER
-    {
-        tokio::spawn(async { utils::log_handler() });
+    // Setup subscriber for web, GUI, update, or server modes
+    if *args::ARGS_WEB || *args::ARGS_GUI || *args::ARGS_UPDATE || *args::ARGS_SERVER {
         match utils::setup_subscriber() {
             Ok(()) => (),
             Err(err) => {
@@ -185,32 +367,35 @@ async fn start() -> Result<(), error::MdownError> {
         debug!("setup subscriber");
     }
 
-    *resolute::LANGUAGE.lock() = args::ARGS.lock().lang.clone();
+    // Start log handler if enabled
+    if *args::ARGS_LOG {
+        debug!("log_handler instance started");
+        tokio::spawn(async { utils::log_handler() });
+    }
 
+    // Set language to download
+    *resolute::LANGUAGE.lock() = args::ARGS.lock().lang.clone();
+    debug!("language is set to {}", &args::ARGS.lock().lang);
+
+    // Handle show or show all arguments
     if args::ARGS_SHOW.is_some() || args::ARGS_SHOW_ALL.is_some() {
         debug!("show || show all");
-        match resolute::show().await {
-            Ok(()) => (),
-            Err(err) => {
-                return Err(err);
-            }
-        }
-
-        return Ok(());
+        return match resolute::show().await {
+            Ok(()) => Ok(()),
+            Err(err) => Err(err),
+        };
     }
 
+    // Perform check or update operations
     if *args::ARGS_CHECK || *args::ARGS_UPDATE {
         debug!("start resolve_check");
-        match resolute::resolve_check().await {
-            Ok(()) => (),
-            Err(err) => {
-                return Err(err);
-            }
-        }
-
-        return Ok(());
+        return match resolute::resolve_check().await {
+            Ok(()) => Ok(()),
+            Err(err) => Err(err),
+        };
     }
 
+    // Handle server mode
     if *args::ARGS_SERVER {
         debug!("start server");
         #[cfg(feature = "server")]
@@ -226,7 +411,7 @@ async fn start() -> Result<(), error::MdownError> {
         }
     }
 
-    //gui
+    // Handle GUI mode
     if *args::ARGS_GUI {
         debug!("start gui");
         #[cfg(feature = "gui")]
@@ -242,7 +427,7 @@ async fn start() -> Result<(), error::MdownError> {
         }
     }
 
-    // web
+    // Handle web mode
     if *args::ARGS_WEB {
         debug!("start web");
         #[cfg(feature = "web")]
@@ -258,6 +443,7 @@ async fn start() -> Result<(), error::MdownError> {
         }
     }
 
+    // Resolve starting file path and requirements
     let file_path = match utils::resolve_start() {
         Ok(file_path) => file_path,
         Err(err) => {
@@ -265,11 +451,12 @@ async fn start() -> Result<(), error::MdownError> {
         }
     };
 
+    // Setup requirements if not in quiet mode
     if !*args::ARGS_QUIET {
-        debug!("start crosscurses");
         utils::setup_requirements(file_path.clone());
     }
 
+    // Initialize manga name and status code
     let mut manga_name = String::from("!");
     let mut status_code = match reqwest::StatusCode::from_u16(200) {
         Ok(code) => code,
@@ -280,39 +467,43 @@ async fn start() -> Result<(), error::MdownError> {
         }
     };
 
+    // Retrieve and debug URL
     let url = args::ARGS.lock().url.clone();
+    debug!("\nstarting to search for uuid in '{}'", url);
 
-    let id;
-
-    if args::ARGS.lock().search != *"*" {
+    // Handle UUID retrieval and validation
+    let id = if args::ARGS.lock().search != *"*" {
         debug!("using search");
-        id = match utils::search().await {
+        match utils::search().await {
             Ok(id) => id,
             Err(err) => {
                 return Err(err);
             }
-        };
+        }
     } else if let Some(id_temp) = utils::resolve_regex(&url) {
         debug!("using whole url");
         if utils::is_valid_uuid(id_temp.as_str()) {
-            id = id_temp.as_str().to_string();
+            id_temp.as_str().to_string()
         } else {
             string(3, 0, &format!("Wrong format of UUID ({})", id_temp.as_str()));
             string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
-            id = String::from("*");
+            String::from("*")
         }
     } else if utils::is_valid_uuid(&args::ARGS.lock().url) {
         debug!("using uuid");
-        id = args::ARGS.lock().url.clone();
+        args::ARGS.lock().url.clone()
     } else if url == "UNSPECIFIED" {
-        id = String::from("*");
+        debug!("url is not specified");
+        String::from("*")
     } else {
         string(3, 0, &format!("Wrong format of UUID ({})", url));
         string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
-        id = String::from("*");
-    }
+        String::from("*")
+    };
+
+    // Process manga information if valid ID is found
     if id != *"*" {
-        debug!("id acquired");
+        debug!("id acquired: {}\n", id);
         *resolute::MANGA_ID.lock() = id.clone();
         string(0, 0, &format!("Extracted ID: {}", id));
         string(1, 0, "Getting manga information ...");
@@ -366,8 +557,11 @@ async fn start() -> Result<(), error::MdownError> {
                 }
             }
         }
+    } else {
+        debug!("unable to get uuid");
     }
 
+    // Finalize the process and cleanup
     match utils::resolve_end(&file_path, &manga_name, status_code) {
         Ok(()) => (),
         Err(err) => eprintln!("Error: {}", err),
@@ -377,17 +571,59 @@ async fn start() -> Result<(), error::MdownError> {
 
     *resolute::ENDED.lock() = true;
 
-    // Final key input is in utils::ctrl_handler
+    // Final key input is handled in `utils::ctrl_handler`
     Ok(())
 }
 
+/// Downloads manga chapters based on the provided manga JSON data and arguments.
+///
+/// This asynchronous function performs the following tasks:
+/// 1. **Initial Setup**: Initializes various internal state variables and settings.
+/// 2. **File Search**: Searches for existing `.cbz` files and collects their metadata.
+/// 3. **JSON Parsing**: Parses the provided manga JSON to extract chapter information.
+/// 4. **Chapter Processing**: Iterates over each chapter, checking conditions for downloading based on various parameters.
+/// 5. **File Download**: Downloads and saves the chapter data if conditions are met.
+/// 6. **Finalization**: Finalizes the download process, including cleanup and logging.
+///
+/// # Parameters
+///
+/// - `manga_json: String`
+///   The JSON string containing manga data to be processed.
+/// - `arg_force: bool`
+///   A flag indicating whether to force download even if the chapter is already downloaded.
+///
+/// # Returns
+///
+/// This function returns a `Result<Vec<String>, error::MdownError>`. It returns:
+/// - `Ok(Vec<String>)` containing a list of filenames of successfully downloaded chapters.
+/// - `Err(error::MdownError)` if any errors occur during the process.
+///
+/// # Errors
+///
+/// Possible errors include:
+/// - JSON parsing errors if the provided manga JSON is invalid.
+/// - File I/O errors when searching for existing `.cbz` files or during file operations.
+/// - Errors from network requests or JSON deserialization of chapter data.
+/// - Any custom errors related to metadata handling or file operations.
+///
+/// # Notes
+///
+/// - The function performs extensive logging and debugging to trace the process and identify issues.
+/// - It supports various conditions for skipping chapters based on user arguments, existing files, and metadata.
+/// - Utilizes concurrency with asynchronous operations for downloading and file processing.
+///
 pub(crate) async fn download_manga(
     manga_json: String,
-    manga_name: &str,
     arg_force: bool
 ) -> Result<Vec<String>, error::MdownError> {
+    debug!("");
+    debug!("download_manga");
+
+    // Reset the current chapter parsed counter
     *resolute::CURRENT_CHAPTER_PARSED.lock() = 0;
-    let folder = getter::get_folder_name(manga_name);
+
+    // Retrieve and clone necessary settings
+    let manga_name = &*resolute::MANGA_NAME.lock().clone();
     let volume = args::ARGS.lock().volume.clone();
     let chapter = args::ARGS.lock().chapter.clone();
     let arg_volume = getter::get_arg(&volume);
@@ -396,6 +632,8 @@ pub(crate) async fn download_manga(
         Ok(value) => value,
         Err(_err) => 0,
     };
+
+    // Initialize storage for downloaded files and other metrics
     let (mut downloaded, hist) = (vec![], &mut vec![]);
     let (mut times, mut moves) = (0, 0);
     let language = resolute::LANGUAGE.lock().clone();
@@ -410,6 +648,7 @@ pub(crate) async fn download_manga(
 
     debug!("checking for .cbz files");
 
+    // Search for existing .cbz files and collect their metadata
     if let Ok(value) = glob("*.cbz") {
         for entry in value.filter_map(Result::ok) {
             if let Some(entry) = entry.to_str() {
@@ -421,12 +660,15 @@ pub(crate) async fn download_manga(
         }
     }
 
+    // Parse the manga JSON to extract chapter information
     match serde_json::from_value::<metadata::MangaResponse>(json_value) {
         Ok(obj) => {
             debug!("parsed manga data");
             let data_array = utils::sort(&obj.data);
             let data_len = data_array.len();
             *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() = data_len as u64;
+
+            // Process each chapter
             for item in 0..data_len {
                 debug!("parsing chapter entry {}", item);
                 let mut date_change = false;
@@ -481,15 +723,17 @@ pub(crate) async fn download_manga(
                     vol: vol.to_string(),
                     chapter_num: chapter_num.to_string(),
                     title: title.to_string(),
-                    folder: folder.to_string(),
+                    folder: getter::get_folder_name().to_string(),
                 };
                 let folder_path = filename.get_folder_name();
+
+                // Determine if chapter should be downloaded
                 if
                     (lang == language || language == "*") &&
                     fs::metadata(filename.get_file_w_folder()).is_ok() &&
                     !arg_force &&
                     !(match resolute::check_for_metadata_saver(&filename.get_file_w_folder()) {
-                        Ok(metadata) => if !*args::ARGS_CHECK { metadata } else { false } //
+                        Ok(metadata) => if !*args::ARGS_CHECK { metadata } else { false }
                         Err(err) => {
                             return Err(err);
                         }
@@ -525,7 +769,7 @@ pub(crate) async fn download_manga(
                                     match datetime_cur.cmp(&datetime) {
                                         Ordering::Greater => {
                                             debug!(
-                                                "dates didn't match bu date in local database was ahead of the date in mangadex database"
+                                                "dates didn't match but date in local database was ahead of the date in mangadex database"
                                             );
                                             resolute::FIXED_DATES
                                                 .lock()
@@ -564,7 +808,6 @@ pub(crate) async fn download_manga(
                                 }
                                 Err(_err) => (),
                             }
-                            drop(dates);
                         }
                         Err(_err) => (),
                     }
@@ -578,6 +821,7 @@ pub(crate) async fn download_manga(
                     }
                 }
 
+                // Skip chapter if conditions are not met
                 if con_vol {
                     debug!("skipping because volume didn't match");
                     moves = utils::skip_didnt_match("volume", item, moves, hist);
@@ -632,14 +876,14 @@ pub(crate) async fn download_manga(
                     let folder_path_tmp = &filename.get_folder_w_end();
                     let folder_path = folder_path_tmp.as_str();
                     let message = format!(
-                        "  Metadata: Language: {};Pages: {};{};Chapter: {}{}",
+                        "  Metadata: Language: {}; Pages: {}; {}; Chapter: {}{}",
                         lang,
                         pages,
                         vol,
                         chapter_num,
                         match title.as_str() {
                             "" => String::new(),
-                            _ => format!(";Title: {}", title),
+                            _ => format!("; Title: {}", title),
                         }
                     );
                     if
@@ -662,24 +906,27 @@ pub(crate) async fn download_manga(
                         if *args::ARGS_CHECK {
                             debug!("was added to to download list because check flag is set");
                             match date_change {
-                                true => {
-                                    resolute::TO_DOWNLOAD_DATE.lock().push(chapter_num.to_string());
-                                }
-                                false => {
-                                    resolute::TO_DOWNLOAD.lock().push(chapter_num.to_string());
-                                }
+                                true =>
+                                    resolute::TO_DOWNLOAD_DATE.lock().push(chapter_num.to_string()),
+                                false => resolute::TO_DOWNLOAD.lock().push(chapter_num.to_string()),
                             }
                             continue;
                         }
-                        let (name, website) = match resolute::resolve_group(array_item).await {
-                            Ok((name, website)) => (name, website),
+                        let scanlation_group = match resolute::resolve_group(array_item).await {
+                            Ok(scanlation_group) => scanlation_group,
                             Err(err) => {
                                 handle_error!(&err, String::from("group"));
-                                (String::from("null"), String::from("null"))
+                                metadata::ScanlationMetadata {
+                                    name: String::from("null"),
+                                    website: String::from("null"),
+                                }
                             }
                         };
-                        debug!("found chapter's scanlation group: {} {}", name, website);
-                        let (name, website) = (name.as_str(), website.as_str());
+                        debug!(
+                            "found chapter's scanlation group: {} {}",
+                            scanlation_group.name,
+                            scanlation_group.website
+                        );
                         match getter::get_chapter(id).await {
                             Ok(json) => {
                                 let json_value = match utils::get_json(&json) {
@@ -703,30 +950,22 @@ pub(crate) async fn download_manga(
                                         id,
                                         obj,
                                         array_item,
-                                        manga_name,
                                         &title,
-                                        &vol,
-                                        &chapter_num,
                                         &filename,
                                         &update_date,
-                                        name,
-                                        website
+                                        &scanlation_group
                                     ).await
                                 {
                                     Ok(()) => (),
-                                    Err(err) => {
-                                        handle_error!(&err, String::from("chapter"));
-                                    }
-                                };
+                                    Err(err) => handle_error!(&err, String::from("chapter")),
+                                }
                             }
-                            Err(err) => {
-                                resolute::SUSPENDED.lock().push(err);
-                            }
+                            Err(err) => error::suspend_error(err),
                         }
                         if *IS_END.lock() {
                             return Ok(downloaded);
                         }
-                        match resolute::get_scanlation_group_to_file(manga_name, name, website) {
+                        match resolute::get_scanlation_group_to_file(&scanlation_group) {
                             Ok(()) => (),
                             Err(err) => {
                                 return Err(err);
@@ -794,28 +1033,93 @@ pub(crate) async fn download_manga(
             return Err(error::MdownError::JsonError(err.to_string()));
         }
     }
-    if *args::ARGS_DEBUG {
-        match utils::debug_print(hist, "hist.txt") {
-            Ok(()) => (),
-            Err(_err) => (),
-        };
-    }
     Ok(downloaded)
 }
 
+/// Downloads images for a specific chapter of a manga and handles related metadata.
+///
+/// This asynchronous function performs the following tasks:
+/// 1. **Setup and Logging**: Prepares the necessary directories, lock files, and logs the progress.
+/// 2. **Image Retrieval**: Retrieves the list of images for the chapter and determines the appropriate image source based on the available metadata.
+/// 3. **Download Process**: Downloads the images in parallel, using specified concurrency limits.
+/// 4. **Metadata Handling**: Creates and writes metadata related to the chapter into a file.
+/// 5. **Finalization**: Cleans up temporary files, updates global states, and resolves additional data as needed.
+///
+/// # Parameters
+///
+/// - `id: &str`
+///   The unique identifier of the chapter to be downloaded.
+/// - `obj: metadata::ChapterData`
+///   Contains metadata about the chapter, including image base URL and image data.
+/// - `manga_json: &metadata::ChapterResponse`
+///   Contains additional attributes of the chapter, such as page count and update date.
+/// - `title: &str`
+///   The title of the chapter.
+/// - `filename: &utils::FileName`
+///   Contains the name and path information for the chapter's files.
+/// - `update_date: &str`
+///   The last updated date of the chapter.
+/// - `scanlation: &metadata::ScanlationMetadata`
+///   Information about the scanlation group responsible for the chapter.
+///
+/// # Returns
+///
+/// This function returns a `Result<(), error::MdownError>`. It returns:
+/// - `Ok(())` if the chapter images and metadata are successfully downloaded and processed.
+/// - `Err(error::MdownError)` if any errors occur during the process.
+///
+/// # Errors
+///
+/// Possible errors include:
+/// - File I/O errors when creating or writing to lock and metadata files.
+/// - Errors during the image download process.
+/// - JSON serialization/deserialization errors when handling metadata.
+/// - Any custom errors related to image handling or metadata creation.
+///
+/// # Notes
+///
+/// - The function utilizes asynchronous operations for downloading images in parallel.
+/// - It includes detailed logging and debugging statements to track progress and errors.
+/// - The download process respects concurrency limits and uses progress bars for user feedback.
+/// - Temporary files and directories are managed carefully to ensure proper cleanup.
+///
+/// # Example
+///
+/// ```rust
+/// let chapter_id = "12345";
+/// let chapter_data = metadata::ChapterData { ... };
+/// let manga_info = metadata::ChapterResponse { ... };
+/// let chapter_title = "Chapter Title";
+/// let file_info = utils::FileName { ... };
+/// let last_update = "2024-08-31T00:00:00Z";
+/// let scanlation_group = metadata::ScanlationMetadata { ... };
+///
+/// match download_chapter(
+///     chapter_id,
+///     chapter_data,
+///     &manga_info,
+///     chapter_title,
+///     &file_info,
+///     last_update,
+///     &scanlation_group
+/// ).await {
+///     Ok(()) => println!("Chapter downloaded successfully."),
+///     Err(err) => eprintln!("Error occurred: {}", err),
+/// }
+/// ```
+///
 pub(crate) async fn download_chapter(
     id: &str,
     obj: metadata::ChapterData,
     manga_json: &metadata::ChapterResponse,
-    manga_name: &str,
     title: &str,
-    vol: &str,
-    chapter: &str,
     filename: &utils::FileName,
     update_date: &str,
-    name: &str,
-    website: &str
+    scanlation: &metadata::ScanlationMetadata
 ) -> Result<(), error::MdownError> {
+    let manga_name = &filename.manga_name;
+    let vol = &filename.vol;
+    let chapter = &filename.chapter_num;
     string(3, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
     if
         *args::ARGS_WEB ||
@@ -830,7 +1134,7 @@ pub(crate) async fn download_chapter(
         drop(current_chapter);
         log!(&format!("Downloading images in folder: {}", filename.get_folder_name()));
     }
-    let image_base_url = obj.baseUrl.clone();
+    let image_base_url = obj.baseUrl;
     let data_array = obj.chapter;
     let chapter_hash = data_array.hash;
     let saver = get_saver!();
@@ -883,18 +1187,17 @@ pub(crate) async fn download_chapter(
 
     let pages = attr.pages.to_string();
 
-    let scanlation = metadata::ScanlationMetadata::new(name, website);
-    let response_map = metadata::ChapterMetadataIn::new(
-        resolute::MANGA_NAME.lock().to_string(),
-        id.to_string(),
-        resolute::MANGA_ID.lock().to_string(),
-        *resolute::SAVER.lock(),
-        title.to_string(),
+    let response_map = metadata::ChapterMetadataIn {
+        name: resolute::MANGA_NAME.lock().to_string(),
+        id: id.to_string(),
+        manga_id: resolute::MANGA_ID.lock().to_string(),
+        saver: *resolute::SAVER.lock(),
+        title: title.to_string(),
         pages,
-        chapter.to_string(),
-        vol.to_string(),
-        scanlation
-    );
+        chapter: chapter.to_string(),
+        volume: vol.to_string(),
+        scanlation: scanlation.clone(),
+    };
 
     let json = match serde_json::to_string_pretty(&response_map) {
         Ok(value) => value,
@@ -923,7 +1226,7 @@ pub(crate) async fn download_chapter(
     let iter = match args::ARGS.lock().max_consecutive.parse() {
         Ok(x) => x,
         Err(_err) => {
-            resolute::SUSPENDED
+            error::SUSPENDED
                 .lock()
                 .push(
                     error::MdownError::ConversionError(
@@ -949,6 +1252,11 @@ pub(crate) async fn download_chapter(
         }
         let start_task = i * iter;
 
+        let pr_title = match !title.is_empty() {
+            true => format!(" - {}", title),
+            false => String::new(),
+        };
+
         let tasks = (start_task..end_task).map(|item| {
             let image_temp = getter::get_attr_as_same_as_index(&images, item).to_string();
             let chapter_hash = Arc::from(chapter_hash.clone());
@@ -959,12 +1267,7 @@ pub(crate) async fn download_chapter(
             let image = Arc::from(image_temp.trim_matches('"'));
             let image_base_url = Arc::from(image_base_url.clone());
             let page = item + 1;
-            let page_str = page.to_string() + &" ".repeat(3 - page.to_string().len());
 
-            let pr_title = match !title.is_empty() {
-                true => format!(" - {}", title),
-                false => String::new(),
-            };
             let folder_name = utils::process_filename(
                 &format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title)
             );
@@ -975,7 +1278,6 @@ pub(crate) async fn download_chapter(
                 &format!("{}Ch.{} - {}.jpg", vol, chapter, page)
             );
 
-            let lock_file = format!(".cache\\{}.lock", folder_name);
             let full_path = format!(".cache/{}/{}", folder_name, file_name);
 
             tokio::spawn(async move {
@@ -985,10 +1287,8 @@ pub(crate) async fn download_chapter(
                         chapter_hash,
                         image,
                         page,
-                        &page_str,
                         &folder_name,
                         &file_name_brief,
-                        &lock_file,
                         &full_path,
                         saver,
                         start

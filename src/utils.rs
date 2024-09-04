@@ -16,7 +16,7 @@ use crate::{
     args,
     debug,
     download,
-    error::MdownError,
+    error::{ MdownError, suspend_error },
     getter,
     IS_END,
     log,
@@ -27,6 +27,7 @@ use crate::{
 };
 
 pub(crate) fn setup_requirements(file_path: String) {
+    debug!("start crosscurses");
     let _ = initscr();
     curs_set(2);
     start_color();
@@ -34,7 +35,9 @@ pub(crate) fn setup_requirements(file_path: String) {
     crosscurses::cbreak();
     let file_path_temp = file_path.clone();
     tokio::spawn(async move { print_version(&file_path).await });
+    debug!("print_version instance started");
     tokio::spawn(async move { ctrl_handler(&file_path_temp).await });
+    debug!("ctrl_handler instance started");
 }
 
 pub(crate) fn log_handler() {
@@ -219,6 +222,8 @@ pub(crate) fn reset() -> Result<(), MdownError> {
     if confirmation.to_lowercase() != *"y" {
         return Ok(());
     }
+
+    debug!("confirmation succeeded");
     let dat = match getter::get_dat_path() {
         Ok(dat) => dat,
         Err(err) => {
@@ -278,11 +283,13 @@ pub(crate) fn reset() -> Result<(), MdownError> {
         }
     }
 
+    debug!("operations were successfully executed");
+
     Ok(())
 }
 
 fn push_suspended(err: std::io::Error, name: &str) {
-    resolute::SUSPENDED.lock().push(MdownError::IoError(err, name.to_string()));
+    suspend_error(MdownError::IoError(err, name.to_string()));
 }
 
 pub(crate) fn remove_cache() -> Result<(), MdownError> {
@@ -290,7 +297,7 @@ pub(crate) fn remove_cache() -> Result<(), MdownError> {
         match fs::remove_dir_all(".cache") {
             Ok(()) => (),
             Err(err) => {
-                resolute::SUSPENDED.lock().push(MdownError::IoError(err, String::from(".cache\\")));
+                suspend_error(MdownError::IoError(err, String::from(".cache\\")));
             }
         };
     }
@@ -327,14 +334,12 @@ pub(crate) fn setup_subscriber() -> Result<(), MdownError> {
         Ok(()) => Ok(()),
         Err(err) => {
             eprintln!("Error: tracing_subscriber {:?}", err);
-            resolute::SUSPENDED
-                .lock()
-                .push(
-                    MdownError::CustomError(
-                        String::from("Failed to set up tracing_subscriber (basically info)"),
-                        String::from("Subscriber")
-                    )
-                );
+            suspend_error(
+                MdownError::CustomError(
+                    String::from("Failed to set up tracing_subscriber (basically info)"),
+                    String::from("Subscriber")
+                )
+            );
             Ok(())
         }
     }
@@ -344,7 +349,7 @@ pub(crate) fn create_cache_folder() -> Result<(), MdownError> {
     match fs::create_dir(".cache") {
         Ok(()) => Ok(()),
         Err(err) => {
-            resolute::SUSPENDED.lock().push(MdownError::IoError(err, String::from(".cache\\")));
+            suspend_error(MdownError::IoError(err, String::from(".cache\\")));
             Ok(())
         }
     }
@@ -538,7 +543,7 @@ pub(crate) fn get_json(manga_name_json: &str) -> Result<Value, MdownError> {
 
 pub(crate) async fn search() -> Result<String, MdownError> {
     let base_url = "https://api.mangadex.org";
-    let title = &args::ARGS.lock().search;
+    let title = &args::ARGS.lock().search.clone();
 
     let client = match download::get_client() {
         Ok(client) => client,
@@ -547,9 +552,13 @@ pub(crate) async fn search() -> Result<String, MdownError> {
         }
     };
 
+    let full_url = format!("{}/manga", base_url);
+
+    debug!("sending request to: {}", full_url);
+
     let response = match
         client
-            .get(&format!("{}/manga", base_url))
+            .get(&full_url)
             .query(&[("title", title)])
             .send().await
     {
@@ -591,6 +600,9 @@ pub(crate) async fn search() -> Result<String, MdownError> {
             .iter()
             .filter_map(|id| id.as_str())
             .collect();
+
+        debug!("manga_ids: {:?}", manga_ids);
+
         return match manga_ids.first() {
             Some(id) => Ok(id.to_string()),
             None =>
@@ -668,7 +680,7 @@ pub(crate) async fn ctrl_handler(file: &str) {
         Err(_err) => (),
     }
 
-    delete_dir_if_unfinished(getter::get_folder_name(&resolute::MANGA_NAME.lock()));
+    delete_dir_if_unfinished(getter::get_folder_name());
     delete_dir();
 
     if is_directory_empty(".cache\\") {
@@ -763,7 +775,7 @@ pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match> {
     let re = match regex::Regex::new(r"https://mangadex.org/title/([\w-]+)/?") {
         Ok(value) => value,
         Err(err) => {
-            resolute::SUSPENDED.lock().push(MdownError::RegexError(err));
+            suspend_error(MdownError::RegexError(err));
             return None;
         }
     };
@@ -877,21 +889,25 @@ impl FileName {
         }
     }
     pub(crate) fn get_file_w_folder(&self) -> String {
-        format!("{}/{}.cbz", self.folder, process_filename(&self.get_folder_name()))
+        if args::ARGS.lock().update {
+            format!("{}.cbz", process_filename(&self.get_folder_name()))
+        } else {
+            format!("{}\\{}.cbz", self.folder, process_filename(&self.get_folder_name()))
+        }
     }
     pub(crate) fn get_file_w_folder_w_cwd(&self) -> String {
         format!(
-            "{}{}/{}.cbz",
+            "{}{}\\{}.cbz",
             *args::ARGS_CWD,
             self.folder,
             process_filename(&self.get_folder_name())
         )
     }
     pub(crate) fn get_folder_w_end(&self) -> String {
-        format!(".cache/{}/", self.get_folder_name())
+        format!(".cache\\{}\\", self.get_folder_name())
     }
     pub(crate) fn get_folder(&self) -> String {
-        format!(".cache/{}", self.get_folder_name())
+        format!(".cache\\{}", self.get_folder_name())
     }
     pub(crate) fn get_lock(&self) -> String {
         format!(".cache\\{}.lock", self.get_folder_name())
@@ -967,6 +983,7 @@ pub(crate) fn skip_offset(item: usize, moves: u32, hist: &mut Vec<String>) -> u3
     resolve_move(moves, hist, 3, 0)
 }
 
+#[allow(dead_code)]
 pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(), MdownError> {
     let mut file_inst = match
         std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(file)
@@ -979,7 +996,7 @@ pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(),
     match write!(file_inst, "{:?}", item) {
         Ok(()) => (),
         Err(err) => {
-            resolute::SUSPENDED.lock().push(MdownError::IoError(err, String::from(file)));
+            suspend_error(MdownError::IoError(err, String::from(file)));
         }
     }
     Ok(())

@@ -9,7 +9,7 @@ use crate::{
     debug,
     download,
     download_manga,
-    error::MdownError,
+    error::{ MdownError, suspend_error },
     getter::{ self, get_folder_name, get_manga, get_manga_name, get_scanlation_group },
     handle_error,
     log,
@@ -54,7 +54,6 @@ lazy_static! {
     pub(crate) static ref CURRENT_CHAPTER_PARSED_MAX: Mutex<u64> = Mutex::new(0);
     pub(crate) static ref DOWNLOADING: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref COVER: Mutex<bool> = Mutex::new(false);
-    pub(crate) static ref SUSPENDED: Mutex<Vec<MdownError>> = Mutex::new(Vec::new()); // Suspended errors
     pub(crate) static ref ENDED: Mutex<bool> = Mutex::new(false); // end variable for handlers
     pub(crate) static ref FINAL_END: Mutex<bool> = Mutex::new(false); // if true at the end it will use std::process::exit(0)
     pub(crate) static ref SAVER: Mutex<bool> = Mutex::new(ARGS.lock().saver);
@@ -66,7 +65,7 @@ lazy_static! {
     pub(crate) static ref FIXED_DATES: Mutex<Vec<String>> = Mutex::new(Vec::new()); // vec of chapter number which have been fixed
     pub(crate) static ref GENRES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
     pub(crate) static ref THEMES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
-    pub(crate) static ref MUSIC_STAGE: Mutex<String> = Mutex::new(String::new());
+    pub(crate) static ref MUSIC_STAGE: Mutex<String> = Mutex::new(String::new()); // 'init', 'start', 'end' these are the stages need to go in order or init => end
     pub(crate) static ref MUSIC_END: Mutex<bool> = Mutex::new(false);
 }
 pub(crate) fn args_delete() -> Result<(), MdownError> {
@@ -105,15 +104,19 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
 
     match serde_json::from_value::<MdownLogs>(json) {
         Ok(logs) => {
-            println!(
-                "N     ID            Name        In brackets is probable type (it may not be same real type)"
-            );
             let data = logs.clone();
+            if data.is_empty() {
+                println!("No logs found");
+                return Ok(());
+            }
 
             let mut names: Vec<(String, String)> = Vec::new();
             for (name, log) in data.iter() {
                 names.push((name.to_string(), log.name.clone()));
             }
+            println!(
+                "N     ID            Name        In brackets is probable type (it may not be same real type)"
+            );
             names.sort();
             for (times, (name, log)) in names.iter().enumerate() {
                 let typ = match name.len() {
@@ -274,12 +277,11 @@ pub(crate) async fn show() -> Result<(), MdownError> {
             return Err(err);
         }
     };
-    match fs::metadata(&dat_path) {
-        Ok(_metadata) => (),
-        Err(err) => {
-            return Err(MdownError::IoError(err, dat_path));
-        }
+    if let Err(err) = fs::metadata(&dat_path) {
+        debug!("dat.json not found: {}", err.to_string());
+        return Err(MdownError::IoError(err, dat_path));
     }
+
     let json = match get_dat_content(dat_path.as_str()) {
         Ok(value) => value,
         Err(error) => {
@@ -295,17 +297,17 @@ pub(crate) async fn show() -> Result<(), MdownError> {
             if data.is_empty() {
                 println!("No manga found");
             }
-            for item in data.iter() {
+            let mut times = 0;
+            for (i, item) in data.iter().enumerate() {
                 let id = item.id.clone();
 
                 let mut cont = false;
                 let show;
-                let show_all;
-
                 match ARGS.lock().show {
                     Some(Some(ref filter)) if !filter.is_empty() => {
                         if &id != filter {
                             cont = true;
+                            times += 1;
                         }
                         show = true;
                     }
@@ -316,6 +318,9 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                         show = false;
                     }
                 }
+                let show_all;
+
+                debug!("found {}", id);
 
                 match ARGS.lock().show_all {
                     Some(Some(ref filter)) if !filter.is_empty() => {
@@ -340,7 +345,9 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                 if cont {
                     continue;
                 }
-                println!();
+                if i == 0 {
+                    println!();
+                }
                 println!("------------------------------------");
                 let manga_name = item.name.clone();
                 let mwd = item.mwd.clone();
@@ -459,6 +466,21 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                     }
                 }
             }
+
+            if !data.is_empty() && times == data.len() {
+                match ARGS.lock().show {
+                    Some(Some(ref filter)) if !filter.is_empty() => {
+                        println!("No manga found for '{}'", filter);
+                    }
+                    _ => (),
+                }
+                match ARGS.lock().show_all {
+                    Some(Some(ref filter)) if !filter.is_empty() => {
+                        println!("No manga found for '{}'", filter);
+                    }
+                    _ => (),
+                }
+            }
         }
         Err(err) => {
             return Err(MdownError::JsonError(err.to_string()));
@@ -560,7 +582,6 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                 if let Ok(manga_name_json) = getter::get_manga_json(&id).await {
                     match utils::get_json(&manga_name_json) {
                         Ok(obj) => {
-                            let empty = Value::String(String::new());
                             let cover_data: &str = match
                                 obj
                                     .get("data")
@@ -572,7 +593,9 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                                             if
                                                 (match el.get("type") {
                                                     Some(cover_dat) => cover_dat,
-                                                    None => &empty,
+                                                    None => {
+                                                        continue;
+                                                    }
                                                 }) == "cover_art"
                                             {
                                                 cover_data = el
@@ -610,21 +633,21 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                                 }
                             };
                             let chapters_temp = item.chapters.clone();
-                            let mut chapter_da = CHAPTER_DATES.lock();
-                            let mut chapter_id = CHAPTER_IDS.lock();
-                            for i in chapters_temp.iter() {
-                                let number = i.number.clone();
-                                let date = i.updated_at.clone();
-                                let id = i.id.clone();
-                                chapter_da.insert(number.clone(), date);
-                                chapter_id.insert(number, id);
+
+                            {
+                                let mut chapter_da = CHAPTER_DATES.lock();
+                                let mut chapter_id = CHAPTER_IDS.lock();
+                                for i in chapters_temp.iter() {
+                                    let number = i.number.clone();
+                                    let date = i.updated_at.clone();
+                                    let id = i.id.clone();
+                                    chapter_da.insert(number.clone(), date);
+                                    chapter_id.insert(number, id);
+                                }
                             }
-                            drop(chapter_da);
-                            drop(chapter_id);
 
                             if *args::ARGS_UPDATE && !cover {
-                                let m_name = get_manga_name(title_data);
-                                let folder = get_folder_name(&m_name);
+                                let folder = get_folder_name();
                                 *COVER.lock() = match
                                     download::download_cover(
                                         Arc::from("https://uploads.mangadex.org/"),
@@ -644,9 +667,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                                 };
                             }
                             *MANGA_NAME.lock() = get_manga_name(title_data);
-                            match
-                                resolve_manga(&id, get_manga_name(title_data).as_str(), false).await
-                            {
+                            match resolve_manga(&id, false).await {
                                 Ok(()) => (),
                                 Err(err) => {
                                     handle_error!(&err, String::from("manga"));
@@ -662,22 +683,23 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                     item.cover = if !cover { *COVER.lock() } else { true };
                 }
                 let mut chapters_temp = item.chapters.clone();
-                let chapters_remove = CHAPTERS_TO_REMOVE.lock();
-                for i in chapters_remove.iter() {
-                    chapters_temp.retain(|value| {
-                        let number = value.number.clone();
-                        let date = value.updated_at.clone();
-                        let id = value.id.clone();
-                        ChapterMetadata::new(&number, &date, &id) != *i
-                    });
+                {
+                    let chapters_remove = CHAPTERS_TO_REMOVE.lock();
+                    for i in chapters_remove.iter() {
+                        chapters_temp.retain(|value| {
+                            let number = value.number.clone();
+                            let date = value.updated_at.clone();
+                            let id = value.id.clone();
+                            ChapterMetadata { number, updated_at: date, id } != *i
+                        });
+                    }
                 }
-                drop(chapters_remove);
                 let mut chapters = Vec::new();
                 for i in chapters_temp.iter() {
                     let number = i.number.clone();
                     let date = i.updated_at.clone();
                     let id = i.id.clone();
-                    chapters.push(ChapterMetadata::new(&number, &date, &id));
+                    chapters.push(ChapterMetadata { number, updated_at: date, id });
                 }
 
                 for i in CHAPTERS.lock().iter() {
@@ -836,18 +858,18 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
                         }
                     });
                 }
-                let manga_data = MangaMetadata::new(
-                    &MANGA_NAME.lock().clone(),
-                    &MANGA_ID.lock().clone(),
-                    chapters_data,
-                    &mwd,
-                    *cover,
-                    DATE_FETCHED.lock().clone(),
-                    LANGUAGES.lock().clone(),
-                    &LANGUAGE.lock().clone(),
-                    themes_data,
-                    genres_data
-                );
+                let manga_data = MangaMetadata {
+                    name: MANGA_NAME.lock().clone(),
+                    id: MANGA_ID.lock().clone(),
+                    chapters: chapters_data,
+                    mwd,
+                    cover: *cover,
+                    date: DATE_FETCHED.lock().clone(),
+                    available_languages: LANGUAGES.lock().clone(),
+                    current_language: LANGUAGE.lock().clone(),
+                    theme: themes_data,
+                    genre: genres_data,
+                };
 
                 data.push(manga_data);
             } else {
@@ -942,6 +964,7 @@ pub(crate) fn get_dat_content(dat_path: &str) -> Result<Value, MdownError> {
 pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String, MdownError> {
     let handle_id = utils::generate_random_id(16);
     *HANDLE_ID.lock() = handle_id.clone();
+    debug!("handle id set to {}", handle_id);
     let title_data = match obj.get("data").and_then(|name_data| name_data.get("attributes")) {
         Some(value) => value,
         None => {
@@ -956,43 +979,29 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         debug!("manga name is user defined");
         ARGS.lock().title.to_string()
     };
+    debug!("manga name set to {}", manga_name);
     *MANGA_NAME.lock() = manga_name.clone();
-    let folder = get_folder_name(&manga_name);
+    let folder = get_folder_name();
 
-    let orig_lang = match title_data.get("originalLanguage").and_then(Value::as_str) {
-        Some(value) => value,
-        None => {
-            return Err(MdownError::NotFoundError(String::from("Didn't find originalLanguage")));
-        }
-    };
-    let languages = match title_data.get("availableTranslatedLanguages").and_then(Value::as_array) {
-        Some(value) => value,
-        None => {
-            return Err(
-                MdownError::NotFoundError(String::from("Didn't find availableTranslatedLanguages"))
-            );
-        }
-    };
-    let mut final_lang = vec![];
-    for lang in languages {
-        final_lang.push(match lang.as_str() {
+    {
+        let orig_lang = match title_data.get("originalLanguage").and_then(Value::as_str) {
+            Some(value) => value,
+            None => {
+                return Err(MdownError::NotFoundError(String::from("Didn't find originalLanguage")));
+            }
+        };
+        let languages = match
+            title_data.get("availableTranslatedLanguages").and_then(Value::as_array)
+        {
             Some(value) => value,
             None => {
                 return Err(
-                    MdownError::ConversionError(
-                        String::from("final_lang could not convert to string slice ?")
+                    MdownError::NotFoundError(
+                        String::from("Didn't find availableTranslatedLanguages")
                     )
                 );
             }
-        });
-    }
-    let current_lang = LANGUAGE.lock().to_string();
-    if
-        current_lang != orig_lang &&
-        !final_lang.contains(&current_lang.as_str()) &&
-        current_lang != "*"
-    {
-        debug!("defined language not found in manga information");
+        };
         let mut final_lang = vec![];
         for lang in languages {
             final_lang.push(match lang.as_str() {
@@ -1006,36 +1015,69 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
                 }
             });
         }
-        let mut langs = String::new();
-        let mut lang_range: usize = 0;
-        for lang in languages {
-            langs.push_str(&format!("{} ", lang.to_string().replace("\"", "")));
-            lang_range += 1 + lang.to_string().replace("\"", "").len();
+        let current_lang = LANGUAGE.lock().to_string();
+        if
+            current_lang != orig_lang &&
+            !final_lang.contains(&current_lang.as_str()) &&
+            current_lang != "*"
+        {
+            debug!("defined language not found in manga information");
+            let mut final_lang = vec![];
+            for lang in languages {
+                final_lang.push(match lang.as_str() {
+                    Some(value) => value,
+                    None => {
+                        return Err(
+                            MdownError::ConversionError(
+                                String::from("final_lang could not convert to string slice ?")
+                            )
+                        );
+                    }
+                });
+            }
+            let mut langs = String::new();
+            let mut lang_range: usize = 0;
+            for lang in &final_lang {
+                langs.push_str(&format!("{} ", lang.replace("\"", "")));
+                lang_range += 1 + lang.to_string().replace("\"", "").len();
+            }
+            lang_range -= 1;
+            string(
+                1,
+                0,
+                &format!("Language is not available\nSelected language: {}", LANGUAGE.lock())
+            );
+            string(3, 0, &format!("Original language: {}", orig_lang));
+            string(4, 0, &format!("Available languages: {}", langs));
+            string(5, 0, &format!("Choose from these    {}", "^".repeat(lang_range)));
+            debug!("available languages: {:?}", final_lang);
+            return Ok(manga_name);
         }
-        lang_range -= 1;
-        string(1, 0, &format!("Language is not available\nSelected language: {}", LANGUAGE.lock()));
-        string(3, 0, &format!("Original language: {}", orig_lang));
-        string(4, 0, &format!("Available languages: {}", langs));
-        string(5, 0, &format!("Choose from these    {}", "^".repeat(lang_range)));
-        return Ok(manga_name);
     }
-    drop(current_lang);
     *DOWNLOADING.lock() = true;
 
     let was_rewritten = fs::metadata(folder).is_ok();
-    match fs::create_dir(folder) {
-        Ok(()) => (),
-        Err(err) => {
-            if err.raw_os_error().unwrap_or_default() != 183 {
-                eprintln!("Error: creating directory {} {}", &folder, err);
+
+    debug!("is there folder with same name: {}", was_rewritten);
+
+    if !was_rewritten {
+        match fs::create_dir(folder) {
+            Ok(()) => (),
+            Err(err) => {
+                if err.raw_os_error().unwrap_or_default() != 183 {
+                    eprintln!("Error: creating directory {} {}", &folder, err);
+                }
             }
         }
+        debug!("created directory {}", folder);
     }
-    debug!("created directory {}", folder);
     *MWD.lock() = match std::fs::canonicalize(folder) {
         Ok(value) =>
             match value.to_str() {
-                Some(value) => value.to_string(),
+                Some(value) => {
+                    debug!("mwd set to {}", value);
+                    value.to_string()
+                }
                 None => {
                     return Err(
                         MdownError::ConversionError(
@@ -1048,108 +1090,134 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             return Err(MdownError::IoError(err, folder.to_string()));
         }
     };
-    let desc = title_data
-        .get("description")
-        .and_then(|description| description.get("en"))
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let mut desc_file = match
-        OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(format!("{}\\_description.txt", folder))
     {
-        Ok(value) => value,
-        Err(err) => {
-            return Err(MdownError::IoError(err, format!("{}\\_description.txt", folder)));
-        }
-    };
-    match write!(desc_file, "{}", desc) {
-        Ok(()) => (),
-        Err(err) => eprintln!("Error: writing in description file {}", err),
-    }
+        let desc = title_data
+            .get("description")
+            .and_then(|description| description.get("en"))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
 
-    debug!("created description file");
-
-    let empty_vec = vec![];
-
-    let tags_attributes = match title_data.get("tags").and_then(Value::as_array) {
-        Some(value) => value,
-        None => &empty_vec,
-    };
-
-    let mut theme: Vec<TagMetadata> = vec![];
-    let mut genre: Vec<TagMetadata> = vec![];
-
-    for tag in tags_attributes.iter() {
-        let id = tag.get("id").and_then(Value::as_str).unwrap_or_default();
-        let attr = tag.get("attributes");
-        if let Some(attr) = attr {
-            let typ = attr.get("group").and_then(Value::as_str).unwrap_or_default();
-            let name = attr
-                .get("name")
-                .and_then(|value| value.get("en"))
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            if !name.is_empty() {
-                match typ {
-                    "theme" => {
-                        theme.push(TagMetadata::new(name, id));
-                    }
-                    "genre" => {
-                        genre.push(TagMetadata::new(name, id));
-                    }
-                    _ => (),
+        let mut desc_file = if args::ARGS.lock().update {
+            match
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open("_description.txt")
+            {
+                Ok(file) => file,
+                Err(err) => {
+                    return Err(
+                        MdownError::IoError(err, format!("{}\\_description.txt", MWD.lock()))
+                    );
                 }
             }
-        }
-    }
-
-    *GENRES.lock() = genre;
-    *THEMES.lock() = theme;
-
-    let folder = get_folder_name(&manga_name);
-    let cover = obj
-        .get("data")
-        .and_then(|name_data| name_data.get("relationships"))
-        .and_then(Value::as_array)
-        .map(|data| {
-            let mut cover = "";
-            for el in data {
-                if el.get("type").and_then(Value::as_str).unwrap_or_default() == "cover_art" {
-                    cover = el
-                        .get("attributes")
-                        .and_then(|dat| dat.get("fileName"))
-                        .and_then(Value::as_str)
-                        .unwrap_or_default();
+        } else {
+            match
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open(format!("{}\\_description.txt", folder))
+            {
+                Ok(file) => file,
+                Err(err) => {
+                    return Err(MdownError::IoError(err, format!("{}\\_description.txt", folder)));
                 }
-            }
-            cover
-        })
-        .unwrap_or_default();
-    if !cover.is_empty() {
-        debug!("starting downloading cover");
-        *COVER.lock() = match
-            download::download_cover(
-                Arc::from("https://uploads.mangadex.org/"),
-                Arc::from(id),
-                Arc::from(cover),
-                Arc::from(folder)
-            ).await
-        {
-            Ok(()) => true,
-            Err(err) => {
-                eprintln!("Error: failed to download cover {}", err);
-                false
             }
         };
-        debug!("cover downloaded successfully");
+
+        match write!(desc_file, "{}", desc) {
+            Ok(()) => (),
+            Err(err) => eprintln!("Error: writing in description file {}", err),
+        }
+        debug!("description file created");
+    }
+
+    {
+        let empty_vec = vec![];
+
+        let tags_attributes = match title_data.get("tags").and_then(Value::as_array) {
+            Some(value) => value,
+            None => &empty_vec,
+        };
+
+        let mut theme: Vec<TagMetadata> = vec![];
+        let mut genre: Vec<TagMetadata> = vec![];
+
+        for tag in tags_attributes.iter() {
+            let id = tag.get("id").and_then(Value::as_str).unwrap_or_default();
+            let attr = tag.get("attributes");
+            if let Some(attr) = attr {
+                let typ = attr.get("group").and_then(Value::as_str).unwrap_or_default();
+                let name = attr
+                    .get("name")
+                    .and_then(|value| value.get("en"))
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if !name.is_empty() {
+                    match typ {
+                        "theme" => {
+                            debug!("manga theme: {:?}", name);
+                            theme.push(TagMetadata::new(name, id));
+                        }
+                        "genre" => {
+                            debug!("manga genre: {:?}", name);
+                            genre.push(TagMetadata::new(name, id));
+                        }
+                        _ => (),
+                    }
+                }
+            }
+        }
+
+        *GENRES.lock() = genre;
+        *THEMES.lock() = theme;
+    }
+
+    {
+        let cover = obj
+            .get("data")
+            .and_then(|name_data| name_data.get("relationships"))
+            .and_then(Value::as_array)
+            .map(|data| {
+                let mut cover = "";
+                for el in data {
+                    if el.get("type").and_then(Value::as_str).unwrap_or_default() == "cover_art" {
+                        cover = el
+                            .get("attributes")
+                            .and_then(|dat| dat.get("fileName"))
+                            .and_then(Value::as_str)
+                            .unwrap_or_default();
+                    }
+                }
+                cover
+            })
+            .unwrap_or_default();
+        if !cover.is_empty() {
+            debug!("starting downloading cover");
+            *COVER.lock() = match
+                download::download_cover(
+                    Arc::from("https://uploads.mangadex.org/"),
+                    Arc::from(id),
+                    Arc::from(cover),
+                    Arc::from(folder)
+                ).await
+            {
+                Ok(()) => true,
+                Err(err) => {
+                    eprintln!("Error: failed to download cover {}", err);
+                    false
+                }
+            };
+            debug!("cover downloaded successfully");
+        }
     }
 
     if ARGS.lock().stat {
         debug!("starting downloading stat");
-        match download::download_stat(id, folder, &manga_name).await {
+        match download::download_stat(id, &manga_name).await {
             Ok(()) => (),
             Err(err) => {
                 handle_error!(&err, String::from("statistics"));
@@ -1172,7 +1240,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         langs_final
     };
 
-    match resolve_manga(id, &manga_name, was_rewritten).await {
+    match resolve_manga(id, was_rewritten).await {
         Ok(()) => (),
         Err(err) => {
             handle_error!(&err, String::from("program"));
@@ -1206,17 +1274,23 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
 
 pub(crate) async fn resolve_group(
     array_item: &metadata::ChapterResponse
-) -> Result<(String, String), MdownError> {
+) -> Result<metadata::ScanlationMetadata, MdownError> {
     let scanlation_group = array_item.relationships.clone();
     let scanlation_group_id = match get_scanlation_group(&scanlation_group) {
         Some(value) => value,
         None => {
-            SUSPENDED.lock().push(MdownError::NotFoundError(String::from("resolve_group")));
-            return Ok((String::from("null"), String::from("null")));
+            suspend_error(MdownError::NotFoundError(String::from("resolve_group")));
+            return Ok(metadata::ScanlationMetadata {
+                name: String::from("null"),
+                website: String::from("null"),
+            });
         }
     };
     if scanlation_group_id.is_empty() {
-        return Ok((String::from("null"), String::from("null")));
+        return Ok(metadata::ScanlationMetadata {
+            name: String::from("null"),
+            website: String::from("null"),
+        });
     }
 
     let (name, website) = match resolve_group_metadata(&scanlation_group_id).await {
@@ -1228,18 +1302,22 @@ pub(crate) async fn resolve_group(
     if name != "Unknown" && !SCANLATION_GROUPS.lock().contains_key(&scanlation_group_id) {
         SCANLATION_GROUPS.lock().insert(scanlation_group_id, name.clone());
     }
-    Ok((name, website))
+    Ok(metadata::ScanlationMetadata { name, website })
 }
 
 pub(crate) fn get_scanlation_group_to_file(
-    manga_name: &str,
-    name: &str,
-    website: &str
+    scanlation: &metadata::ScanlationMetadata
 ) -> Result<(), MdownError> {
+    let name = &scanlation.name;
+    let website = &scanlation.website;
     if name == "null" {
         return Ok(());
     }
-    let file_name = format!("{}\\_scanlation_groups.txt", get_folder_name(manga_name));
+    let file_name = if ARGS.lock().update {
+        String::from("_scanlation_groups.txt")
+    } else {
+        format!("{}\\_scanlation_groups.txt", get_folder_name())
+    };
 
     let mut file_inst = match OpenOptions::new().create(true).append(true).open(&file_name) {
         Ok(file_inst) => file_inst,
@@ -1258,6 +1336,8 @@ pub(crate) fn get_scanlation_group_to_file(
 pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String), MdownError> {
     let base_url = "https://api.mangadex.org/group/";
     let full_url = format!("{}\\{}", base_url, id);
+
+    debug!("sending request to: {}", full_url);
 
     let response = match download::get_response_client(&full_url).await {
         Ok(res) => res,
@@ -1319,7 +1399,8 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
     Err(MdownError::NetworkError(response.error_for_status().unwrap_err()))
 }
 
-async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) -> Result<(), MdownError> {
+async fn resolve_manga(id: &str, was_rewritten: bool) -> Result<(), MdownError> {
+    debug!("\nresolve_manga");
     let going_offset: u32 = match ARGS.lock().database_offset.as_str().parse() {
         Ok(offset) => offset,
         Err(err) => {
@@ -1332,7 +1413,7 @@ async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) -> Resul
     match get_manga(id, going_offset).await {
         Ok((json, _offset)) => {
             clear_screen(1);
-            let downloaded_temp = match download_manga(json, manga_name, arg_force).await {
+            let downloaded_temp = match download_manga(json, arg_force).await {
                 Ok(value) => value,
                 Err(err) => {
                     return Err(err);
@@ -1352,7 +1433,7 @@ async fn resolve_manga(id: &str, manga_name: &str, was_rewritten: bool) -> Resul
                 resolve_move(i as u32, downloaded, 2, 1);
             }
         } else if !was_rewritten {
-            match fs::remove_dir_all(get_folder_name(manga_name)) {
+            match fs::remove_dir_all(get_folder_name()) {
                 Ok(()) => (),
                 Err(err) => eprintln!("Error: remove directory {}", err),
             };

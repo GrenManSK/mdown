@@ -12,6 +12,20 @@ use crate::{
     utils::{ self, progress_bar_preparation },
 };
 
+/// Compresses a directory and its contents into a ZIP file.
+///
+/// # Parameters
+/// - `it: &mut dyn Iterator<Item = DirEntry>`: Iterator over the directory entries.
+/// - `prefix: &str`: The base directory path to be compressed.
+/// - `writer: T`: The writer to which the ZIP file data will be written.
+///
+/// # Returns
+/// `Result<(), MdownError>`: Returns `Ok(())` if the operation is successful, or an `MdownError` if an error occurs.
+///
+/// # Panics
+/// This function will panic if:
+/// - The total number of items in the directory exceeds `usize::MAX`, causing an overflow in the `len` function.
+/// - The path conversion to `&str` fails unexpectedly when using `strip_prefix`, which is unlikely unless there's a serious internal error in `Path` handling.
 fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
     prefix: &str,
@@ -27,12 +41,15 @@ fn zip_dir<T>(
         .collect();
     let total_items = dir_entries_vec.len();
 
+    // Determine the starting position for the progress bar.
     let start = if MAXPOINTS.max_x / 3 < ((total_items / 2) as u32) - 1 {
         1
     } else {
         MAXPOINTS.max_x / 3 - ((total_items / 2) as u32) - 1
     };
     progress_bar_preparation(start, total_items, 5);
+
+    // Initialize the ZIP writer and file options.
     let mut zip = zip::ZipWriter::new(writer);
     let options = FileOptions::default().compression_method(method).unix_permissions(0o755);
 
@@ -45,8 +62,10 @@ fn zip_dir<T>(
                 return Err(error::MdownError::ConversionError(err.to_string()));
             }
         };
+
+        // If the path is a file, compress it.
         if path.is_file() {
-            string(5, start + times as u32, "#");
+            string(5, start + (times as u32), "#");
             #[allow(deprecated)]
             match zip.start_file_from_path(name, options) {
                 Ok(()) => (),
@@ -61,6 +80,7 @@ fn zip_dir<T>(
                 }
             };
 
+            // Read file content into the buffer and write it to the ZIP archive.
             match f.read_to_end(&mut buffer) {
                 Ok(_size) => (),
                 Err(err) => {
@@ -74,6 +94,8 @@ fn zip_dir<T>(
                 }
             }
             buffer.clear();
+
+            // If the path is a directory, add it to the ZIP archive.
         } else if !name.as_os_str().is_empty() {
             #[allow(deprecated)]
             match zip.add_directory_from_path(name, options) {
@@ -84,6 +106,8 @@ fn zip_dir<T>(
             };
         }
     }
+
+    // Finalize the ZIP archive.
     match zip.finish() {
         Ok(_writer) => (),
         Err(err) => {
@@ -93,7 +117,20 @@ fn zip_dir<T>(
     Ok(())
 }
 
+/// Creates a ZIP file from a directory.
+///
+/// # Parameters
+/// - `src_dir: &str`: The source directory to be compressed.
+/// - `dst_file: &str`: The destination ZIP file path.
+///
+/// # Returns
+/// `Result<(), MdownError>`: Returns `Ok(())` if the operation is successful, or an `MdownError` if an error occurs.
+///
+/// # Panics
+/// This function will panic if:
+/// - The directory path or file path cannot be represented as valid UTF-8 strings, though this is very unlikely.
 fn doit(src_dir: &str, dst_file: &str) -> Result<(), error::MdownError> {
+    // Check if the source directory exists.
     if !Path::new(src_dir).is_dir() {
         return Err(error::MdownError::ZipError(ZipError::FileNotFound));
     }
@@ -105,6 +142,7 @@ fn doit(src_dir: &str, dst_file: &str) -> Result<(), error::MdownError> {
         }
     };
 
+    // Walk through the directory and zip its contents.
     let walkdir = WalkDir::new(src_dir);
     let it = walkdir.into_iter();
 
@@ -116,6 +154,17 @@ fn doit(src_dir: &str, dst_file: &str) -> Result<(), error::MdownError> {
     Ok(())
 }
 
+/// Public interface for zipping a directory.
+///
+/// # Parameters
+/// - `src_dir: &str`: The source directory to be compressed.
+/// - `dst_file: &str`: The destination ZIP file path.
+///
+/// This function handles the zipping process and logs the operation based on certain conditions.
+///
+/// # Panics
+/// This function will panic if:
+/// - The directory path or file path cannot be represented as valid UTF-8 strings, though this is very unlikely.
 pub(crate) fn to_zip(src_dir: &str, dst_file: &str) {
     if
         *args::ARGS_WEB ||
@@ -143,6 +192,17 @@ pub(crate) fn to_zip(src_dir: &str, dst_file: &str) {
     }
 }
 
+/// Extracts a specific file from a ZIP archive.
+///
+/// # Parameters
+/// - `zip_file_path: &str`: The path to the ZIP file.
+/// - `metadata_file_name: &str`: The name of the file to extract from the ZIP archive.
+///
+/// # Returns
+/// `Result<metadata::ChapterMetadataIn, MdownError>`: Returns the extracted file's metadata content if successful, or an `MdownError` if an error occurs.
+///
+/// # Panics
+/// This function does not explicitly panic, but improper usage of the underlying filesystem or ZIP library could cause a panic in rare cases, such as invalid file paths or corrupted ZIP files.
 pub(crate) fn extract_file_from_zip(
     zip_file_path: &str,
     metadata_file_name: &str
@@ -195,15 +255,25 @@ pub(crate) fn extract_file_from_zip(
     answer
 }
 
+/// Extracts an image from a ZIP archive.
+///
+/// # Parameters
+/// - `zip_file_path: &str`: The path to the ZIP file.
+///
+/// # Returns
+/// `Result<Vec<u8>, MdownError>`: Returns the image content as a vector of bytes if successful, or an `MdownError` if an error occurs.
+///
+/// # Panics
+/// This function does not explicitly panic, but improper usage of the underlying filesystem or ZIP library could cause a panic in rare cases, such as invalid file paths or corrupted ZIP files.
 #[cfg(feature = "server")]
 pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, error::MdownError> {
-    let file = match File::open(zip_file_path) {
-        Ok(file) => file,
+    let zip_file = match File::open(zip_file_path) {
+        Ok(zip_file) => zip_file,
         Err(err) => {
             return Err(error::MdownError::IoError(err, zip_file_path.to_string()));
         }
     };
-    let mut archive = match ZipArchive::new(file) {
+    let mut archive = match ZipArchive::new(zip_file) {
         Ok(archive) => archive,
         Err(err) => {
             return Err(error::MdownError::ZipError(err));
@@ -236,6 +306,13 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
     Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned()))
 }
 
+/// Extracts multiple images from a set of ZIP files, selecting up to 10 images randomly.
+///
+/// # Returns
+/// `Result<Vec<Vec<u8>>, MdownError>`: Returns a vector of image contents (each as a vector of bytes) if successful, or an `MdownError` if an error occurs.
+///
+/// # Panics
+/// This function does not explicitly panic, but improper usage of the underlying filesystem or ZIP library could cause a panic in rare cases, such as invalid file paths or corrupted ZIP files.
 #[cfg(feature = "web")]
 pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownError> {
     use crate::resolute;

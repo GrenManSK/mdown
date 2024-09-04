@@ -1,6 +1,10 @@
 use std::{ fs::{ self, File }, io::prelude::*, path::Path };
 
+/// The build script for configuring and processing project resources.
+///
+/// This script performs different tasks based on the target OS and resource directories. It handles resource compilation for Windows, processes files in specified resource directories, and generates corresponding Rust source files with binary data. It also handles conditional compilation flags related to music resources.
 fn main() {
+    // For Windows OS, compile Windows-specific resources such as icons.
     if cfg!(target_os = "windows") {
         let mut res = winres::WindowsResource::new();
         res.set_icon("resources/icon.ico");
@@ -9,6 +13,7 @@ fn main() {
         }
     }
 
+    // Iterate over predefined directories and process each one.
     for directory in [
         "resources/server",
         "resources/web",
@@ -20,15 +25,28 @@ fn main() {
     }
 }
 
+/// Processes files in a given directory and generates corresponding Rust source files.
+///
+/// # Parameters
+///
+/// - `directory_path: &str`: The path to the directory containing files to be processed.
+///
+/// This function reads each file in the specified directory, converts its content into binary data, and writes the binary data into a new Rust source file in the `OUT_DIR`. The new file contains a constant array of bytes representing the file's content. Additionally, it sets up cargo rerun-if-changed triggers for the processed files.
+///
+/// The function also handles conditional compilation flags for music-related resources if the "music" feature is enabled.
 fn setup(directory_path: &str) {
+    // Read the contents of the directory.
     if let Ok(entries) = fs::read_dir(directory_path) {
         for entry in entries.flatten() {
             let file_path = entry.path();
             let file_name = entry.file_name();
 
+            // Skip non-file entries.
             if !file_path.is_file() {
                 continue;
             }
+            
+            // Open the file and read its contents.
             let mut file = match File::open(&file_path) {
                 Ok(file) => file,
                 Err(err) => {
@@ -45,6 +63,7 @@ fn setup(directory_path: &str) {
                 }
             }
 
+            // Determine the output directory for generated Rust files.
             let out_dir = match std::env::var("OUT_DIR") {
                 Ok(out_dir) => out_dir,
                 Err(err) => {
@@ -62,6 +81,7 @@ fn setup(directory_path: &str) {
                 }
             };
 
+            // Write the binary data as a Rust constant.
             let data = binary_data
                 .iter()
                 .map(|byte| byte.to_string())
@@ -83,8 +103,11 @@ fn setup(directory_path: &str) {
                 }
             }
 
+            // Set up cargo to re-run this build script if the file changes.
             println!("cargo:rerun-if-changed={}", file_path.to_string_lossy());
         }
+        
+        // If the "music" feature is enabled, conditionally set compilation flags based on the presence of certain files.
         #[cfg(feature = "music")]
         if directory_path == "resources/music" {
             println!("cargo::rustc-check-cfg=cfg(music_m1)");
