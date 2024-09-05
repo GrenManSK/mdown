@@ -493,8 +493,5 @@ pub(crate) async fn start() -> Result<(), MdownError> {
             );
         }
     }
-    match web().await {
-        Ok(()) => Ok(()),
-        Err(err) => Err(err),
-    }
+    web().await
 }

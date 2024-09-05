@@ -45,7 +45,7 @@ fn setup(directory_path: &str) {
             if !file_path.is_file() {
                 continue;
             }
-            
+
             // Open the file and read its contents.
             let mut file = match File::open(&file_path) {
                 Ok(file) => file,
@@ -106,7 +106,7 @@ fn setup(directory_path: &str) {
             // Set up cargo to re-run this build script if the file changes.
             println!("cargo:rerun-if-changed={}", file_path.to_string_lossy());
         }
-        
+
         // If the "music" feature is enabled, conditionally set compilation flags based on the presence of certain files.
         #[cfg(feature = "music")]
         if directory_path == "resources/music" {

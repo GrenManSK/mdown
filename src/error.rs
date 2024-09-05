@@ -68,9 +68,10 @@
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use thiserror::Error;
+use smallvec::{ SmallVec, smallvec };
 
 lazy_static! {
-    pub static ref SUSPENDED: Mutex<Vec<MdownError>> = Mutex::new(Vec::new());
+    pub static ref SUSPENDED: Mutex<SmallVec<[MdownError; 3]>> = Mutex::new(smallvec![]);
 }
 
 /// Suspends an error by adding it to the global `SUSPENDED` list.

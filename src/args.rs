@@ -1,5 +1,3 @@
-
-
 use clap::{ ArgGroup, Parser, Subcommand };
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
