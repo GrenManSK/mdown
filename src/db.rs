@@ -659,12 +659,16 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
         if current_time.duration_since(last_check_time) >= interval {
             let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
             let perc_string = download::get_perc(percentage);
+            let current_mb = download::get_float((downloaded as f32) / 1024.0 / 1024.0);
+            let current_mbs = download::get_float(
+                (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
+            );
             let message = format!(
                 "Downloading yt-dlp_min.exe {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]\r",
                 perc_string,
-                (downloaded as f32) / 1024.0 / 1024.0,
+                current_mb,
                 final_size,
-                (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
+                current_mbs
             );
             print!("{}", message);
             match std::io::stdout().flush() {
@@ -678,12 +682,15 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
         }
     }
 
+    let current_mb = download::get_float((downloaded as f32) / 1024.0 / 1024.0);
+    let max_mb = download::get_float((total_size as f32) / 1024.0 / 1024.0);
+
     // Print the final download progress
     let message = format!(
         "Downloading yt-dlp_min.exe {}% - {:.2}mb of {:.2}mb",
         100,
-        (downloaded as f32) / 1024.0 / 1024.0,
-        (total_size as f32) / 1024.0 / 1024.0
+        current_mb,
+        max_mb
     );
     println!("{}\n", message);
     Ok(())

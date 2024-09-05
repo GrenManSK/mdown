@@ -163,7 +163,34 @@ pub(crate) fn get_size(response: &reqwest::Response) -> (u64, f32) {
 /// }
 /// ```
 pub(crate) fn get_perc(percentage: i64) -> String {
-    format!("{:>3}", percentage)
+    let mut buffer = itoa::Buffer::new();
+    let perc = buffer.format(percentage);
+    format!("{:>3}", perc)
+}
+
+/// Formats a floating-point number (`f32`) as a string with two decimal places.
+///
+/// This function takes a `f32` number and uses the `ryu` crate to convert it to a string.
+/// It then formats the string to display two decimal places.
+///
+/// # Arguments
+/// * `number` - A `f32` floating-point number to be formatted.
+///
+/// # Returns
+/// * `String` - A string representing the formatted number with two decimal places.
+///
+/// # Example
+/// ```
+/// let formatted = get_float(3.14159);
+/// assert_eq!(formatted, "3.14");
+/// ```
+///
+/// # Panics
+/// * This function does not explicitly panic.
+pub(crate) fn get_float(number: f32) -> String {
+    let mut buffer = ryu::Buffer::new();
+    let perc = buffer.format(number);
+    format!("{:.2}", perc)
 }
 
 /// Sends an HTTP GET request to the specified URL using a `reqwest::Client`.
@@ -736,14 +763,18 @@ pub(crate) async fn download_image(
             last_check_time = current_time;
             let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
             let perc_string = get_perc(percentage);
+            let current_mb = get_float((downloaded as f32) / 1024.0 / 1024.0);
+            let current_mbs = get_float(
+                (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
+            );
             let message = format!(
                 "   {} Downloading {} {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]",
                 page_str,
                 file_name_brief,
                 perc_string,
-                (downloaded as f32) / 1024.0 / 1024.0,
+                current_mb,
                 final_size,
-                (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
+                current_mbs
             );
             if
                 *args::ARGS_WEB ||
@@ -783,13 +814,15 @@ pub(crate) async fn download_image(
 
     if !*args::ARGS_WEB && !*args::ARGS_GUI && !*args::ARGS_CHECK && !*args::ARGS_UPDATE {
         if download {
+            let current_mb = get_float((downloaded as f32) / 1024.0 / 1024.0);
+            let max_mb = get_float((total_size as f32) / 1024.0 / 1024.0);
             let message = format!(
                 "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
                 page_str,
                 file_name_brief,
                 100,
-                (downloaded as f32) / 1024.0 / 1024.0,
-                (total_size as f32) / 1024.0 / 1024.0
+                current_mb,
+                max_mb
             );
             string(
                 3 + 1 + (page as u32),

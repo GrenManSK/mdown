@@ -55,7 +55,7 @@ pub(crate) fn log_handler() {
     };
 
     if fs::metadata(&lock_path).is_ok() {
-        remove_log_lock_file();
+        let _ = fs::remove_file(&lock_path);
     }
 
     loop {
@@ -77,7 +77,7 @@ pub(crate) fn log_handler() {
             };
         }
         if *resolute::ENDED.lock() {
-            remove_log_lock_file();
+            let _ = fs::remove_file(&lock_path);
             return;
         }
 
@@ -207,7 +207,7 @@ pub(crate) fn log_handler() {
         drop(messages_lock);
         drop(handle_id_lock);
 
-        remove_log_lock_file();
+        let _ = fs::remove_file(&lock_path);
     }
 }
 
@@ -522,16 +522,6 @@ pub(crate) fn sort(data: &Vec<metadata::ChapterResponse>) -> Vec<metadata::Chapt
     });
 
     data_array
-}
-
-pub(crate) fn remove_log_lock_file() {
-    let lock_path = match getter::get_log_lock_path() {
-        Ok(path) => path,
-        Err(_err) => {
-            return;
-        }
-    };
-    let _ = fs::remove_file(lock_path);
 }
 
 pub(crate) fn get_json(manga_name_json: &str) -> Result<Value, MdownError> {

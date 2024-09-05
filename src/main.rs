@@ -300,10 +300,7 @@ async fn start() -> Result<(), error::MdownError> {
     // Handle reset argument
     if *args::ARGS_RESET {
         debug!("args_reset");
-        return match utils::reset() {
-            Ok(()) => Ok(()),
-            Err(err) => Err(err),
-        };
+        return utils::reset();
     }
 
     // Initialize the database
@@ -324,19 +321,13 @@ async fn start() -> Result<(), error::MdownError> {
 
     // Handle delete argument
     if *args::ARGS_DELETE {
-        return match resolute::args_delete() {
-            Ok(()) => Ok(()),
-            Err(err) => Err(err),
-        };
+        return resolute::args_delete();
     }
 
     // Handle show log argument
     if *args::ARGS_SHOW_LOG {
         debug!("show_log");
-        return match resolute::show_log().await {
-            Ok(()) => Ok(()),
-            Err(err) => Err(err),
-        };
+        return resolute::show_log().await;
     }
 
     // Create cache folder
@@ -380,29 +371,20 @@ async fn start() -> Result<(), error::MdownError> {
     // Handle show or show all arguments
     if args::ARGS_SHOW.is_some() || args::ARGS_SHOW_ALL.is_some() {
         debug!("show || show all");
-        return match resolute::show().await {
-            Ok(()) => Ok(()),
-            Err(err) => Err(err),
-        };
+        return resolute::show().await;
     }
 
     // Perform check or update operations
     if *args::ARGS_CHECK || *args::ARGS_UPDATE {
         debug!("start resolve_check");
-        return match resolute::resolve_check().await {
-            Ok(()) => Ok(()),
-            Err(err) => Err(err),
-        };
+        return resolute::resolve_check().await;
     }
 
     // Handle server mode
     if *args::ARGS_SERVER {
         debug!("start server");
         #[cfg(feature = "server")]
-        return match server::start() {
-            Ok(()) => Ok(()),
-            Err(err) => Err(err),
-        };
+        return server::start();
         #[cfg(not(feature = "server"))]
         {
             println!("Server is not supported");
@@ -415,10 +397,7 @@ async fn start() -> Result<(), error::MdownError> {
     if *args::ARGS_GUI {
         debug!("start gui");
         #[cfg(feature = "gui")]
-        return match gui::start() {
-            Ok(()) => Ok(()),
-            Err(err) => Err(err),
-        };
+        return gui::start();
         #[cfg(not(feature = "gui"))]
         {
             println!("Gui is not supported");
@@ -431,10 +410,7 @@ async fn start() -> Result<(), error::MdownError> {
     if *args::ARGS_WEB {
         debug!("start web");
         #[cfg(feature = "web")]
-        return match web::start().await {
-            Ok(()) => Ok(()),
-            Err(err) => Err(err),
-        };
+        return web::start().await;
         #[cfg(not(feature = "web"))]
         {
             println!("Web is not supported");
