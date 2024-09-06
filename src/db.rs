@@ -663,11 +663,12 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
             let current_mbs = download::get_float(
                 (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
             );
+            let final_size_string = download::get_float(final_size);
             let message = format!(
-                "Downloading yt-dlp_min.exe {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]\r",
+                "Downloading yt-dlp_min.exe {}% - {}mb of {}mb [{}mb/s]\r",
                 perc_string,
                 current_mb,
-                final_size,
+                final_size_string,
                 current_mbs
             );
             print!("{}", message);
@@ -687,7 +688,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
 
     // Print the final download progress
     let message = format!(
-        "Downloading yt-dlp_min.exe {}% - {:.2}mb of {:.2}mb",
+        "Downloading yt-dlp_min.exe {}% - {}mb of {}mb",
         100,
         current_mb,
         max_mb

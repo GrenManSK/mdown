@@ -26,6 +26,7 @@ use crate::{
         WEB_DOWNLOADED,
     },
     utils,
+    version_manager::get_current_version,
     zip_func,
 };
 
@@ -284,7 +285,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
             response = format!(
                 "{}{}",
                 "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n",
-                env!("CARGO_PKG_VERSION")
+                get_current_version()
             );
             match stream.write_all(response.as_bytes()) {
                 Ok(()) => (),

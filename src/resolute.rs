@@ -1,6 +1,7 @@
 use crossterm::event::{ self, Event, KeyCode };
 use parking_lot::Mutex;
 use lazy_static::lazy_static;
+use semver::{ BuildMetadata, Prerelease, Version };
 use serde_json::{ Map, Value };
 use std::{ collections::HashMap, fs::{ self, File, OpenOptions }, io::{ Read, Write }, sync::Arc };
 
@@ -27,6 +28,7 @@ use crate::{
     },
     string,
     utils::{ self, clear_screen, input },
+    version_manager::{ check_ver, get_current_version },
     zip_func,
 };
 
@@ -290,9 +292,58 @@ pub(crate) async fn show() -> Result<(), MdownError> {
     };
 
     match serde_json::from_value::<Dat>(json) {
-        Ok(dat) => {
-            let version = dat.version;
-            println!("Version: {}", version);
+        Ok(mut dat) => {
+            let mut not_orig = false;
+            let version = match Version::parse(&dat.version) {
+                Ok(version) => version,
+                Err(_err) => {
+                    not_orig = true;
+                    Version {
+                        major: 0,
+                        minor: 0,
+                        patch: 0,
+                        pre: Prerelease::EMPTY,
+                        build: BuildMetadata::EMPTY,
+                    }
+                }
+            };
+            let current_version = match Version::parse(&get_current_version()) {
+                Ok(version) => version,
+                Err(_err) => {
+                    not_orig = true;
+                    Version {
+                        major: 0,
+                        minor: 0,
+                        patch: 0,
+                        pre: Prerelease::EMPTY,
+                        build: BuildMetadata::EMPTY,
+                    }
+                }
+            };
+            if not_orig {
+                println!("Version: {}", dat.version);
+            } else {
+                if current_version > version {
+                    println!(
+                        "Version: {} (Outdated version; current {})",
+                        version,
+                        current_version
+                    );
+                    let confirmation = match check_ver(&mut dat, version, current_version) {
+                        Ok(confirmation) => confirmation,
+                        Err(err) => {
+                            suspend_error(err);
+                            false
+                        }
+                    };
+                    if confirmation {
+                        println!("NOT iMPLEMENTED");
+                        println!("Run: mdown database --update-database");
+                    }
+                } else {
+                    println!("Version: {}", version);
+                }
+            }
             let data = dat.data;
             if data.is_empty() {
                 println!("No manga found");
@@ -802,7 +853,7 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
 
         let content = format!(
             "{{\n  \"data\": [],\n  \"version\": \"{}\"\n}}",
-            env!("CARGO_PKG_VERSION")
+            get_current_version()
         );
 
         match file.write_all(content.as_bytes()) {

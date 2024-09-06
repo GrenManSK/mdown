@@ -190,7 +190,7 @@ pub(crate) fn get_perc(percentage: i64) -> String {
 pub(crate) fn get_float(number: f32) -> String {
     let mut buffer = ryu::Buffer::new();
     let perc = buffer.format(number);
-    format!("{:.2}", perc)
+    format!("{:.4}", perc)
 }
 
 /// Sends an HTTP GET request to the specified URL using a `reqwest::Client`.
@@ -767,13 +767,14 @@ pub(crate) async fn download_image(
             let current_mbs = get_float(
                 (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
             );
+            let final_size_string = get_float(final_size);
             let message = format!(
-                "   {} Downloading {} {}% - {:.2}mb of {:.2}mb [{:.2}mb/s]",
+                "   {} Downloading {} {}% - {}mb of {}mb [{}mb/s]",
                 page_str,
                 file_name_brief,
                 perc_string,
                 current_mb,
-                final_size,
+                final_size_string,
                 current_mbs
             );
             if
@@ -817,7 +818,7 @@ pub(crate) async fn download_image(
             let current_mb = get_float((downloaded as f32) / 1024.0 / 1024.0);
             let max_mb = get_float((total_size as f32) / 1024.0 / 1024.0);
             let message = format!(
-                "   {} Downloading {} {}% - {:.2}mb of {:.2}mb",
+                "   {} Downloading {} {}% - {}mb of {}mb",
                 page_str,
                 file_name_brief,
                 100,

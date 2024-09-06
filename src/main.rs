@@ -110,6 +110,7 @@ mod macros;
 mod metadata;
 mod resolute;
 mod utils;
+mod version_manager;
 mod zip_func;
 
 #[cfg(feature = "music")]

@@ -24,6 +24,7 @@ use crate::{
     metadata,
     resolute::{ self, resolve_move, CURRENT_PERCENT, CURRENT_SIZE, CURRENT_SIZE_MAX },
     string,
+    version_manager::get_current_version,
 };
 
 pub(crate) fn setup_requirements(file_path: String) {
@@ -604,7 +605,7 @@ pub(crate) async fn search() -> Result<String, MdownError> {
 }
 
 pub(crate) fn resolve_start() -> Result<String, MdownError> {
-    let file_path: String = format!(".cache\\mdown_{}.lock", env!("CARGO_PKG_VERSION"));
+    let file_path: String = format!(".cache\\mdown_{}.lock", get_current_version());
     if *args::ARGS_FORCE_DELETE {
         match fs::remove_file(&file_path) {
             Ok(()) => println!("File has been deleted\nYou can now use it as normal"),
@@ -750,7 +751,7 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
 }
 
 pub(crate) async fn print_version(file: &str) {
-    let version = env!("CARGO_PKG_VERSION");
+    let version = get_current_version();
     for _ in 0..50 {
         string(MAXPOINTS.max_y - 1, 0, &format!("Current version: {}", version));
         if fs::metadata(file).is_err() {

@@ -771,9 +771,9 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "bytemuck"
-version = "1.17.1"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "773d90827bc3feecfb67fab12e24de0749aad83c74b9504ecde46237b5cd24e2"
+checksum = "94bbb0ad554ad961ddc5da507a12a29b14e4ae5bda06b19f575a3e6079d2e2ae"
 dependencies = [
  "bytemuck_derive",
 ]
@@ -2728,7 +2728,7 @@ dependencies = [
 
 [[package]]
 name = "mdown"
-version = "0.12.0-1"
+version = "0.12.1-2"
 dependencies = [
  "base64",
  "chrono",
@@ -2754,6 +2754,7 @@ dependencies = [
  "rodio",
  "rusqlite",
  "ryu",
+ "semver",
  "serde",
  "serde_json",
  "smallvec",
@@ -4066,6 +4067,12 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
+
+[[package]]
+name = "semver"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
 
 [[package]]
 name = "serde"

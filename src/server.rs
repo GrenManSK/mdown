@@ -9,7 +9,16 @@ use std::{
 };
 include!(concat!(env!("OUT_DIR"), "/error_404_jpg.rs"));
 
-use crate::{ args, error::MdownError, getter::get_query, handle_error, log, utils, zip_func };
+use crate::{
+    args,
+    error::MdownError,
+    getter::get_query,
+    handle_error,
+    log,
+    utils,
+    version_manager::get_current_version,
+    zip_func,
+};
 
 fn get_directory_content(path: &str) -> Result<Value, MdownError> {
     let mut result = serde_json::Map::new();
@@ -242,7 +251,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             let response = format!(
                 "{}{}",
                 "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n",
-                env!("CARGO_PKG_VERSION")
+                get_current_version()
             );
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),

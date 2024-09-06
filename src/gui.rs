@@ -3,7 +3,14 @@ use egui::{ containers::*, * };
 use serde_json::Value;
 use tracing::info;
 
-use crate::{ args::{ self, ARGS }, error::MdownError, getter, resolute, utils };
+use crate::{
+    args::{ self, ARGS },
+    error::MdownError,
+    getter,
+    resolute,
+    utils,
+    version_manager::get_current_version,
+};
 
 pub(crate) fn start() -> Result<(), MdownError> {
     match app() {
@@ -28,7 +35,7 @@ pub(crate) fn app() -> Result<(), eframe::Error> {
         ..Default::default()
     };
     eframe::run_native(
-        &format!("mdown v{}", env!("CARGO_PKG_VERSION")),
+        &format!("mdown v{}", get_current_version()),
         options,
         Box::new(|_cc| Ok(Box::new(App::new(_cc))))
     )
@@ -115,7 +122,7 @@ impl eframe::App for App {
                 });
             });
             ui.with_layout(Layout::top_down(egui::Align::Center), |ui| {
-                ui.heading(&format!("mdown v{}", env!("CARGO_PKG_VERSION")));
+                ui.heading(&format!("mdown v{}", get_current_version()));
             });
             if self.panel == String::from("main") {
                 if !*resolute::DOWNLOADING.lock() {
