@@ -1,6 +1,7 @@
 use chrono::prelude::*;
 use crosscurses::*;
 use rand::{ distributions::Alphanumeric, Rng };
+use remove_dir_all::remove_dir_all;
 use serde_json::{ json, Value };
 use std::{
     cmp::Ordering,
@@ -295,7 +296,7 @@ fn push_suspended(err: std::io::Error, name: &str) {
 
 pub(crate) fn remove_cache() -> Result<(), MdownError> {
     if is_directory_empty(".cache\\") {
-        match fs::remove_dir_all(".cache") {
+        match remove_dir_all(".cache") {
             Ok(()) => (),
             Err(err) => {
                 suspend_error(MdownError::IoError(err, String::from(".cache\\")));
@@ -675,7 +676,7 @@ pub(crate) async fn ctrl_handler(file: &str) {
     delete_dir();
 
     if is_directory_empty(".cache\\") {
-        match fs::remove_dir_all(".cache") {
+        match remove_dir_all(".cache") {
             Ok(()) => (),
             Err(err) => eprintln!("Error removing .cache, {}", err),
         };
@@ -690,7 +691,7 @@ pub(crate) fn resolve_final_end() -> bool {
             Err(err) => eprintln!("Error: removing mdown_final_end.lock {}", err),
         }
         if is_directory_empty(".cache\\") {
-            match fs::remove_dir_all(".cache") {
+            match remove_dir_all(".cache") {
                 Ok(()) => (),
                 Err(err) => eprintln!("Error: removing .cache, {}", err),
             };
@@ -740,7 +741,7 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
 
             if should_delete == 0 {
                 debug!("deleting manga folder because it didn't download anything");
-                match fs::remove_dir_all(path) {
+                match remove_dir_all(path) {
                     Ok(()) => (),
                     Err(err) => eprintln!("Error: removing directory '{}' {}", path, err),
                 };

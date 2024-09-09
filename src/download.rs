@@ -140,9 +140,9 @@ pub(crate) async fn get_response(
 ///     Ok(())
 /// }
 /// ```
-pub(crate) fn get_size(response: &reqwest::Response) -> (u64, f32) {
+pub(crate) fn get_size(response: &reqwest::Response) -> (u64, String) {
     let total_size: u64 = response.content_length().unwrap_or_default();
-    (total_size, (total_size as f32) / 1024.0 / 1024.0)
+    (total_size, bytefmt::format(total_size))
 }
 
 /// Formats a percentage value as a right-aligned string.
@@ -666,7 +666,7 @@ pub(crate) async fn download_image(
         }
     };
 
-    let (total_size, final_size) = get_size(&response);
+    let (total_size, final_size_string) = get_size(&response);
 
     string(3 + 1, start + (page as u32) - 1, "\\");
     let mut file = match File::create(full_path) {
@@ -676,7 +676,7 @@ pub(crate) async fn download_image(
         }
     };
 
-    let (mut downloaded, mut last_size) = (0, 0.0);
+    let (mut downloaded, mut last_size) = (0, 0);
     let interval = Duration::from_millis(100);
     let mut last_check_time = Instant::now();
 
@@ -728,7 +728,7 @@ pub(crate) async fn download_image(
         downloaded += chunk.len() as u64;
         let current_time = Instant::now();
         if current_time.duration_since(last_check_time) >= interval {
-            if (downloaded as f32) != last_size {
+            if downloaded != last_size {
                 let mut lock_file = match
                     OpenOptions::new()
                         .read(true)
@@ -763,13 +763,10 @@ pub(crate) async fn download_image(
             last_check_time = current_time;
             let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
             let perc_string = get_perc(percentage);
-            let current_mb = get_float((downloaded as f32) / 1024.0 / 1024.0);
-            let current_mbs = get_float(
-                (((downloaded as f32) - last_size) * 10.0) / 1024.0 / 1024.0
-            );
-            let final_size_string = get_float(final_size);
+            let current_mbs = bytefmt::format(downloaded - last_size);
+            let current_mb = bytefmt::format(downloaded);
             let message = format!(
-                "   {} Downloading {} {}% - {}mb of {}mb [{}mb/s]",
+                "   {} Downloading {} {}% - {} of {} [{}/s]",
                 page_str,
                 file_name_brief,
                 perc_string,
@@ -807,7 +804,7 @@ pub(crate) async fn download_image(
                     )
                 );
             }
-            last_size = downloaded as f32;
+            last_size = downloaded as u64;
         }
     }
 

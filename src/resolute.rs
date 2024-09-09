@@ -1,6 +1,7 @@
 use crossterm::event::{ self, Event, KeyCode };
-use parking_lot::Mutex;
 use lazy_static::lazy_static;
+use parking_lot::Mutex;
+use remove_dir_all::remove_dir_all;
 use semver::{ BuildMetadata, Prerelease, Version };
 use serde_json::{ Map, Value };
 use std::{ collections::HashMap, fs::{ self, File, OpenOptions }, io::{ Read, Write }, sync::Arc };
@@ -1484,7 +1485,7 @@ async fn resolve_manga(id: &str, was_rewritten: bool) -> Result<(), MdownError> 
                 resolve_move(i as u32, downloaded, 2, 1);
             }
         } else if !was_rewritten {
-            match fs::remove_dir_all(get_folder_name()) {
+            match remove_dir_all(get_folder_name()) {
                 Ok(()) => (),
                 Err(err) => eprintln!("Error: remove directory {}", err),
             };

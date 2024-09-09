@@ -98,6 +98,7 @@ use crosscurses::stdscr;
 use glob::glob;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
+use remove_dir_all::remove_dir_all;
 use serde_json::Value;
 use std::{ cmp::Ordering, env, fs::{ self, File }, io::Write, process::exit, sync::Arc };
 
@@ -959,7 +960,7 @@ pub(crate) async fn download_manga(
                         );
                         let file_name = filename.get_file_w_folder();
                         zip_func::to_zip(folder_path, &file_name);
-                        match fs::remove_dir_all(folder_path) {
+                        match remove_dir_all(folder_path) {
                             Ok(()) => (),
                             Err(err) => {
                                 return Err(
