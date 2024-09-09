@@ -723,9 +723,7 @@ pub(crate) async fn download_image(
                         );
                     }
                 };
-                match
-                    lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes())
-                {
+                match lock_file.write(format!("{}", downloaded as f64).as_bytes()) {
                     Ok(_size) => (),
                     Err(err) => {
                         suspend_error(

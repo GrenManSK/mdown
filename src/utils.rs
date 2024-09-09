@@ -400,7 +400,7 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
                             return Err(MdownError::ConversionError(err.to_string()));
                         }
                     };
-                    size += image_content;
+                    size += image_content / 1024.0 / 1024.0;
                 }
             }
         }
