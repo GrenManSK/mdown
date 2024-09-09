@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.12.1-3"
+version = "0.12.1"
 edition = "2021"
 authors = ["GrenManSK"]
 
