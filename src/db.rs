@@ -684,7 +684,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let max_mb = bytefmt::format(total_size);
 
     // Print the final download progress
-    let message = format!("Downloading yt-dlp_min.exe {}% - {}mb of {}mb", 100, current_mb, max_mb);
+    let message = format!("Downloading yt-dlp_min.exe {}% - {} of {}", 100, current_mb, max_mb);
     println!("{}\n", message);
     Ok(())
 }

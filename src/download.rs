@@ -792,7 +792,7 @@ pub(crate) async fn download_image(
             let current_mb = bytefmt::format(downloaded);
             let max_mb = bytefmt::format(total_size);
             let message = format!(
-                "   {} Downloading {} {}% - {}mb of {}mb",
+                "   {} Downloading {} {}% - {} of {}",
                 page_str,
                 file_name_brief,
                 100,
