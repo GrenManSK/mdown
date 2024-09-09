@@ -121,24 +121,26 @@ pub(crate) async fn get_response(
     }
 }
 
-/// Retrieves the total size of the response content and its size in megabytes.
+/// Retrieves the size of the content in a `reqwest::Response` and formats it into a human-readable string.
 ///
-/// This function extracts the content length from the HTTP response and calculates its size in megabytes.
+/// This function extracts the content length from the HTTP response, returning it as a tuple containing
+/// both the size in bytes and a human-readable formatted size string using the `bytefmt` crate.
 ///
 /// # Arguments
-/// * `response` - A reference to a `reqwest::Response` from which the content size is retrieved.
+///
+/// * `response` - A reference to the `reqwest::Response` from which the content size is extracted.
 ///
 /// # Returns
-/// * `(u64, f32)` - A tuple where the first element is the total size in bytes, and the second element is the size in megabytes.
 ///
-/// # Example
-/// ```no_run
-/// fn main() -> Result<(), MdownError> {
-///     let response = reqwest::get("https://example.com/file").await?;
-///     let (size_bytes, size_mb) = get_size(&response);
-///     println!("Size: {} bytes ({} MB)", size_bytes, size_mb);
-///     Ok(())
-/// }
+/// * `(u64, String)` - A tuple where the first element is the size of the content in bytes as `u64`, and the second
+/// element is the human-readable formatted size string.
+///
+/// # Examples
+///
+/// ```rust
+/// let response = reqwest::get("https://example.com").await?;
+/// let (size_in_bytes, size_formatted) = get_size(&response);
+/// println!("Size: {} bytes, formatted: {}", size_in_bytes, size_formatted);
 /// ```
 pub(crate) fn get_size(response: &reqwest::Response) -> (u64, String) {
     let total_size: u64 = response.content_length().unwrap_or_default();
@@ -166,31 +168,6 @@ pub(crate) fn get_perc(percentage: i64) -> String {
     let mut buffer = itoa::Buffer::new();
     let perc = buffer.format(percentage);
     format!("{:>3}", perc)
-}
-
-/// Formats a floating-point number (`f32`) as a string with two decimal places.
-///
-/// This function takes a `f32` number and uses the `ryu` crate to convert it to a string.
-/// It then formats the string to display two decimal places.
-///
-/// # Arguments
-/// * `number` - A `f32` floating-point number to be formatted.
-///
-/// # Returns
-/// * `String` - A string representing the formatted number with two decimal places.
-///
-/// # Example
-/// ```
-/// let formatted = get_float(3.14159);
-/// assert_eq!(formatted, "3.14");
-/// ```
-///
-/// # Panics
-/// * This function does not explicitly panic.
-pub(crate) fn get_float(number: f32) -> String {
-    let mut buffer = ryu::Buffer::new();
-    let perc = buffer.format(number);
-    format!("{:.4}", perc)
 }
 
 /// Sends an HTTP GET request to the specified URL using a `reqwest::Client`.
@@ -812,8 +789,8 @@ pub(crate) async fn download_image(
 
     if !*args::ARGS_WEB && !*args::ARGS_GUI && !*args::ARGS_CHECK && !*args::ARGS_UPDATE {
         if download {
-            let current_mb = get_float((downloaded as f32) / 1024.0 / 1024.0);
-            let max_mb = get_float((total_size as f32) / 1024.0 / 1024.0);
+            let current_mb = bytefmt::format(downloaded);
+            let max_mb = bytefmt::format(total_size);
             let message = format!(
                 "   {} Downloading {} {}% - {}mb of {}mb",
                 page_str,
