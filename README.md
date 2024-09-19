@@ -77,7 +77,11 @@ If you want to add more features run `cargo build -r -F [feature1] -F [feature2]
 
 `--server` - will start server from which you can download manga through local internet
 
-`--music` - will play music during downloading 1. Wushu Dolls, 2. Militech, 3. Musorshchiki
+`--music` - will play music during downloading 1. Wushu Dolls, 2. Militech, 3. You Shall Never Have to Forgive Me Again 4. Valentinos 5. Force Projection
+
+`--tutorial` - will start tutorial
+
+`--skip--tutorial` - will skip tutorial
 
 ## Subcommands
 
@@ -108,6 +112,8 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 ### settings
 
 `--folder` - will set default folder name; if its left empty then it will remove the default folder
+o
+`--stat` - will set if stat flag should be automatically enabled; 1 for yes 0 for no or nothing to remove the default option
 
 ## Help
 
@@ -127,3 +133,5 @@ First time configuration is using yt-dlp for downloading some stuff
 - Every non-final downloads and temporary files will be put in .cache folder which if empty will be deleted afterwards
 
 - Manga name will be automatically shortened when it exceeds 70 characters
+
+-- Will start tutorial when you run first time, can be reset with `mdown app --reset`

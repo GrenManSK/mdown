@@ -17,7 +17,7 @@ use crate::{ error::MdownError, getter::get_dat_path, metadata::Dat };
 ///
 /// # Returns
 /// * `Result<bool, MdownError>` - Returns `Ok(false)` if no user confirmation is required after the version change,
-/// or an error if something goes wrong (such as file I/O or JSON serialization).
+///   or an error if something goes wrong (such as file I/O or JSON serialization).
 ///
 /// # Errors
 /// * `MdownError::IoError` - If there is an issue reading or writing to the file.
@@ -36,7 +36,7 @@ use crate::{ error::MdownError, getter::get_dat_path, metadata::Dat };
 ///
 /// # Panics
 /// * The function will panic if the version parsing with `VersionReq::parse` fails,
-/// though this should not occur with valid version strings.
+///   though this should not occur with valid version strings.
 pub(crate) fn check_ver(
     dat: &mut Dat,
     mut version: Version,

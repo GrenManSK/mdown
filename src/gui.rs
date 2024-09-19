@@ -175,6 +175,7 @@ impl eframe::App for App {
                                 );
                                 let url = self.url.clone();
                                 *resolute::SAVER.lock() = self.saver;
+                                resolute::SCANLATION_GROUPS.lock().clear();
                                 let _ = tokio::spawn(async move {
                                     let _ = resolve_download(&url, handle_id).await;
                                 });
@@ -191,8 +192,8 @@ impl eframe::App for App {
 
                             if !resolute::SCANLATION_GROUPS.lock().is_empty() {
                                 ui.label("Scanlation group:");
-                                for (i, _) in resolute::SCANLATION_GROUPS.lock().iter() {
-                                    ui.label(i);
+                                for i in resolute::SCANLATION_GROUPS.lock().iter() {
+                                    ui.label(i.name.clone());
                                 }
                             }
                         })
@@ -268,8 +269,8 @@ impl eframe::App for App {
                             if !resolute::SCANLATION_GROUPS.lock().is_empty() {
                                 ui.with_layout(Layout::top_down(egui::Align::Center), |ui| {
                                     ui.label("Scanlation group:");
-                                    for (i, _) in resolute::SCANLATION_GROUPS.lock().iter() {
-                                        ui.label(i);
+                                    for i in resolute::SCANLATION_GROUPS.lock().iter() {
+                                        ui.label(i.name.clone());
                                     }
                                 });
                             }

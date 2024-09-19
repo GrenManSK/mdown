@@ -1,7 +1,15 @@
 use rusqlite::{ Connection, OptionalExtension, params };
 use std::{ io::{ Read, Write }, process::Command, result::Result };
 
-use crate::{ args, download, debug, error::MdownError, getter, metadata };
+use crate::{
+    args,
+    download,
+    debug,
+    error::{ MdownError, suspend_error },
+    getter,
+    metadata,
+    tutorial::TUTORIAL,
+};
 
 include!(concat!(env!("OUT_DIR"), "/data_json.rs"));
 
@@ -745,7 +753,7 @@ pub(crate) fn setup_settings() -> Result<metadata::Settings, MdownError> {
 
     // Update settings in the database based on command-line arguments
     match args::ARGS.lock().subcommands.clone() {
-        Some(args::Commands::Settings { folder }) => {
+        Some(args::Commands::Settings { folder, stat }) => {
             match folder {
                 Some(Some(folder)) => {
                     match write_resource(&conn, "folder", folder.as_bytes(), false) {
@@ -757,6 +765,34 @@ pub(crate) fn setup_settings() -> Result<metadata::Settings, MdownError> {
                 }
                 Some(None) => {
                     match delete_resource(&conn, "folder") {
+                        Ok(_id) => (),
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    }
+                }
+                None => (),
+            }
+            match stat {
+                Some(Some(stat)) => {
+                    if stat != "0" || stat != "1" {
+                        match write_resource(&conn, "stat", stat.as_bytes(), false) {
+                            Ok(_id) => (),
+                            Err(err) => {
+                                return Err(err);
+                            }
+                        }
+                    } else {
+                        suspend_error(
+                            MdownError::CustomError(
+                                String::from("stat should be 1 or 0"),
+                                String::from("UserError")
+                            )
+                        );
+                    }
+                }
+                Some(None) => {
+                    match delete_resource(&conn, "stat") {
                         Ok(_id) => (),
                         Err(err) => {
                             return Err(err);
@@ -791,11 +827,117 @@ pub(crate) fn setup_settings() -> Result<metadata::Settings, MdownError> {
             return Err(err);
         }
     };
+    // Read the stat setting from the database
+    let stat = match read_resource(&conn, "stat") {
+        Ok(Some(value)) =>
+            match
+                String::from_utf8(value).map_err(|e|
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                )
+            {
+                Ok(stat) => {
+                    let stat = match stat.as_str() {
+                        "1" => true,
+                        "0" => false,
+                        _ => {
+                            suspend_error(
+                                MdownError::CustomError(
+                                    String::from("stat should be 1 or 0"),
+                                    String::from("UserError")
+                                )
+                            );
+                            false
+                        }
+                    };
+                    debug!("stat from database: {:?}", stat);
+                    stat
+                }
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+        Ok(None) => args::ARGS.lock().stat,
+        Err(err) => {
+            return Err(err);
+        }
+    };
 
     // Create and return the settings object
-    let settings = metadata::Settings { folder };
+    let settings = metadata::Settings { folder, stat };
 
     debug!("{:?}\n", settings);
 
     Ok(settings)
+}
+
+pub(crate) fn check_tutorial() -> Result<(), MdownError> {
+    debug!("check_tutorial");
+
+    // Retrieve the database path
+    let db_path = match getter::get_db_path() {
+        Ok(path) => path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    // Open a connection to the database
+    let conn = match Connection::open(&db_path) {
+        Ok(conn) => conn,
+        Err(err) => {
+            return Err(MdownError::DatabaseError(err));
+        }
+    };
+
+    match read_resource(&conn, "tutorial") {
+        Ok(Some(value)) =>
+            match
+                String::from_utf8(value).map_err(|e|
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                )
+            {
+                Ok(tutorial) => {
+                    debug!("tutorial from database: {:?}", tutorial);
+                    if tutorial == "1" {
+                        *TUTORIAL.lock() = true;
+                    }
+                }
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+        Ok(None) => {
+            if
+                !*args::ARGS_WEB &&
+                !*args::ARGS_GUI &&
+                !*args::ARGS_CHECK &&
+                !*args::ARGS_UPDATE &&
+                !*args::ARGS_QUIET &&
+                !*args::ARGS_RESET &&
+                !args::ARGS_SHOW.is_some() &&
+                !args::ARGS_SHOW_ALL.is_some() &&
+                *args::ARGS_ENCODE == String::new() &&
+                !*args::ARGS_DELETE &&
+                !*args::ARGS_SHOW_LOG
+            {
+                *TUTORIAL.lock() = true;
+                match write_resource(&conn, "tutorial", b"0", false) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(err);
+                    }
+                };
+            }
+        }
+        Err(err) => {
+            return Err(err);
+        }
+    }
+
+    if *args::ARGS_TUTORIAL {
+        *TUTORIAL.lock() = true;
+    } else if *args::ARGS_SKIP_TUTORIAL {
+        *TUTORIAL.lock() = false;
+    }
+    Ok(())
 }

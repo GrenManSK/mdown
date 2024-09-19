@@ -33,7 +33,7 @@ pub(crate) fn setup_requirements(file_path: String) {
     let _ = initscr();
     curs_set(2);
     start_color();
-    crosscurses::echo();
+    crosscurses::noecho();
     crosscurses::cbreak();
     let file_path_temp = file_path.clone();
     tokio::spawn(async move { print_version(&file_path).await });
@@ -362,7 +362,14 @@ pub(crate) fn is_valid_uuid(s: &str) -> bool {
 }
 
 pub(crate) fn clear_screen(from: u32) {
-    if !*args::ARGS_WEB && !*args::ARGS_GUI && !*args::ARGS_CHECK && !*args::ARGS_UPDATE {
+    // if crosscurses is not used DO NOT let this run
+    if
+        !*args::ARGS_WEB &&
+        !*args::ARGS_GUI &&
+        !*args::ARGS_CHECK &&
+        !*args::ARGS_UPDATE &&
+        !*args::ARGS_QUIET
+    {
         for i in from..MAXPOINTS.max_y {
             string(i, 0, &" ".repeat(MAXPOINTS.max_x as usize));
         }
@@ -441,7 +448,7 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
             4,
             MAXPOINTS.max_x - 60,
             &format!(
-                "{:.2}% {:.2}mb/{:.2}mb [{:.2}mb remaining] [{:.2}s]",
+                " {:.2}% {:.2}mb/{:.2}mb [{:.2}mb remaining] [{:.2}s]",
                 percent,
                 size,
                 full_size,
@@ -752,6 +759,15 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
 }
 
 pub(crate) async fn print_version(file: &str) {
+    if
+        !*args::ARGS_WEB &&
+        !*args::ARGS_GUI &&
+        !*args::ARGS_CHECK &&
+        !*args::ARGS_UPDATE &&
+        !*args::ARGS_SERVER
+    {
+        return;
+    }
     let version = get_current_version();
     for _ in 0..50 {
         string(MAXPOINTS.max_y - 1, 0, &format!("Current version: {}", version));
@@ -835,6 +851,11 @@ pub(crate) fn resolve_end(
         &(message.clone() + &" ".repeat((MAXPOINTS.max_x as usize) - message.len()))
     );
     Ok(())
+}
+
+pub(crate) fn show_settings(settings: metadata::Settings) {
+    println!("folder: {}", settings.folder);
+    println!("stat: {}", settings.stat);
 }
 
 pub(crate) fn is_directory_empty(path: &str) -> bool {
@@ -946,7 +967,13 @@ pub(crate) fn skip_custom<'a>(
     resolve_move(moves, hist, 3, 0)
 }
 
-pub(crate) fn skip(attr: String, item: usize, moves: u32, hist: &mut Vec<String>) -> u32 {
+pub(crate) fn skip(
+    attr: String,
+    item: usize,
+    moves: u32,
+    hist: &mut Vec<String>,
+    start: u32
+) -> u32 {
     let al_dow = format!("({}) Skipping because file is already downloaded {}", item, attr);
     if
         *args::ARGS_WEB ||
@@ -958,7 +985,7 @@ pub(crate) fn skip(attr: String, item: usize, moves: u32, hist: &mut Vec<String>
         log!(&al_dow);
     }
     hist.push(al_dow);
-    resolve_move(moves, hist, 3, 0)
+    resolve_move(moves, hist, start, 0)
 }
 pub(crate) fn skip_offset(item: usize, moves: u32, hist: &mut Vec<String>) -> u32 {
     let al_dow = format!("({}) Skipping because of offset", item);

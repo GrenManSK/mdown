@@ -65,7 +65,6 @@ fn zip_dir<T>(
 
         // If the path is a file, compress it.
         if path.is_file() {
-            string(5, start + (times as u32), "#");
             #[allow(deprecated)]
             match zip.start_file_from_path(name, options) {
                 Ok(()) => (),
@@ -105,6 +104,7 @@ fn zip_dir<T>(
                 }
             };
         }
+        string(5, start + (times as u32), "#");
     }
 
     // Finalize the ZIP archive.

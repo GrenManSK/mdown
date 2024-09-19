@@ -1,8 +1,10 @@
 [package]
 name = "mdown"
-version = "0.12.1"
+version = "0.12.2"
 edition = "2021"
-authors = ["GrenManSK"]
+authors = ["GrenManSK <melnicek.richard@gmail.com>"]
+license = "GPL-3.0"
+repository = "https://github.com/GrenManSK/mdown"
 
 build = "src/build.rs"
 

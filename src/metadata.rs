@@ -8,6 +8,7 @@ use crate::resolute;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Settings {
     pub(crate) folder: String,
+    pub(crate) stat: bool,
 }
 
 /// Contains metadata for a specific manga chapter.
@@ -338,4 +339,13 @@ pub(crate) struct RatingDistribution {
 pub(crate) enum Saver {
     data,
     dataSaver,
+}
+
+#[cfg(feature = "music")]
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum MusicStage {
+    None,
+    Init,
+    Start,
+    End,
 }

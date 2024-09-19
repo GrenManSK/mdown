@@ -110,6 +110,7 @@ mod getter;
 mod macros;
 mod metadata;
 mod resolute;
+mod tutorial;
 mod utils;
 mod version_manager;
 mod zip_func;
@@ -286,8 +287,14 @@ async fn start() -> Result<(), error::MdownError> {
         }
     };
 
+    if *args::ARGS_SHOW_SETTINGS {
+        utils::show_settings(settings);
+        return Ok(());
+    }
+
     // Update arguments with folder settings from the configuration
     args::ARGS.lock().change("folder", args::Value::Str(settings.folder));
+    args::ARGS.lock().change("stat", args::Value::Bool(settings.stat));
 
     // Handle encoding argument
     if !(*args::ARGS_ENCODE).is_empty() {
@@ -484,11 +491,23 @@ async fn start() -> Result<(), error::MdownError> {
         debug!("id acquired: {}\n", id);
         *resolute::MANGA_ID.lock() = id.clone();
         string(0, 0, &format!("Extracted ID: {}", id));
+        match db::check_tutorial() {
+            Ok(_) => {}
+            Err(err) => {
+                error::suspend_error(err);
+            }
+        }
         string(1, 0, "Getting manga information ...");
+        if *tutorial::TUTORIAL.lock() {
+            tutorial::manga_info();
+        }
         match getter::get_manga_json(&id).await {
             Ok(manga_name_json) => {
                 string(1, 0, "Getting manga information DONE");
-                *resolute::MUSIC_STAGE.lock() = String::from("init");
+                #[cfg(feature = "music")]
+                {
+                    *resolute::MUSIC_STAGE.lock() = metadata::MusicStage::Init;
+                }
                 let json_value = match utils::get_json(&manga_name_json) {
                     Ok(value) => value,
                     Err(err) => {
@@ -510,28 +529,32 @@ async fn start() -> Result<(), error::MdownError> {
             }
             Err(code) => {
                 string(1, 0, "Getting manga information ERROR");
-                let code = code.into();
-                let parts: Vec<&str> = code.split_whitespace().collect();
-
-                if let Some(status_code_tmp) = parts.first() {
-                    status_code = match
-                        reqwest::StatusCode::from_u16(match status_code_tmp.parse::<u16>() {
-                            Ok(code) => code,
-                            Err(_err) => 0,
-                        })
-                    {
-                        Ok(code) => code,
-                        Err(err) => {
-                            return Err(
-                                error::MdownError::CustomError(
-                                    err.to_string(),
-                                    String::from("InvalidStatusCode")
-                                )
-                            );
+                println!("{}", code);
+                match code {
+                    error::MdownError::NetworkError(ref err) => {
+                        if let Some(status_error) = err.status() {
+                            status_code = status_error;
+                        } else {
+                            let code = code.into();
+                            let parts: Vec<&str> = code.split_whitespace().collect();
+                            if let Some(status_code_tmp) = parts.first() {
+                                let number = status_code_tmp.parse::<u16>().unwrap_or_default();
+                                if number != 0 {
+                                    if
+                                        let Ok(status_code_tmp) =
+                                            reqwest::StatusCode::from_u16(number)
+                                    {
+                                        status_code = status_code_tmp;
+                                    }
+                                }
+                            } else {
+                                println!("Invalid status string");
+                            }
                         }
-                    };
-                } else {
-                    println!("Invalid status string");
+                    }
+                    _ => {
+                        println!("Unexpected error");
+                    }
                 }
             }
         }
@@ -604,13 +627,12 @@ pub(crate) async fn download_manga(
     let manga_name = &*resolute::MANGA_NAME.lock().clone();
     let volume = args::ARGS.lock().volume.clone();
     let chapter = args::ARGS.lock().chapter.clone();
+    // Volume to download set by user
     let arg_volume = getter::get_arg(&volume);
+    // Chapter to download set by user
     let arg_chapter = getter::get_arg(&chapter);
-    let arg_offset: u32 = match getter::get_arg(&args::ARGS.lock().offset).parse() {
-        Ok(value) => value,
-        Err(_err) => 0,
-    };
-
+    // Offset set by user
+    let arg_offset: u32 = getter::get_arg(&args::ARGS.lock().offset).parse().unwrap_or_default();
     // Initialize storage for downloaded files and other metrics
     let (mut downloaded, hist) = (vec![], &mut vec![]);
     let (mut times, mut moves) = (0, 0);
@@ -622,29 +644,133 @@ pub(crate) async fn download_manga(
             return Err(err);
         }
     };
-    let mut all_ids = vec![];
+    // To rate limit the download speed so we would not exceed rate limit
+    let interval = std::time::Duration::from_millis(1000);
 
-    debug!("checking for .cbz files");
+    let mut all_ids = vec![];
+    let mut all_num = vec![];
+
+    debug!("checking for .cbz files in {}", resolute::MWD.lock());
 
     // Search for existing .cbz files and collect their metadata
     if let Ok(value) = glob("*.cbz") {
         for entry in value.filter_map(Result::ok) {
             if let Some(entry) = entry.to_str() {
                 debug!("found entry in glob: {}", entry);
-                if let Ok(manga_id) = resolute::check_for_metadata(entry) {
-                    all_ids.push(manga_id.id.clone());
+                if let Ok(manga) = resolute::check_for_metadata(entry) {
+                    all_ids.push(manga.id.clone());
+                    all_num.push(manga.chapter.clone());
                 }
             }
         }
     }
+    // Search for existing .cbz files and collect their metadata
+    if let Ok(value) = glob(&format!("{}\\*.cbz", getter::get_folder_name())) {
+        for entry in value.filter_map(Result::ok) {
+            if let Some(entry) = entry.to_str() {
+                debug!("found entry in glob: {}", entry);
+                if let Ok(manga) = resolute::check_for_metadata(entry) {
+                    all_ids.push(manga.id.clone());
+                    all_num.push(manga.chapter.clone());
+                }
+            }
+        }
+    }
+    debug!("found ids {:?}", all_ids);
+    debug!("found chapter numbers {:?}", all_num);
+
+    let mut tutorial_skip = true;
+    let mut tutorial_metadata = true;
 
     // Parse the manga JSON to extract chapter information
     match serde_json::from_value::<metadata::MangaResponse>(json_value) {
         Ok(obj) => {
             debug!("parsed manga data");
-            let data_array = utils::sort(&obj.data);
+            let mut data_array = utils::sort(&obj.data);
+            debug!("data array sorted");
+
+            match resolute::parse_scanlation_file() {
+                Ok(()) => (),
+                Err(_err) => (),
+            }
+
             let data_len = data_array.len();
             *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() = data_len as u64;
+
+            if !*args::ARGS_CHECK {
+                let mut index = 0;
+                let mut data_number = 0;
+                while index < data_array.len() {
+                    let parsed = format!(
+                        "   Parsed chapters: {}/{}",
+                        resolute::CURRENT_CHAPTER_PARSED.lock(),
+                        resolute::CURRENT_CHAPTER_PARSED_MAX.lock()
+                    );
+                    string(0, MAXPOINTS.max_x - (parsed.len() as u32), &parsed);
+
+                    let array_item = getter::get_attr_as_same_from_vec(&data_array, index);
+                    let value = array_item.id.clone();
+                    let id = value.trim_matches('"');
+                    let id_string = id.to_string();
+                    let (chapter_attr, lang, _, chapter_num, title) =
+                        getter::get_metadata(array_item);
+
+                    if
+                        (all_num.contains(&chapter_num) || all_ids.contains(&id_string)) &&
+                        !arg_force
+                    {
+                        data_array.remove(index);
+                        let vol = match chapter_attr.volume.unwrap_or_default().as_str() {
+                            "" => String::new(),
+                            value => format!("Vol.{} ", value),
+                        };
+
+                        filename = utils::FileName {
+                            manga_name: manga_name.to_string(),
+                            vol: vol.to_string(),
+                            chapter_num: chapter_num.to_string(),
+                            title: title.to_string(),
+                            folder: getter::get_folder_name().to_string(),
+                        };
+
+                        let folder_path = filename.get_folder_name();
+                        moves = utils::skip(folder_path, data_number, moves, hist, 1);
+                        *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() -= 1;
+                        debug!("Removing {} from data array because is already downloaded", id_string);
+                    } else if lang != language && language != "*" {
+                        data_array.remove(index);
+                        let vol = match chapter_attr.volume.unwrap_or_default().as_str() {
+                            "" => String::new(),
+                            value => format!("Vol.{} ", value),
+                        };
+
+                        filename = utils::FileName {
+                            manga_name: manga_name.to_string(),
+                            vol: vol.to_string(),
+                            chapter_num: chapter_num.to_string(),
+                            title: title.to_string(),
+                            folder: getter::get_folder_name().to_string(),
+                        };
+
+                        let folder_path = filename.get_folder_name();
+                        moves = utils::skip(folder_path, data_number, moves, hist, 1);
+                        *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() -= 1;
+                        debug!(
+                            "Removing {} from data array because wrong language; found '{}', target '{}'",
+                            id_string,
+                            lang,
+                            language
+                        );
+                    } else {
+                        index += 1;
+                    }
+                    data_number += 1;
+                }
+                debug!("Removed {} entries", data_len - index);
+            }
+            let data_len = data_array.len();
+            *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() = data_len as u64;
+            utils::clear_screen(1);
 
             // Process each chapter
             for item in 0..data_len {
@@ -655,14 +781,8 @@ pub(crate) async fn download_manga(
                     resolute::CURRENT_CHAPTER_PARSED.lock(),
                     resolute::CURRENT_CHAPTER_PARSED_MAX.lock()
                 );
-                if
-                    !*args::ARGS_WEB &&
-                    !*args::ARGS_GUI &&
-                    !*args::ARGS_CHECK &&
-                    !*args::ARGS_UPDATE
-                {
-                    string(0, MAXPOINTS.max_x - (parsed.len() as u32), &parsed);
-                }
+                string(0, MAXPOINTS.max_x - (parsed.len() as u32), &parsed);
+
                 let array_item = getter::get_attr_as_same_from_vec(&data_array, item);
                 let value = array_item.id.clone();
                 let id = value.trim_matches('"');
@@ -682,6 +802,10 @@ pub(crate) async fn download_manga(
                     log!(&message);
                 }
                 string(1, 0, &format!(" {}", message));
+
+                if *tutorial::TUTORIAL.lock() && item == 0 {
+                    tutorial::found_chapter();
+                }
 
                 let (chapter_attr, lang, pages, chapter_num, mut title) =
                     getter::get_metadata(array_item);
@@ -794,7 +918,7 @@ pub(crate) async fn download_manga(
                         resolute::CHAPTERS
                             .lock()
                             .push(metadata::ChapterMetadata::new(&chapter_num, &update_date, id));
-                        moves = utils::skip(folder_path, item, moves, hist);
+                        moves = utils::skip(folder_path, item, moves, hist, 2);
                         continue;
                     }
                 }
@@ -803,11 +927,19 @@ pub(crate) async fn download_manga(
                 if con_vol {
                     debug!("skipping because volume didn't match");
                     moves = utils::skip_didnt_match("volume", item, moves, hist);
+                    if *tutorial::TUTORIAL.lock() && tutorial_skip {
+                        tutorial::skip();
+                        tutorial_skip = false;
+                    }
                     continue;
                 }
                 if con_chap {
                     debug!("skipping because chapter didn't match");
                     moves = utils::skip_didnt_match("chapter", item, moves, hist);
+                    if *tutorial::TUTORIAL.lock() && tutorial_skip {
+                        tutorial::skip();
+                        tutorial_skip = false;
+                    }
                     continue;
                 }
                 if pages == 0 {
@@ -815,16 +947,28 @@ pub(crate) async fn download_manga(
                         "skipping because variable pages is 0; probably because chapter is not supported on mangadex, third party"
                     );
                     moves = utils::skip_custom("pages is 0", item, moves, hist);
+                    if *tutorial::TUTORIAL.lock() && tutorial_skip {
+                        tutorial::skip();
+                        tutorial_skip = false;
+                    }
                     continue;
                 }
                 if
-                    (lang == language || language == "*") &&
-                    !resolute::CHAPTERS
-                        .lock()
-                        .iter()
-                        .any(|item| item.number == chapter_num) &&
-                    !all_ids.contains(&id_string)
+                    ((lang == language || language == "*") &&
+                        !resolute::CHAPTERS
+                            .lock()
+                            .iter()
+                            .any(|item| item.number == chapter_num) &&
+                        !all_ids.contains(&id_string)) ||
+                    arg_force
                 {
+                    if *args::ARGS_CHECK {
+                        if all_num.contains(&chapter_num) {
+                            debug!("chapter number is already in database");
+                            continue;
+                        }
+                        debug!("{}, {}", id, chapter_num);
+                    }
                     debug!("chapter went through customs and is ready to be downloaded");
                     if *args::ARGS_CHECK {
                         let dates = resolute::CHAPTER_DATES.lock();
@@ -874,6 +1018,10 @@ pub(crate) async fn download_manga(
                         log!(&message);
                     }
                     string(2, 0, &message);
+                    if *tutorial::TUTORIAL.lock() && tutorial_metadata {
+                        tutorial::metadata();
+                        tutorial_metadata = false;
+                    }
                     if
                         !*args::ARGS_CHECK ||
                         !resolute::CHAPTERS
@@ -895,8 +1043,8 @@ pub(crate) async fn download_manga(
                             Err(err) => {
                                 handle_error!(&err, String::from("group"));
                                 metadata::ScanlationMetadata {
-                                    name: String::from("null"),
-                                    website: String::from("null"),
+                                    name: String::from("None"),
+                                    website: String::from("None"),
                                 }
                             }
                         };
@@ -905,6 +1053,9 @@ pub(crate) async fn download_manga(
                             scanlation_group.name,
                             scanlation_group.website
                         );
+
+                        let start_time = std::time::Instant::now();
+
                         match getter::get_chapter(id).await {
                             Ok(json) => {
                                 let json_value = match utils::get_json(&json) {
@@ -921,7 +1072,10 @@ pub(crate) async fn download_manga(
                                         return Err(error::MdownError::JsonError(err.to_string()));
                                     }
                                 };
-                                *resolute::MUSIC_STAGE.lock() = String::from("start");
+                                #[cfg(feature = "music")]
+                                {
+                                    *resolute::MUSIC_STAGE.lock() = metadata::MusicStage::Start;
+                                }
                                 debug!("starting to download chapter");
                                 match
                                     download_chapter(
@@ -943,10 +1097,12 @@ pub(crate) async fn download_manga(
                         if *IS_END.lock() {
                             return Ok(downloaded);
                         }
-                        match resolute::get_scanlation_group_to_file(&scanlation_group) {
-                            Ok(()) => (),
-                            Err(err) => {
-                                return Err(err);
+                        if !resolute::SCANLATION_GROUPS.lock().contains(&scanlation_group) {
+                            match resolute::get_scanlation_group_to_file(&scanlation_group) {
+                                Ok(()) => (),
+                                Err(err) => {
+                                    return Err(err);
+                                }
                             }
                         }
                         utils::clear_screen(5);
@@ -967,6 +1123,20 @@ pub(crate) async fn download_manga(
                                     error::MdownError::IoError(err, folder_path.to_string())
                                 );
                             }
+                        }
+
+                        let elapsed = std::time::Instant::now().duration_since(start_time);
+
+                        if elapsed < interval && item + 1 != data_len {
+                            string(
+                                8,
+                                0,
+                                &format!(
+                                    "  Sleeping for {} seconds",
+                                    (interval - elapsed).as_secs_f64()
+                                )
+                            );
+                            std::thread::sleep(interval - elapsed);
                         }
 
                         utils::clear_screen(2);
@@ -993,6 +1163,15 @@ pub(crate) async fn download_manga(
                     );
                     string(2, 0, &format!("  {}", message));
 
+                    if *tutorial::TUTORIAL.lock() && tutorial_skip {
+                        tutorial::skip();
+                        tutorial_skip = false;
+                    }
+
+                    if *args::ARGS_CHECK {
+                        all_num.push(chapter_num);
+                    }
+
                     if
                         *args::ARGS_WEB ||
                         *args::ARGS_GUI ||
@@ -1006,6 +1185,12 @@ pub(crate) async fn download_manga(
                     *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() -= 1;
                 }
             }
+            let parsed = format!(
+                "   Parsed chapters: {}/{}",
+                resolute::CURRENT_CHAPTER_PARSED.lock(),
+                resolute::CURRENT_CHAPTER_PARSED_MAX.lock()
+            );
+            string(0, MAXPOINTS.max_x - (parsed.len() as u32), &parsed);
         }
         Err(err) => {
             return Err(error::MdownError::JsonError(err.to_string()));
@@ -1281,6 +1466,11 @@ pub(crate) async fn download_chapter(
         });
 
         utils::progress_bar_preparation(start, images_length, 4);
+
+        if *tutorial::TUTORIAL.lock() && *tutorial::TUTORIAL_CHAPTER.lock() {
+            tutorial::images();
+            *tutorial::TUTORIAL_CHAPTER.lock() = false;
+        }
 
         futures::future::join_all(tasks).await;
 

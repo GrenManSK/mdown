@@ -50,8 +50,11 @@ lazy_static! {
     /// The show all setting specified by the user, if any.
     pub(crate) static ref ARGS_SHOW_ALL: Option<Option<String>> = ARGS.lock().show_all.clone();
 
-    /// Indicates whether log output is enabled.
+    /// Show log output is enabled.
     pub(crate) static ref ARGS_SHOW_LOG: bool = ARGS.lock().show_log;
+
+    /// Indicates whether log output is enabled.
+    pub(crate) static ref ARGS_SHOW_SETTINGS: bool = ARGS.lock().show_settings;
 
     /// Indicates whether web mode is enabled.
     pub(crate) static ref ARGS_WEB: bool = ARGS.lock().web;
@@ -61,6 +64,10 @@ lazy_static! {
 
     /// Indicates whether the server mode is enabled.
     pub(crate) static ref ARGS_SERVER: bool = ARGS.lock().server;
+
+    pub(crate) static ref ARGS_TUTORIAL: bool = ARGS.lock().tutorial;
+
+    pub(crate) static ref ARGS_SKIP_TUTORIAL: bool = ARGS.lock().skip_tutorial;
 
     /// Indicates whether to reset the application.
     pub(crate) static ref ARGS_RESET: bool = match ARGS.lock().subcommands {
@@ -111,6 +118,7 @@ lazy_static! {
 )]
 #[clap(group = ArgGroup::new("Search-Options").args(&["url", "search"]))]
 #[clap(group = ArgGroup::new("Mod-Options").args(&["web", "server", "gui", "encode"]))]
+#[clap(group = ArgGroup::new("Tutorial-Options").args(&["tutorial", "skip_tutorial"]))]
 pub(crate) struct ParserArgs {
     /// URL of the manga to be downloaded. Provide in the format `https://mangadex.org/title/[id]/` or UUID.
     #[arg(
@@ -256,6 +264,12 @@ pub(crate) struct ParserArgs {
     #[arg(long, next_line_help = true, help = "print log and write it in log,json")]
     pub(crate) log: bool,
 
+    #[arg(long, next_line_help = true, help = "will run tutorial")]
+    pub(crate) tutorial: bool,
+
+    #[arg(long, next_line_help = true, help = "will not run tutorial")]
+    pub(crate) skip_tutorial: bool,
+
     /// Search for manga by title.
     #[arg(
         long,
@@ -265,6 +279,14 @@ pub(crate) struct ParserArgs {
     )]
     pub(crate) search: String,
 
+    /// Play music during downloading. Options include 1. Wushu Dolls, 2. Militech, 3. You Shall Never Have to Forgive Me Again, 4. Valentinos, 5. Force Projection. Default is 1.
+    #[arg(
+        long,
+        next_line_help = true,
+        help = "Will play music during downloading\n1. Wushu Dolls\n2. Militech\n3. You Shall Never Have to Forgive Me Again\n4. Valentinos\n5. Force Projection\n[default: 1]"
+    )]
+    pub(crate) music: Option<Option<String>>,
+
     /// Enter web mode and open browser on port 8080. The core lock file will not be initialized, and results will be printed gradually during the download process.
     #[arg(
         short,
@@ -273,14 +295,6 @@ pub(crate) struct ParserArgs {
         help = "enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed gradually during download process"
     )]
     pub(crate) web: bool,
-
-    /// Play music during downloading. Options include 1. Wushu Dolls, 2. Militech, 3. Musorshchiki, 4. Valentinos. Default is 1.
-    #[arg(
-        long,
-        next_line_help = true,
-        help = "Will play music during downloading\n1. Wushu Dolls\n2. Militech\n3. Musorshchiki\n4. Valentinos\n[default: 1]"
-    )]
-    pub(crate) music: Option<Option<String>>,
 
     /// Start a server mode.
     #[arg(long, next_line_help = true, help = "Starts server")]
@@ -337,6 +351,10 @@ pub(crate) enum Commands {
         /// Show current logs in the database.
         #[arg(long, next_line_help = true, help = "Shows current logs in database")]
         show_log: bool,
+
+        /// Show current logs in the database.
+        #[arg(long, next_line_help = true, help = "Shows current logs in database")]
+        show_settings: bool,
     },
 
     /// Subcommands related to application settings.
@@ -348,6 +366,13 @@ pub(crate) enum Commands {
             help = "set default name of folder\n[default: Will remove current folder setting]"
         )]
         folder: Option<Option<String>>,
+        /// Set if --stat flag should be default.
+        #[arg(
+            long,
+            next_line_help = true,
+            help = "set if --stat should be default\n[default: Will remove current folder setting; 1 is for yes, 0 for no]"
+        )]
+        stat: Option<Option<String>>,
     },
 
     /// Subcommands related to application management.
@@ -378,7 +403,6 @@ pub(crate) enum Commands {
 /// Enum for different types of values used in the application.
 pub(crate) enum Value {
     /// A boolean value.
-    #[allow(dead_code)]
     Bool(bool),
 
     /// A string value.
@@ -406,10 +430,13 @@ pub(crate) struct Args {
     pub(crate) log: bool,
     pub(crate) check: bool,
     pub(crate) update: bool,
+    pub(crate) tutorial: bool,
+    pub(crate) skip_tutorial: bool,
     pub(crate) search: String,
     pub(crate) show: Option<Option<String>>,
     pub(crate) show_all: Option<Option<String>>,
     pub(crate) show_log: bool,
+    pub(crate) show_settings: bool,
     pub(crate) web: bool,
     pub(crate) server: bool,
     pub(crate) gui: bool,
@@ -428,8 +455,14 @@ impl Args {
     /// * `typ` - The type of value to update.
     /// * `to` - The new value to set.
     pub(crate) fn change(&mut self, typ: &str, to: Value) {
-        if let ("folder", Value::Str(value)) = (typ, to) {
-            self.folder = value;
+        match (typ, to) {
+            ("folder", Value::Str(value)) => {
+                self.folder = value;
+            }
+            ("stat", Value::Bool(value)) => {
+                self.stat = value;
+            }
+            (_, _) => (),
         }
     }
 
@@ -482,6 +515,10 @@ impl Args {
                 Commands::Database { show_log, .. } => *show_log,
                 _ => false,
             },
+            show_settings: match subcommands {
+                Commands::Database { show_settings, .. } => *show_settings,
+                _ => false,
+            },
             web: args.web,
             server: args.server,
             search: args.search,
@@ -490,6 +527,8 @@ impl Args {
             debug_file: args.debug_file,
             dev: args.dev,
             music: args.music,
+            tutorial: args.tutorial,
+            skip_tutorial: args.skip_tutorial,
             subcommands: args.subcommands,
         }
     }
@@ -548,6 +587,7 @@ impl Args {
             show: ARGS_SHOW.clone(),
             show_all: ARGS_SHOW_ALL.clone(),
             show_log: *ARGS_SHOW_LOG,
+            show_settings: *ARGS_SHOW_SETTINGS,
             web: *ARGS_WEB,
             server: *ARGS_SERVER,
             search: String::new(),
@@ -556,6 +596,8 @@ impl Args {
             debug_file: *ARGS_DEBUG_FILE,
             dev: *ARGS_DEV,
             music: ARGS_MUSIC.clone(),
+            tutorial: *ARGS_TUTORIAL,
+            skip_tutorial: *ARGS_SKIP_TUTORIAL,
             subcommands: ARGS.lock().subcommands.clone(),
         }
     }

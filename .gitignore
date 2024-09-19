@@ -15,3 +15,4 @@ github_info.txt
 release.py
 *.exe
 /resources/music/M*
+debug.log

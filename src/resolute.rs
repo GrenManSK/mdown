@@ -4,7 +4,12 @@ use parking_lot::Mutex;
 use remove_dir_all::remove_dir_all;
 use semver::{ BuildMetadata, Prerelease, Version };
 use serde_json::{ Map, Value };
-use std::{ collections::HashMap, fs::{ self, File, OpenOptions }, io::{ Read, Write }, sync::Arc };
+use std::{
+    collections::HashMap,
+    fs::{ self, File, OpenOptions },
+    io::{ BufRead, Read, Write },
+    sync::Arc,
+};
 
 use crate::{
     args::{ self, ARGS },
@@ -33,8 +38,11 @@ use crate::{
     zip_func,
 };
 
+#[cfg(feature = "music")]
+use crate::metadata::MusicStage;
+
 lazy_static! {
-    pub(crate) static ref SCANLATION_GROUPS: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new()); // ID, name
+    pub(crate) static ref SCANLATION_GROUPS: Mutex<Vec<metadata::ScanlationMetadata>> = Mutex::new(Vec::new()); // ID, name
     pub(crate) static ref WEB_DOWNLOADED: Mutex<Vec<String>> = Mutex::new(Vec::new()); // filenames
     pub(crate) static ref MANGA_NAME: Mutex<String> = Mutex::new(String::new());
     pub(crate) static ref MANGA_ID: Mutex<String> = Mutex::new(String::new());
@@ -68,7 +76,11 @@ lazy_static! {
     pub(crate) static ref FIXED_DATES: Mutex<Vec<String>> = Mutex::new(Vec::new()); // vec of chapter number which have been fixed
     pub(crate) static ref GENRES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
     pub(crate) static ref THEMES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
-    pub(crate) static ref MUSIC_STAGE: Mutex<String> = Mutex::new(String::new()); // 'init', 'start', 'end' these are the stages need to go in order or init => end
+}
+
+#[cfg(feature = "music")]
+lazy_static! {
+    pub(crate) static ref MUSIC_STAGE: Mutex<MusicStage> = Mutex::new(MusicStage::None); // 'init', 'start', 'end' these are the stages need to go in order or init => end
     pub(crate) static ref MUSIC_END: Mutex<bool> = Mutex::new(false);
 }
 pub(crate) fn args_delete() -> Result<(), MdownError> {
@@ -323,28 +335,23 @@ pub(crate) async fn show() -> Result<(), MdownError> {
             };
             if not_orig {
                 println!("Version: {}", dat.version);
-            } else {
-                if current_version > version {
-                    println!(
-                        "Version: {} (Outdated version; current {})",
-                        version,
-                        current_version
-                    );
-                    let confirmation = match check_ver(&mut dat, version, current_version) {
-                        Ok(confirmation) => confirmation,
-                        Err(err) => {
-                            suspend_error(err);
-                            false
-                        }
-                    };
-                    if confirmation {
-                        println!("NOT iMPLEMENTED");
-                        println!("Run: mdown database --update-database");
+            } else if current_version > version {
+                println!("Version: {} (Outdated version; current {})", version, current_version);
+                let confirmation = match check_ver(&mut dat, version, current_version) {
+                    Ok(confirmation) => confirmation,
+                    Err(err) => {
+                        suspend_error(err);
+                        false
                     }
-                } else {
-                    println!("Version: {}", version);
+                };
+                if confirmation {
+                    println!("NOT iMPLEMENTED");
+                    println!("Run: mdown database --update-database");
                 }
+            } else {
+                println!("Version: {}", version);
             }
+
             let data = dat.data;
             if data.is_empty() {
                 println!("No manga found");
@@ -591,7 +598,10 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
             let mut iter: i32 = -1;
             let mut to_remove = vec![];
             for item in data.iter_mut() {
-                *MUSIC_STAGE.lock() = String::from("init");
+                #[cfg(feature = "music")]
+                {
+                    *MUSIC_STAGE.lock() = MusicStage::Init;
+                }
                 iter += 1;
                 let manga_name = item.name.clone();
                 println!("Checking {}\r", manga_name);
@@ -620,6 +630,15 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                     println!("{} not found; deleting from database", &manga_name);
                     to_remove.push(iter);
                     continue;
+                }
+
+                if std::fs::metadata(format!("{}\\.cache", mwd)).is_ok() {
+                    match remove_dir_all(format!("{}\\.cache", mwd)) {
+                        Ok(()) => (),
+                        Err(err) => {
+                            eprintln!("Error: removing cache directory {}: {}", mwd, err);
+                        }
+                    };
                 }
 
                 match std::fs::rename(format!("{}\\.cache", past_mwd), format!("{}\\.cache", mwd)) {
@@ -768,7 +787,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                 }
 
                 if *args::ARGS_CHECK {
-                    println!("Checked {} ({})", &manga_name, item.id);
+                    println!("Checked  {} ({})", &manga_name, item.id);
                     let to_dow;
                     if !TO_DOWNLOAD.lock().is_empty() || !TO_DOWNLOAD_DATE.lock().is_empty() {
                         to_dow = true;
@@ -800,8 +819,11 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                 TO_DOWNLOAD_DATE.lock().clear();
                 FIXED_DATES.lock().clear();
             }
-            *MUSIC_STAGE.lock() = String::from("end");
-            *MUSIC_END.lock() = true;
+            #[cfg(feature = "music")]
+            {
+                *MUSIC_STAGE.lock() = MusicStage::End;
+                *MUSIC_END.lock() = true;
+            }
             for &index in to_remove.iter().rev() {
                 data.remove(index as usize);
             }
@@ -947,14 +969,8 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
                             .collect();
 
                         new_chapters.sort_by(|a, b| {
-                            let a_num = match a.number.parse::<u32>() {
-                                Ok(value) => value,
-                                Err(_err) => 0,
-                            };
-                            let b_num = match b.number.parse::<u32>() {
-                                Ok(value) => value,
-                                Err(_err) => 0,
-                            };
+                            let a_num = a.number.parse::<u32>().unwrap_or_default();
+                            let b_num = b.number.parse::<u32>().unwrap_or_default();
                             a_num.cmp(&b_num)
                         });
 
@@ -1309,7 +1325,10 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         log!("Downloaded manga");
     }
     *DOWNLOADING.lock() = false;
-    *MUSIC_STAGE.lock() = String::from("end");
+    #[cfg(feature = "music")]
+    {
+        *MUSIC_STAGE.lock() = MusicStage::End;
+    }
     CHAPTERS.lock().clear();
     MANGA_ID.lock().clear();
     CURRENT_CHAPTER.lock().clear();
@@ -1333,15 +1352,15 @@ pub(crate) async fn resolve_group(
         None => {
             suspend_error(MdownError::NotFoundError(String::from("resolve_group")));
             return Ok(metadata::ScanlationMetadata {
-                name: String::from("null"),
-                website: String::from("null"),
+                name: String::from("None"),
+                website: String::from("None"),
             });
         }
     };
     if scanlation_group_id.is_empty() {
         return Ok(metadata::ScanlationMetadata {
-            name: String::from("null"),
-            website: String::from("null"),
+            name: String::from("None"),
+            website: String::from("None"),
         });
     }
 
@@ -1351,10 +1370,44 @@ pub(crate) async fn resolve_group(
             return Err(err);
         }
     };
-    if name != "Unknown" && !SCANLATION_GROUPS.lock().contains_key(&scanlation_group_id) {
-        SCANLATION_GROUPS.lock().insert(scanlation_group_id, name.clone());
+
+    let scan = metadata::ScanlationMetadata { name: name.clone(), website: website.clone() };
+
+    Ok(scan)
+}
+
+pub(crate) fn parse_scanlation_file() -> Result<(), MdownError> {
+    let file_name = if ARGS.lock().update {
+        String::from("_scanlation_groups.txt")
+    } else {
+        format!("{}\\_scanlation_groups.txt", get_folder_name())
+    };
+    let file = match File::open(&file_name) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(MdownError::IoError(err, file_name));
+        }
+    };
+    let reader = std::io::BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = line.unwrap();
+        if let Some((name, website)) = parse_line(&line) {
+            SCANLATION_GROUPS.lock().push(metadata::ScanlationMetadata {
+                name: name.to_string(),
+                website: website.to_string(),
+            });
+        }
     }
-    Ok(metadata::ScanlationMetadata { name, website })
+
+    Ok(())
+}
+fn parse_line(line: &str) -> Option<(&str, &str)> {
+    if let Some((name, website)) = line.split_once(" - ") {
+        Some((name, website))
+    } else {
+        Some((line, ""))
+    }
 }
 
 pub(crate) fn get_scanlation_group_to_file(
@@ -1362,9 +1415,13 @@ pub(crate) fn get_scanlation_group_to_file(
 ) -> Result<(), MdownError> {
     let name = &scanlation.name;
     let website = &scanlation.website;
-    if name == "null" {
+    if name == "None" {
         return Ok(());
     }
+    if name != "Unknown" && !SCANLATION_GROUPS.lock().contains(scanlation) {
+        SCANLATION_GROUPS.lock().push(scanlation.clone());
+    }
+
     let file_name = if ARGS.lock().update {
         String::from("_scanlation_groups.txt")
     } else {
@@ -1378,7 +1435,13 @@ pub(crate) fn get_scanlation_group_to_file(
         }
     };
 
-    match file_inst.write_all(format!("{} - {}\n", name, website).as_bytes()) {
+    let messaage = if website == "None" {
+        format!("{}\n", name)
+    } else {
+        format!("{} - {}\n", name, website)
+    };
+
+    match file_inst.write_all(messaage.as_bytes()) {
         Ok(()) => (),
         Err(err) => eprintln!("Error: writing to {}: {}", name, err),
     }
@@ -1387,7 +1450,7 @@ pub(crate) fn get_scanlation_group_to_file(
 
 pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String), MdownError> {
     let base_url = "https://api.mangadex.org/group/";
-    let full_url = format!("{}\\{}", base_url, id);
+    let full_url = format!("{}{}", base_url, id);
 
     debug!("sending request to: {}", full_url);
 

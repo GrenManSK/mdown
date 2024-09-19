@@ -1,7 +1,7 @@
 use rodio::{ Decoder, OutputStream, Sink, Source };
 use std::{ io::Cursor, thread, time::Duration };
 
-use crate::{ args::ARGS_MUSIC, resolute::{ MUSIC_END, MUSIC_STAGE } };
+use crate::{ args::ARGS_MUSIC, metadata::MusicStage, resolute::{ MUSIC_END, MUSIC_STAGE } };
 
 include!(concat!(env!("OUT_DIR"), "/no_mp3.rs"));
 
@@ -29,6 +29,8 @@ include!(concat!(env!("OUT_DIR"), "/m3_combat_mp3.rs"));
 include!(concat!(env!("OUT_DIR"), "/m3_end_mp3.rs"));
 #[cfg(music_m3)]
 include!(concat!(env!("OUT_DIR"), "/m3_start_c_mp3.rs"));
+#[cfg(music_m3)]
+include!(concat!(env!("OUT_DIR"), "/m3_stealth_mp3.rs"));
 
 #[cfg(music_m4)]
 include!(concat!(env!("OUT_DIR"), "/m4_combat_mp3.rs"));
@@ -38,6 +40,13 @@ include!(concat!(env!("OUT_DIR"), "/m4_end_mp3.rs"));
 include!(concat!(env!("OUT_DIR"), "/m4_start_c_mp3.rs"));
 #[cfg(music_m4)]
 include!(concat!(env!("OUT_DIR"), "/m4_stealth_mp3.rs"));
+
+#[cfg(music_m5)]
+include!(concat!(env!("OUT_DIR"), "/m5_combat_mp3.rs"));
+#[cfg(music_m5)]
+include!(concat!(env!("OUT_DIR"), "/m5_end_mp3.rs"));
+#[cfg(music_m5)]
+include!(concat!(env!("OUT_DIR"), "/m5_start_c_mp3.rs"));
 
 enum State {
     Initial,
@@ -77,9 +86,9 @@ pub(crate) fn start() {
     }
 
     loop {
-        let temp = MUSIC_STAGE.lock().clone();
-        match temp.as_str() {
-            "init" => {
+        let lock = MUSIC_STAGE.lock().clone();
+        match lock {
+            MusicStage::Init => {
                 if let State::Initial = state {
                     let music = match music_pack {
                         #[cfg(music_m1)]
@@ -87,10 +96,7 @@ pub(crate) fn start() {
                         #[cfg(music_m2)]
                         2 => M2_STEALTH_MP3,
                         #[cfg(music_m3)]
-                        3 => {
-                            state = State::StealthPlaying;
-                            continue;
-                        }
+                        3 => M3_STEALTH_MP3,
                         #[cfg(music_m4)]
                         4 => M4_STEALTH_MP3,
                         _ => NO_MP3,
@@ -116,13 +122,13 @@ pub(crate) fn start() {
                     state = State::StealthPlaying;
                 }
             }
-            "start" => {
+            MusicStage::Start => {
                 if let State::StealthPlaying = state {
                     if let Some(sink) = stealth_sink.take() {
                         sink.stop();
                     }
 
-                    let music = match music_pack {
+                    let start_music = match music_pack {
                         #[cfg(music_m1)]
                         1 => M1_START_C_MP3,
                         #[cfg(music_m2)]
@@ -131,9 +137,11 @@ pub(crate) fn start() {
                         3 => M3_START_C_MP3,
                         #[cfg(music_m4)]
                         4 => M4_START_C_MP3,
+                        #[cfg(music_m5)]
+                        5 => M5_START_C_MP3,
                         _ => NO_MP3,
                     };
-                    let cursor = Cursor::new(music);
+                    let start_cursor = Cursor::new(start_music);
                     let start_sink = match Sink::try_new(&stream_handle) {
                         Ok(sink) => sink,
                         Err(err) => {
@@ -141,17 +149,13 @@ pub(crate) fn start() {
                             return;
                         }
                     };
-                    let source = match Decoder::new(cursor) {
+                    let start_source = match Decoder::new(start_cursor) {
                         Ok(source) => source,
                         Err(err) => {
                             eprintln!("Error creating decoder: {}", err);
                             return;
                         }
                     };
-                    start_sink.append(source);
-
-                    start_sink.sleep_until_end();
-                    start_sink.stop();
 
                     let music = match music_pack {
                         #[cfg(music_m1)]
@@ -162,20 +166,26 @@ pub(crate) fn start() {
                         3 => M3_COMBAT_MP3,
                         #[cfg(music_m4)]
                         4 => M4_COMBAT_MP3,
+                        #[cfg(music_m5)]
+                        5 => M5_COMBAT_MP3,
                         _ => NO_MP3,
                     };
                     let cursor = Cursor::new(music);
-                    let sink = match Sink::try_new(&stream_handle) {
-                        Ok(sink) => sink,
-                        Err(err) => {
-                            eprintln!("Error creating Sink: {}", err);
-                            return;
-                        }
-                    };
                     let source = match Decoder::new(cursor) {
                         Ok(source) => source,
                         Err(err) => {
                             eprintln!("Error creating decoder: {}", err);
+                            return;
+                        }
+                    };
+                    start_sink.append(start_source);
+
+                    start_sink.sleep_until_end();
+                    start_sink.stop();
+                    let sink = match Sink::try_new(&stream_handle) {
+                        Ok(sink) => sink,
+                        Err(err) => {
+                            eprintln!("Error creating Sink: {}", err);
                             return;
                         }
                     };
@@ -186,7 +196,7 @@ pub(crate) fn start() {
                     state = State::CombatPlaying;
                 }
             }
-            "end" => {
+            MusicStage::End => {
                 if let Some(sink) = &combat_sink {
                     let fade_duration = Duration::from_secs(2);
                     let fade_steps = 20;
@@ -213,6 +223,8 @@ pub(crate) fn start() {
                                 3 => M3_END_MP3,
                                 #[cfg(music_m4)]
                                 4 => M4_END_MP3,
+                                #[cfg(music_m5)]
+                                5 => M5_END_MP3,
                                 _ => NO_MP3,
                             };
                             let end_cursor = Cursor::new(music);
@@ -253,6 +265,8 @@ pub(crate) fn start() {
                             3 => M3_END_MP3,
                             #[cfg(music_m4)]
                             4 => M4_END_MP3,
+                            #[cfg(music_m5)]
+                            5 => M5_END_MP3,
                             _ => NO_MP3,
                         };
                         let end_cursor = Cursor::new(music);
@@ -276,14 +290,14 @@ pub(crate) fn start() {
                         end_sink.stop();
                     }
 
-                    *MUSIC_STAGE.lock() = String::new();
+                    *MUSIC_STAGE.lock() = MusicStage::None;
                 }
                 if *MUSIC_END.lock() {
                     std::process::exit(0);
                 }
                 return;
             }
-            _ => {}
+            MusicStage::None => {}
         }
     }
 }

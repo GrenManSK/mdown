@@ -134,7 +134,12 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
             (
                 "scanlation_groups",
                 serde_json::Value::Array(
-                    scanlation.values().cloned().map(serde_json::Value::String).collect()
+                    scanlation
+                        .clone()
+                        .into_iter()
+                        .map(|x| x.name)
+                        .map(serde_json::Value::String)
+                        .collect()
                 ),
             ),
         ]
@@ -398,7 +403,12 @@ fn parse_request(url: String) -> Result<String, MdownError> {
             (
                 "scanlation_groups",
                 serde_json::Value::Array(
-                    scanlation.values().cloned().map(serde_json::Value::String).collect()
+                    scanlation
+                        .clone()
+                        .into_iter()
+                        .map(|x| x.name)
+                        .map(serde_json::Value::String)
+                        .collect()
                 ),
             ),
         ]

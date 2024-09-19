@@ -18,6 +18,7 @@ use crate::{
     metadata,
     resolute::{ CURRENT_PAGE, MWD },
     string,
+    tutorial,
     utils,
 };
 /// Creates and configures a `reqwest::Client` for making HTTP requests.
@@ -133,7 +134,7 @@ pub(crate) async fn get_response(
 /// # Returns
 ///
 /// * `(u64, String)` - A tuple where the first element is the size of the content in bytes as `u64`, and the second
-/// element is the human-readable formatted size string.
+///   element is the human-readable formatted size string.
 ///
 /// # Examples
 ///
@@ -159,10 +160,8 @@ pub(crate) fn get_size(response: &reqwest::Response) -> (u64, String) {
 ///
 /// # Example
 /// ```no_run
-/// fn main() {
-///     let perc = get_perc(75);
-///     println!("Progress: {}%", perc);
-/// }
+/// let perc = get_perc(75);
+/// println!("Progress: {}%", perc);
 /// ```
 pub(crate) fn get_perc(percentage: i64) -> String {
     let mut buffer = itoa::Buffer::new();
@@ -263,6 +262,9 @@ pub(crate) async fn download_cover(
 
     // Display initial progress message
     string(2, 0, "Downloading cover_art");
+    if *tutorial::TUTORIAL.lock() {
+        tutorial::cover_art();
+    }
 
     // Fetch the cover image response
     let mut response = match get_response(image_base_url, c_hash, cover_hash, "covers").await {
@@ -624,6 +626,7 @@ pub(crate) async fn download_image(
         log!(&format!("Starting image download {}", page));
     }
 
+    // if message is outside of y do not show progress
     let download = page + 3 + 1 < (MAXPOINTS.max_y as usize);
 
     string(3 + 1, start + (page as u32) - 1, "|");
@@ -674,7 +677,7 @@ pub(crate) async fn download_image(
             );
         }
     };
-    match write!(lock_file_inst, "{:.2}", total_size) {
+    match write!(lock_file_inst, "{}", total_size) {
         Ok(()) => (),
         Err(err) => {
             suspend_error(
@@ -758,13 +761,7 @@ pub(crate) async fn download_image(
             {
                 log!(&message);
             }
-            if
-                !*args::ARGS_WEB &&
-                !*args::ARGS_GUI &&
-                !*args::ARGS_CHECK &&
-                !*args::ARGS_UPDATE &&
-                download
-            {
+            if download {
                 string(
                     3 + 1 + (page as u32),
                     0,
@@ -779,7 +776,7 @@ pub(crate) async fn download_image(
                     )
                 );
             }
-            last_size = downloaded as u64;
+            last_size = downloaded;
         }
     }
 
@@ -825,7 +822,7 @@ pub(crate) async fn download_image(
             return Err(MdownError::IoError(err, format!(".cache\\{}_{}.lock", folder_name, page)));
         }
     };
-    match lock_file.write(format!("{}", (downloaded as f64) / 1024.0 / 1024.0).as_bytes()) {
+    match lock_file.write(format!("{}", downloaded).as_bytes()) {
         Ok(_size) => (),
         Err(err) => {
             suspend_error(

@@ -10,6 +10,7 @@ use crate::{
     metadata,
     resolute,
     string,
+    tutorial,
     utils,
 };
 
@@ -504,6 +505,10 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, MdownError> {
 pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
     loop {
         string(3, 0, "Retrieving chapter info");
+        if *tutorial::TUTORIAL.lock() && *tutorial::TUTORIAL_CHAPTER_INFO.lock() {
+            tutorial::chapter_info();
+            *tutorial::TUTORIAL_CHAPTER_INFO.lock() = false;
+        }
 
         let base_url = "https://api.mangadex.org/at-home/server/";
         let full_url = format!("{}{}", base_url, id);
@@ -674,6 +679,9 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
             max_per_session,
             times_offset
         );
+        if *tutorial::TUTORIAL.lock() && times == 0 {
+            tutorial::feed(stat);
+        }
 
         debug!("sending request to: {}", full_url);
 

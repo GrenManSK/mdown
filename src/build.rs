@@ -114,6 +114,7 @@ fn setup(directory_path: &str) {
             println!("cargo::rustc-check-cfg=cfg(music_m2)");
             println!("cargo::rustc-check-cfg=cfg(music_m3)");
             println!("cargo::rustc-check-cfg=cfg(music_m4)");
+            println!("cargo::rustc-check-cfg=cfg(music_m5)");
             let out_dir = match std::env::var("OUT_DIR") {
                 Ok(out_dir) => out_dir,
                 Err(err) => {
@@ -140,7 +141,8 @@ fn setup(directory_path: &str) {
             if
                 Path::new(&format!("{}/m3_combat_mp3.rs", out_dir)).exists() &&
                 Path::new(&format!("{}/m3_end_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m3_start_c_mp3.rs", out_dir)).exists()
+                Path::new(&format!("{}/m3_start_c_mp3.rs", out_dir)).exists() &&
+                Path::new(&format!("{}/m3_stealth_mp3.rs", out_dir)).exists()
             {
                 println!("cargo:rustc-cfg=music_m3");
             }
@@ -151,6 +153,13 @@ fn setup(directory_path: &str) {
                 Path::new(&format!("{}/m4_stealth_mp3.rs", out_dir)).exists()
             {
                 println!("cargo:rustc-cfg=music_m4");
+            }
+            if
+                Path::new(&format!("{}/m5_combat_mp3.rs", out_dir)).exists() &&
+                Path::new(&format!("{}/m5_end_mp3.rs", out_dir)).exists() &&
+                Path::new(&format!("{}/m5_start_c_mp3.rs", out_dir)).exists()
+            {
+                println!("cargo:rustc-cfg=music_m5");
             }
         }
     }
