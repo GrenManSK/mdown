@@ -134,4 +134,4 @@ First time configuration is using yt-dlp for downloading some stuff
 
 - Manga name will be automatically shortened when it exceeds 70 characters
 
--- Will start tutorial when you run first time, can be reset with `mdown app --reset`
+- Will start tutorial when you run first time, can be reset with `mdown app --reset`
