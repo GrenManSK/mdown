@@ -1,5 +1,7 @@
 use eframe::egui;
 use egui::{ containers::*, * };
+use lazy_static::lazy_static;
+use parking_lot::Mutex;
 use serde_json::Value;
 use tracing::info;
 
@@ -11,6 +13,10 @@ use crate::{
     utils,
     version_manager::get_current_version,
 };
+
+lazy_static! {
+    pub(crate) static ref CURRENT_CHAPTER: Mutex<String> = Mutex::new(String::new());
+}
 
 pub(crate) fn start() -> Result<(), MdownError> {
     match app() {
@@ -59,8 +65,6 @@ struct App {
     stat: bool,
     force: bool,
     texture_handle: Option<TextureHandle>,
-    image_size: u64,
-    times: u32,
 }
 
 impl App {
@@ -97,8 +101,6 @@ impl App {
             stat: stat,
             force: force,
             texture_handle: None,
-            image_size: 0,
-            times: 0,
         }
     }
 }
@@ -200,6 +202,7 @@ impl eframe::App for App {
                     });
                 } else {
                     ui.with_layout(Layout::top_down(egui::Align::Center), |ui| {
+                        // wave thing
                         Frame::canvas(ui.style()).show(ui, |ui| {
                             ui.ctx().request_repaint();
                             let time = ui.input(|i| i.time);
@@ -277,10 +280,14 @@ impl eframe::App for App {
 
                             if self.texture_handle.is_some() {
                                 match std::fs::metadata(".cache\\preview\\preview.png") {
-                                    Ok(metadata) => {
-                                        let size = metadata.len();
-
-                                        if size != self.image_size {
+                                    Ok(_metadata) => {
+                                        if
+                                            *resolute::CURRENT_CHAPTER.lock() !=
+                                            *CURRENT_CHAPTER.lock()
+                                        {
+                                            *CURRENT_CHAPTER.lock() = resolute::CURRENT_CHAPTER
+                                                .lock()
+                                                .to_string();
                                             self.texture_handle = None;
                                         }
                                     }
@@ -290,37 +297,25 @@ impl eframe::App for App {
                             if let Some(texture_handle) = &self.texture_handle {
                                 ui.image(texture_handle);
                             } else {
-                                self.times += 1;
-                                if
-                                    let Ok(metadata) = std::fs::metadata(
-                                        ".cache\\preview\\preview.png"
-                                    )
-                                {
-                                    self.image_size = metadata.len();
-                                }
-
-                                if self.times == 10 {
-                                    self.times = 0;
-                                    match image::open(".cache\\preview\\preview.png") {
-                                        Ok(img) => {
-                                            let img_rgba8 = img.to_rgba8();
-                                            let size = [
-                                                img_rgba8.width() as usize,
-                                                img_rgba8.height() as usize,
-                                            ];
-                                            let color_image = ColorImage::from_rgba_unmultiplied(
-                                                size,
-                                                &img_rgba8
-                                            );
-                                            let texture_handle = ctx.load_texture(
-                                                "my_image",
-                                                color_image,
-                                                TextureOptions::default()
-                                            );
-                                            self.texture_handle = Some(texture_handle);
-                                        }
-                                        Err(_err) => (),
+                                match image::open(".cache\\preview\\preview.png") {
+                                    Ok(img) => {
+                                        let img_rgba8 = img.to_rgba8();
+                                        let size = [
+                                            img_rgba8.width() as usize,
+                                            img_rgba8.height() as usize,
+                                        ];
+                                        let color_image = ColorImage::from_rgba_unmultiplied(
+                                            size,
+                                            &img_rgba8
+                                        );
+                                        let texture_handle = ctx.load_texture(
+                                            "my_image",
+                                            color_image,
+                                            TextureOptions::default()
+                                        );
+                                        self.texture_handle = Some(texture_handle);
                                     }
+                                    Err(_err) => (),
                                 }
                             }
                         })

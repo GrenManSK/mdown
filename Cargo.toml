@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.12.2"
+version = "0.12.3-1"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"
@@ -47,7 +47,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
 url = "2.5.2"
 uuid = "1.10.0"
 walkdir = "2.5.0"
-webbrowser = { version = "1.0.1", optional = true }
+webbrowser = { version = "1.0.2", optional = true }
 zip = "0.6.6"
 
 
