@@ -28,7 +28,7 @@ To add feature run `cargo build -r -F [feature]`
 
 If you want to add more features run `cargo build -r -F [feature1] -F [feature2]`
 
-**IMPORTANT**  If you want to use music feature, you need to download music zip file from [pre-release](https://github.com/GrenManSK/mdown/releases/tag/music) and extract it to `resources/music/`
+**IMPORTANT**  If you want to use music feature, you need to download music zip file from [pre-release](https://github.com/GrenManSK/mdown/releases/tag/music) and extract it to `resources/music/`; if you are using outdated version of app, then it could have wrong files since it is not tracking history
 
 ---
 
@@ -121,9 +121,9 @@ o
 
 ---
 
-Using [yt-dlp](https://github.com/yt-dlp/yt-dlp);
+- Using [yt-dlp](https://github.com/yt-dlp/yt-dlp);
 
-First time configuration is using yt-dlp for downloading some stuff
+- First time configuration is using yt-dlp for downloading some stuff
 
 - If you get message that lock file is present, and you believe you don't have already have program started, use `--force-delete` option to force it to delete lock file
 
@@ -135,3 +135,5 @@ First time configuration is using yt-dlp for downloading some stuff
 - Manga name will be automatically shortened when it exceeds 70 characters
 
 - Will start tutorial when you run first time, can be reset with `mdown app --reset`
+
+- App stores manga data in `dat.json` which is located in the same directory as the original application same as `resources.db` which contains data for application
