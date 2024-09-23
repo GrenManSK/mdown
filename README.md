@@ -73,7 +73,7 @@ If you want to add more features run `cargo build -r -F [feature1] -F [feature2]
 
 `--search` - will search for manga by its title
 
-`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; if ctrl+c mid download, program cache will not be automatically cleared, there is button in web to exit program. If program can not be exited with ctrl+c use it to exit program or type "<http://127.0.0.1:8080/end>" in browser, that can happen when you use program without web flag and then again with web flag in same terminal
+`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; if ctrl+c mid download, program cache will not be automatically cleared, there is button in web to exit program. If program can not be exited with ctrl+c use it to exit program or type "<http://127.0.0.1:8080/end>" in browser, that can happen when you use program without web flag and then again with web flag in same powershell terminal
 
 `--server` - will start server from which you can download manga through local internet
 
