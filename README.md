@@ -112,7 +112,7 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 ### settings
 
 `--folder` - will set default folder name; if its left empty then it will remove the default folder
-o
+
 `--stat` - will set if stat flag should be automatically enabled; 1 for yes 0 for no or nothing to remove the default option
 
 ## Help
