@@ -150,7 +150,7 @@ pub(crate) fn get_size(response: &reqwest::Response) -> (u64, String) {
 
 /// Formats a percentage value as a right-aligned string.
 ///
-/// This function takes a percentage value and formats it to a three-digit string, right-aligned.
+/// This function takes a percentage value and formats it to a string, right-aligned.
 ///
 /// # Arguments
 /// * `percentage` - The percentage value to format.
@@ -160,13 +160,16 @@ pub(crate) fn get_size(response: &reqwest::Response) -> (u64, String) {
 ///
 /// # Example
 /// ```no_run
-/// let perc = get_perc(75);
+/// let perc = get_perc(75.0);
 /// println!("Progress: {}%", perc);
 /// ```
-pub(crate) fn get_perc(percentage: i64) -> String {
-    let mut buffer = itoa::Buffer::new();
+pub(crate) fn get_perc(percentage: f32) -> String {
+    let mut buffer = ryu::Buffer::new();
     let perc = buffer.format(percentage);
-    format!("{:>3}", perc)
+    match percentage {
+        100.0 => format!("{:>.3}", perc),
+        _ => format!("{:>.4}", perc),
+    }
 }
 
 /// Sends an HTTP GET request to the specified URL using a `reqwest::Client`.
@@ -316,7 +319,7 @@ pub(crate) async fn download_cover(
         let current_time = Instant::now();
         if current_time.duration_since(last_check_time) >= interval {
             last_check_time = current_time;
-            let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
+            let percentage = (100.0 / (total_size as f32)) * (downloaded as f32);
             let perc_string = get_perc(percentage);
             let message = format!("Downloading cover art {}%", perc_string);
             string(
@@ -739,7 +742,7 @@ pub(crate) async fn download_image(
                 }
             }
             last_check_time = current_time;
-            let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
+            let percentage = (100.0 / (total_size as f32)) * (downloaded as f32);
             let perc_string = get_perc(percentage);
             let current_mbs = bytefmt::format(downloaded - last_size);
             let current_mb = bytefmt::format(downloaded);

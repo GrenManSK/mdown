@@ -22,16 +22,7 @@ use crate::{
     log,
     log_end,
     MAXPOINTS,
-    metadata::{
-        self,
-        ChapterMetadata,
-        Dat,
-        Log,
-        MangaDownloadLogs,
-        MangaMetadata,
-        MdownLogs,
-        TagMetadata,
-    },
+    metadata::{ self, ChapterMetadata, Dat, Log, MangaMetadata, TagMetadata },
     string,
     utils::{ self, clear_screen, input },
     version_manager::{ check_ver, get_current_version },
@@ -76,6 +67,7 @@ lazy_static! {
     pub(crate) static ref FIXED_DATES: Mutex<Vec<String>> = Mutex::new(Vec::new()); // vec of chapter number which have been fixed
     pub(crate) static ref GENRES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
     pub(crate) static ref THEMES: Mutex<Vec<TagMetadata>> = Mutex::new(Vec::new());
+    pub(crate) static ref INITSCR_INIT: Mutex<bool> = Mutex::new(false);
 }
 
 #[cfg(feature = "music")]
@@ -117,9 +109,9 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
         }
     };
 
-    match serde_json::from_value::<MdownLogs>(json) {
+    match serde_json::from_value::<metadata::LogMetadata>(json) {
         Ok(logs) => {
-            let data = logs.clone();
+            let data = logs.logs.clone();
             if data.is_empty() {
                 println!("No logs found");
                 return Ok(());
@@ -168,9 +160,11 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
                 }
             };
 
-            let log = match logs.get(name) {
+            let log = match logs.logs.get(name) {
                 Some(items) => items.clone(),
-                None => MangaDownloadLogs::default(),
+                None => {
+                    return Err(MdownError::NotFoundError(name.to_string()));
+                }
             };
 
             let name = log.name;

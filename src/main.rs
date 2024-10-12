@@ -216,19 +216,7 @@ async fn main() {
     }
 
     // If no special flags or arguments are set, configure terminal input modes.
-    if
-        !*args::ARGS_WEB &&
-        !*args::ARGS_GUI &&
-        !*args::ARGS_CHECK &&
-        !*args::ARGS_UPDATE &&
-        !*args::ARGS_QUIET &&
-        !*args::ARGS_RESET &&
-        !args::ARGS_SHOW.is_some() &&
-        !args::ARGS_SHOW_ALL.is_some() &&
-        *args::ARGS_ENCODE == String::new() &&
-        !*args::ARGS_DELETE &&
-        !*args::ARGS_SHOW_LOG
-    {
+    if *resolute::INITSCR_INIT.lock() {
         crosscurses::echo();
         crosscurses::cbreak();
     }
@@ -280,8 +268,8 @@ async fn main() {
 /// - Debug messages are used extensively to trace the execution flow and aid in debugging.
 async fn start() -> Result<(), error::MdownError> {
     // Setup configuration settings from the database
-    let settings = match db::setup_settings() {
-        Ok(settings) => settings,
+    let (settings, changed) = match db::setup_settings() {
+        Ok((settings, changed)) => (settings, changed),
         Err(err) => {
             return Err(err);
         }
@@ -289,6 +277,10 @@ async fn start() -> Result<(), error::MdownError> {
 
     if *args::ARGS_SHOW_SETTINGS {
         utils::show_settings(settings);
+        return Ok(());
+    }
+
+    if changed {
         return Ok(());
     }
 
@@ -734,9 +726,20 @@ pub(crate) async fn download_manga(
                         };
 
                         let folder_path = filename.get_folder_name();
-                        moves = utils::skip(folder_path, data_number, moves, hist, 1);
+
+                        if lang != language && language != "*" {
+                            moves = utils::skip(folder_path, data_number, moves, hist, 1);
+                            debug!(
+                                "Removing {} from data array because wrong language; found '{}', target '{}'",
+                                id_string,
+                                lang,
+                                language
+                            );
+                        } else {
+                            moves = utils::skip(folder_path, data_number, moves, hist, 1);
+                            debug!("Removing {} from data array because is already downloaded", id_string);
+                        }
                         *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() -= 1;
-                        debug!("Removing {} from data array because is already downloaded", id_string);
                     } else if lang != language && language != "*" {
                         data_array.remove(index);
                         let vol = match chapter_attr.volume.unwrap_or_default().as_str() {

@@ -1,6 +1,6 @@
 use chrono::Utc;
 use serde::{ Deserialize, Serialize };
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::resolute;
 
@@ -85,6 +85,47 @@ impl TagMetadata {
             id: id.to_owned(),
         }
     }
+}
+
+/// Represents a log file for the application.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub(crate) struct LogsMetadata {
+    pub(crate) id: String,
+    pub(crate) logs: BTreeMap<String, Vec<String>>,
+    pub(crate) mwd: String,
+    pub(crate) name: String,
+    pub(crate) time_end: String,
+    pub(crate) time_start: String,
+    pub(crate) r#type: String,
+}
+
+impl LogsMetadata {
+    pub(crate) fn new(
+        id: &str,
+        logs: BTreeMap<String, Vec<String>>,
+        mwd: &str,
+        name: &str,
+        time_end: &str,
+        time_start: &str,
+        r#type: &str
+    ) -> LogsMetadata {
+        LogsMetadata {
+            id: id.to_string(),
+            logs,
+            mwd: mwd.to_string(),
+            name: name.to_string(),
+            time_end: time_end.to_string(),
+            time_start: time_start.to_string(),
+            r#type: r#type.to_string(),
+        }
+    }
+}
+
+/// Represents a log file for the application.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub(crate) struct LogMetadata {
+    #[serde(default)]
+    pub(crate) logs: BTreeMap<String, LogsMetadata>,
 }
 
 /// Represents a log entry for the application.
@@ -186,20 +227,6 @@ pub(crate) struct Dat {
     pub(crate) data: Vec<MangaMetadata>,
     pub(crate) version: String,
 }
-
-/// Contains logs related to manga downloads.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub(crate) struct MangaDownloadLogs {
-    pub(crate) id: String,
-    pub(crate) logs: HashMap<String, Vec<String>>,
-    pub(crate) mwd: String,
-    pub(crate) name: String,
-    pub(crate) time_end: String,
-    pub(crate) time_start: String,
-    pub(crate) r#type: String,
-}
-
-pub(crate) type MdownLogs = HashMap<String, MangaDownloadLogs>;
 
 /// Contains metadata for manga, including chapters and tags.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

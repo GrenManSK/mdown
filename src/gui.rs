@@ -78,9 +78,9 @@ impl App {
         let volume = ARGS.lock().volume.clone();
         let chapter = ARGS.lock().chapter.clone();
         let max_consecutive = ARGS.lock().max_consecutive.clone();
-        let saver = ARGS.lock().saver.clone();
-        let stat = ARGS.lock().stat.clone();
-        let force = ARGS.lock().force.clone();
+        let saver = ARGS.lock().saver;
+        let stat = ARGS.lock().stat;
+        let force = ARGS.lock().force;
         Self {
             allowed_to_close: false,
             show_confirmation_dialog: false,
@@ -89,17 +89,17 @@ impl App {
                 "UNSPECIFIED" => String::new(),
                 value => value.to_owned(),
             },
-            lang: lang,
-            offset: offset,
-            database_offset: database_offset,
-            title: title,
-            folder: folder,
-            volume: volume,
-            chapter: chapter,
-            max_consecutive: max_consecutive,
-            saver: saver,
-            stat: stat,
-            force: force,
+            lang,
+            offset,
+            database_offset,
+            title,
+            folder,
+            volume,
+            chapter,
+            max_consecutive,
+            saver,
+            stat,
+            force,
             texture_handle: None,
         }
     }
@@ -124,9 +124,9 @@ impl eframe::App for App {
                 });
             });
             ui.with_layout(Layout::top_down(egui::Align::Center), |ui| {
-                ui.heading(&format!("mdown v{}", get_current_version()));
+                ui.heading(format!("mdown v{}", get_current_version()));
             });
-            if self.panel == String::from("main") {
+            if self.panel == *"main" {
                 if !*resolute::DOWNLOADING.lock() {
                     ui.with_layout(Layout::top_down(egui::Align::Center), |ui| {
                         ScrollArea::vertical().show(ui, |ui| {
@@ -168,10 +168,10 @@ impl eframe::App for App {
                                     self.folder.clone(),
                                     self.volume.clone(),
                                     self.chapter.clone(),
-                                    self.saver.clone(),
-                                    self.stat.clone(),
+                                    self.saver,
+                                    self.stat,
                                     self.max_consecutive.clone(),
-                                    self.force.clone(),
+                                    self.force,
                                     self.offset.clone(),
                                     self.database_offset.clone()
                                 );
@@ -321,7 +321,7 @@ impl eframe::App for App {
                         })
                     });
                 }
-            } else if self.panel == String::from("help") {
+            } else if self.panel == *"help" {
                 ui.add_space(20.0);
                 ui.label("Write url and press download");
             }
@@ -360,9 +360,9 @@ impl eframe::App for App {
 async fn resolve_download(url: &str, handle_id: Box<str>) -> Result<String, MdownError> {
     let id;
 
-    if let Some(id_temp) = utils::resolve_regex(&url) {
+    if let Some(id_temp) = utils::resolve_regex(url) {
         id = id_temp.as_str().to_string();
-    } else if utils::is_valid_uuid(&url) {
+    } else if utils::is_valid_uuid(url) {
         id = url.to_string();
     } else {
         id = String::from("*");
@@ -381,17 +381,15 @@ async fn resolve_download(url: &str, handle_id: Box<str>) -> Result<String, Mdow
                     }
                 };
                 if let Value::Object(obj) = json_value {
-                    return resolute::resolve(obj, id).await;
+                    resolute::resolve(obj, id).await
                 } else {
-                    return Err(MdownError::JsonError(String::from("Unexpected JSON value")));
+                    Err(MdownError::JsonError(String::from("Unexpected JSON value")))
                 }
             }
-            Err(err) => {
-                return Err(err);
-            }
+            Err(err) => Err(err),
         }
     } else {
         info!("@{} Didn't find any id", handle_id);
-        return Err(MdownError::NotFoundError(String::from("ID")));
+        Err(MdownError::NotFoundError(String::from("ID")))
     }
 }

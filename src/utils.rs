@@ -5,6 +5,7 @@ use remove_dir_all::remove_dir_all;
 use serde_json::{ json, Value };
 use std::{
     cmp::Ordering,
+    collections::BTreeMap,
     fs::{ self, File, OpenOptions },
     io::{ Read, Write },
     process::exit,
@@ -31,6 +32,7 @@ use crate::{
 pub(crate) fn setup_requirements(file_path: String) {
     debug!("start crosscurses");
     let _ = initscr();
+    *resolute::INITSCR_INIT.lock() = true;
     curs_set(2);
     start_color();
     crosscurses::noecho();
@@ -60,6 +62,8 @@ pub(crate) fn log_handler() {
         let _ = fs::remove_file(&lock_path);
     }
 
+    let mut current_id = String::new();
+
     loop {
         sleep(Duration::from_millis(100));
 
@@ -71,7 +75,7 @@ pub(crate) fn log_handler() {
                 }
             };
 
-            let content = String::from("{}");
+            let content = String::from("logs: {}");
 
             match file.write_all(content.as_bytes()) {
                 Ok(()) => (),
@@ -87,9 +91,17 @@ pub(crate) fn log_handler() {
             sleep(Duration::from_millis(10));
         }
         let _ = File::create(&lock_path);
-        let mut json = match resolute::get_dat_content(path.as_str()) {
+        let json = match resolute::get_dat_content(path.as_str()) {
             Ok(value) => value,
             Err(_err) => json!({}),
+        };
+
+        let mut data = match serde_json::from_value::<metadata::LogMetadata>(json) {
+            Ok(obj) => obj,
+            Err(_err) => {
+                eprintln!("Couldn't parse log metadata");
+                continue;
+            }
         };
 
         let mut messages_lock = resolute::LOGS.lock();
@@ -109,86 +121,81 @@ pub(crate) fn log_handler() {
             })
             .collect();
 
-        if let Some(data) = json.as_object_mut() {
-            for message in messages.iter() {
-                let handle_id = message.handle_id.to_string();
-                let chap_num = message.name.to_string();
-                if handle_id == String::new() {
-                    continue;
-                }
-                let mut inst: Vec<Value> = Vec::new();
-                let mut map: serde_json::Map<String, Value> = serde_json::Map::new();
-                if
-                    let Some(value) = data
-                        .get_mut(&handle_id.to_string())
-                        .and_then(|value| value.get_mut("logs"))
-                        .and_then(|value| value.get_mut(&chap_num))
-                        .and_then(Value::as_array_mut)
-                {
-                    inst.extend_from_slice(value);
-                }
-                if
-                    let Some(value) = data
-                        .get_mut(&handle_id.to_string())
-                        .and_then(|value| value.get_mut("logs"))
-                        .and_then(Value::as_object_mut)
-                {
-                    map = value.clone();
-                }
-                let start_time = {
-                    if
-                        let Some(time) = data
-                            .get(&handle_id.to_string())
-                            .and_then(|value| value.get("time_start"))
-                            .and_then(Value::as_str)
-                    {
-                        time.to_string()
-                    } else {
-                        Utc::now().to_rfc3339()
-                    }
-                };
-                inst.push(Value::String(format!("{}  {}", &message.time, &message.message)));
-
-                map.insert(chap_num.clone(), serde_json::Value::Array(inst.clone()));
-
-                match handle_id.len() {
-                    10 => {
-                        data.insert(
-                            handle_id.to_string(),
-                            json!({"logs":map, "type":"web", "time_start": start_time, "time_end": null})
-                        );
-                    }
-                    16 => {
-                        let manga_name = Value::String(resolute::MANGA_NAME.lock().clone());
-                        let manga_id = Value::String(resolute::MANGA_ID.lock().clone());
-                        let mwd = Value::String(resolute::MWD.lock().clone());
-                        data.insert(
-                            handle_id.to_string(),
-                            json!({"logs":map, "type":"downloader", "time_start": start_time, "time_end": null, "name": manga_name, "id": manga_id, "mwd": mwd})
-                        );
-                    }
-                    _ => {
-                        data.insert(
-                            handle_id.to_string(),
-                            json!({"logs":map, "type":"unknown", "time_start": start_time, "time_end": null})
-                        );
-                    }
+        for message in messages.iter() {
+            let handle_id = message.handle_id.to_string();
+            let chap_num = message.name.to_string();
+            if handle_id == String::new() {
+                continue;
+            }
+            let mut inst: Vec<String> = Vec::new();
+            let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            if let Some(value) = data.logs.get_mut(&handle_id.to_string()) {
+                if let Some(logs_inst) = value.logs.get_mut(&chap_num) {
+                    inst.extend_from_slice(logs_inst);
                 }
             }
-            for handle_id in handle_id_lock.iter() {
-                if handle_id == &String::new().into_boxed_str() {
-                    continue;
+            if let Some(value) = data.logs.get_mut(&handle_id.to_string()) {
+                map = value.logs.clone();
+            }
+            let start_time = {
+                if let Some(time) = data.logs.get(&handle_id.to_string()) {
+                    time.time_start.clone()
+                } else {
+                    Utc::now().to_rfc3339()
                 }
-                let end_time = Utc::now().to_rfc3339();
-                if
-                    let Some(handle) = data
-                        .get_mut(&handle_id.to_string())
-                        .and_then(|value| value.get_mut("time_end"))
-                {
-                    *handle = Value::String(end_time);
+            };
+            inst.push(format!("{}  {}", &message.time, &message.message));
+
+            map.insert(chap_num.clone(), inst.clone());
+
+            match handle_id.len() {
+                10 => {
+                    data.logs.insert(
+                        handle_id.to_string(),
+                        metadata::LogsMetadata::new("", map, "", "", "", &start_time, "web")
+                    );
+                }
+                16 => {
+                    let manga_name = resolute::MANGA_NAME.lock().clone();
+                    // If downloading ended will not discard id
+                    let manga_id = if *resolute::DOWNLOADING.lock() {
+                        resolute::MANGA_ID.lock().clone()
+                    } else {
+                        current_id.clone()
+                    };
+                    let mwd = resolute::MWD.lock().clone();
+                    data.logs.insert(
+                        handle_id.to_string(),
+                        metadata::LogsMetadata::new(
+                            &manga_id,
+                            map,
+                            &mwd,
+                            &manga_name,
+                            "",
+                            &start_time,
+                            "downloader"
+                        )
+                    );
+                    current_id = manga_id;
+                }
+                _ => {
+                    data.logs.insert(
+                        handle_id.to_string(),
+                        metadata::LogsMetadata::new("", map, "", "", "", &start_time, "unknown")
+                    );
                 }
             }
         }
+        for handle_id in handle_id_lock.iter() {
+            if handle_id == &String::new().into_boxed_str() {
+                continue;
+            }
+            let end_time = Utc::now().to_rfc3339();
+            if let Some(handle) = data.logs.get_mut(&handle_id.to_string()) {
+                handle.time_end = end_time;
+            }
+        }
+
         let mut file = match File::create(&path) {
             Ok(file) => file,
             Err(_err) => {
@@ -196,7 +203,7 @@ pub(crate) fn log_handler() {
             }
         };
 
-        let json_string = match serde_json::to_string_pretty(&json) {
+        let json_string = match serde_json::to_string_pretty::<metadata::LogMetadata>(&data) {
             Ok(value) => value,
             Err(_err) => {
                 continue;

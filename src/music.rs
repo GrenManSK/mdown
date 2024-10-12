@@ -67,23 +67,22 @@ pub(crate) fn start() {
     let mut stealth_sink = None;
     let mut combat_sink = None;
 
-    let music_pack;
-    match ARGS_MUSIC.clone() {
+    let music_pack = match ARGS_MUSIC.clone() {
         Some(s) => {
-            music_pack = match s.clone() {
+            match s.clone() {
                 Some(value) => {
                     match value.parse::<u32>() {
-                        Ok(value) => value.clone(),
+                        Ok(value) => value,
                         Err(_) => 1,
                     }
                 }
                 None => 1,
-            };
+            }
         }
         None => {
             return;
         }
-    }
+    };
 
     loop {
         let lock = MUSIC_STAGE.lock().clone();
@@ -255,7 +254,7 @@ pub(crate) fn start() {
                         sink.stop();
                     }
 
-                    if !combat_sink.is_some() {
+                    if combat_sink.is_none() {
                         let music = match music_pack {
                             #[cfg(music_m1)]
                             1 => M1_END_MP3,

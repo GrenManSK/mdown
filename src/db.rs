@@ -665,7 +665,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
 
         // Update the progress display periodically
         if current_time.duration_since(last_check_time) >= interval {
-            let percentage = ((100.0 / (total_size as f32)) * (downloaded as f32)).round() as i64;
+            let percentage = (100.0 / (total_size as f32)) * (downloaded as f32);
             let perc_string = download::get_perc(percentage);
             let current_mb = bytefmt::format(downloaded);
             let current_mbs = bytefmt::format(downloaded - last_size);
@@ -724,7 +724,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
 ///     Ok(())
 /// }
 /// ```
-pub(crate) fn setup_settings() -> Result<metadata::Settings, MdownError> {
+pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError> {
     debug!("setup_settings");
 
     // Retrieve the database path
@@ -750,6 +750,8 @@ pub(crate) fn setup_settings() -> Result<metadata::Settings, MdownError> {
             return Err(err);
         }
     }
+
+    let mut changed = false;
 
     // Update settings in the database based on command-line arguments
     match args::ARGS.lock().subcommands.clone() {
@@ -801,6 +803,7 @@ pub(crate) fn setup_settings() -> Result<metadata::Settings, MdownError> {
                 }
                 None => (),
             }
+            changed = true;
         }
         Some(_) => (),
         None => (),
@@ -867,7 +870,11 @@ pub(crate) fn setup_settings() -> Result<metadata::Settings, MdownError> {
 
     debug!("{:?}\n", settings);
 
-    Ok(settings)
+    if changed {
+        Ok((settings, true))
+    } else {
+        Ok((settings, false))
+    }
 }
 
 pub(crate) fn check_tutorial() -> Result<(), MdownError> {
