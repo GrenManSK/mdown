@@ -4,6 +4,7 @@
             "type": "yt-dlp",
             "url": "https://youtu.be/EFB-YkrKad8?si=nVaajYUpRQb_rOTn",
             "name": "rambling_pleat.ogg",
+            "db_name": "2001",
             "dmca": "rambling pleat by ALICESOFT\nComposer: L-Minatsu\nFeatured in Alice Sound Album vol.33 (Original Soundtrack)",
             "dependencies": [
                 "web"
@@ -13,6 +14,7 @@
             "type": "yt-dlp",
             "url": "https://youtu.be/dCg2UiiHeKI?si=uiOdoP7NvN7O5cYI",
             "name": "system_haven.ogg",
+            "db_name": "2002",
             "dmca": "preparara by ALICESOFT\nComposer: L-Minatsu\nFeatured in Alice Sound Album vol.33 (Original Soundtrack)",
             "dependencies": [
                 "web"

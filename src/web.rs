@@ -34,38 +34,38 @@ lazy_static! {
     static ref RAMBLING_PLEAT_OGG: Vec<u8> = {
         let db_path = match getter::get_db_path() {
             Ok(path) => path,
-            Err(_err) => std::process::exit(1),
+            Err(_err) => std::process::exit(11701),
         };
         let conn = match rusqlite::Connection::open(db_path) {
             Ok(conn) => conn,
-            Err(_err) => std::process::exit(1),
+            Err(_err) => std::process::exit(11702),
         };
-        match db::read_resource(&conn, "RAMBLING_PLEAT_OGG") {
+        match db::read_resource(&conn, "1001") {
             Ok(value) =>
                 match value {
                     Some(value) => value,
-                    None => std::process::exit(1),
+                    None => std::process::exit(1001),
                 }
-            Err(_err) => std::process::exit(1),
+            Err(_err) => std::process::exit(1001),
         }
     };
 
     static ref SYSTEM_HAVEN_OGG: Vec<u8> = {
         let db_path = match getter::get_db_path() {
             Ok(path) => path,
-            Err(_err) => std::process::exit(1),
+            Err(_err) => std::process::exit(11703),
         };
         let conn = match rusqlite::Connection::open(db_path) {
             Ok(conn) => conn,
-            Err(_err) => std::process::exit(1),
+            Err(_err) => std::process::exit(11704),
         };
-        match db::read_resource(&conn, "SYSTEM_HAVEN_OGG") {
+        match db::read_resource(&conn, "1002") {
             Ok(value) =>
                 match value {
                     Some(value) => value,
-                    None => std::process::exit(1),
+                    None => std::process::exit(1002),
                 }
-            Err(_err) => std::process::exit(1),
+            Err(_err) => std::process::exit(1002),
         }
     };
 }
@@ -350,7 +350,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
     }
 
     if end {
-        log!("[user] Ctrl+C received! Exiting...");
+        log!("[user] Exit event received! Exiting...");
         log!("[web] Closing server");
 
         match utils::remove_cache() {

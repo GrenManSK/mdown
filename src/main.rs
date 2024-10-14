@@ -205,7 +205,7 @@ async fn main() {
         Ok(()) => error::handle_suspended(),
         Err(err) => {
             error::handle_final(&err);
-            exit(1);
+            exit(10901);
         }
     }
 

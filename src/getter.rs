@@ -699,7 +699,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                 response.status(),
                 full_url
             );
-            exit(1);
+            return Err(MdownError::StatusError(response.status()))
         }
         json = match response.text().await {
             Ok(text) => text,
@@ -889,7 +889,7 @@ pub(crate) fn get_attr_as_same_as_index(data_array: &[String], item: usize) -> &
         Some(value) => value,
         None => {
             eprintln!("{}", MdownError::NotFoundError(String::from("get_attr_as_same_as_index")));
-            exit(1);
+            exit(10601);
         }
     }
 }
@@ -928,7 +928,7 @@ pub(crate) fn get_attr_as_same_from_vec(
         Some(value) => value,
         None => {
             eprintln!("{}", MdownError::NotFoundError(String::from("get_attr_as_same_from_vec")));
-            exit(1);
+            exit(10602);
         }
     }
 }

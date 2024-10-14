@@ -13,6 +13,10 @@ use crate::{
 
 include!(concat!(env!("OUT_DIR"), "/data_json.rs"));
 
+pub const DB_FOLDER: &str = "2001";
+pub const DB_STAT: &str = "2002";
+pub const DB_TUTORIAL: &str = "2003";
+
 /// Initializes the database by creating the `resources` table if it does not already exist.
 ///
 /// This function executes a SQL statement to create the `resources` table within the provided database connection.
@@ -305,6 +309,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
     for file in files.iter() {
         let mut cont = false;
         let name = &file.name.clone();
+        let db_name = &file.db_name.clone();
         for i in file.dependencies.iter() {
             // Check dependencies based on flags
             if !*args::ARGS_FORCE_SETUP {
@@ -340,7 +345,6 @@ pub(crate) async fn init() -> Result<(), MdownError> {
         // Process 'yt-dlp' type files
         if typ == "yt-dlp" {
             debug!("yt-dlp");
-            let db_name = name.replace(".", "_").replace(" ", "_").to_uppercase();
 
             // Check if the file is already in the database
             let db_item = match read_resource(&conn, &db_name) {
@@ -758,7 +762,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
         Some(args::Commands::Settings { folder, stat }) => {
             match folder {
                 Some(Some(folder)) => {
-                    match write_resource(&conn, "folder", folder.as_bytes(), false) {
+                    match write_resource(&conn, DB_FOLDER, folder.as_bytes(), false) {
                         Ok(_id) => (),
                         Err(err) => {
                             return Err(err);
@@ -766,7 +770,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     }
                 }
                 Some(None) => {
-                    match delete_resource(&conn, "folder") {
+                    match delete_resource(&conn, DB_FOLDER) {
                         Ok(_id) => (),
                         Err(err) => {
                             return Err(err);
@@ -778,7 +782,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
             match stat {
                 Some(Some(stat)) => {
                     if stat != "0" || stat != "1" {
-                        match write_resource(&conn, "stat", stat.as_bytes(), false) {
+                        match write_resource(&conn, DB_STAT, stat.as_bytes(), false) {
                             Ok(_id) => (),
                             Err(err) => {
                                 return Err(err);
@@ -794,7 +798,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     }
                 }
                 Some(None) => {
-                    match delete_resource(&conn, "stat") {
+                    match delete_resource(&conn, DB_STAT) {
                         Ok(_id) => (),
                         Err(err) => {
                             return Err(err);
@@ -810,7 +814,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
     }
 
     // Read the folder setting from the database
-    let folder = match read_resource(&conn, "folder") {
+    let folder = match read_resource(&conn, DB_FOLDER) {
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
@@ -831,7 +835,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
         }
     };
     // Read the stat setting from the database
-    let stat = match read_resource(&conn, "stat") {
+    let stat = match read_resource(&conn, DB_STAT) {
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
@@ -896,7 +900,7 @@ pub(crate) fn check_tutorial() -> Result<(), MdownError> {
         }
     };
 
-    match read_resource(&conn, "tutorial") {
+    match read_resource(&conn, DB_TUTORIAL) {
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
@@ -928,7 +932,7 @@ pub(crate) fn check_tutorial() -> Result<(), MdownError> {
                 !*args::ARGS_SHOW_LOG
             {
                 *TUTORIAL.lock() = true;
-                match write_resource(&conn, "tutorial", b"0", false) {
+                match write_resource(&conn, DB_TUTORIAL, b"0", false) {
                     Ok(_id) => (),
                     Err(err) => {
                         return Err(err);

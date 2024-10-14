@@ -1,0 +1,7 @@
+4 digits - database errors
+    first digit 
+        1 - binary file
+        2 - settings
+5 digits - program errors
+    first digit - 1
+    second and third digits - alphabetical file order

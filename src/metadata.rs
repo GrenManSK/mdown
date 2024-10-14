@@ -217,6 +217,7 @@ pub(crate) struct DBItem {
     pub(crate) r#type: String,
     pub(crate) url: String,
     pub(crate) name: String,
+    pub(crate) db_name: String,
     pub(crate) dmca: String,
     pub(crate) dependencies: Vec<String>,
 }
