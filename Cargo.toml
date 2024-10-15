@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.13.1-1"
+version = "0.13.1-2"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"

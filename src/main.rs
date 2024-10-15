@@ -198,6 +198,12 @@ lazy_static! {
     pub(crate) static ref IS_END: Mutex<bool> = Mutex::new(false);
 }
 
+fn wrong_uuid_format(url: &str) -> String {
+    string(3, 0, &format!("Wrong format of UUID ({})", url));
+    string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
+    String::from("*")
+}
+
 #[tokio::main]
 async fn main() {
     // Attempt to start the application and handle any errors that may occur.
@@ -205,7 +211,7 @@ async fn main() {
         Ok(()) => error::handle_suspended(),
         Err(err) => {
             error::handle_final(&err);
-            exit(10901);
+            exit(10101);
         }
     }
 
@@ -462,9 +468,7 @@ async fn start() -> Result<(), error::MdownError> {
         if utils::is_valid_uuid(id_temp.as_str()) {
             id_temp.as_str().to_string()
         } else {
-            string(3, 0, &format!("Wrong format of UUID ({})", id_temp.as_str()));
-            string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
-            String::from("*")
+            wrong_uuid_format(&url)
         }
     } else if utils::is_valid_uuid(&args::ARGS.lock().url) {
         debug!("using uuid");
@@ -473,9 +477,7 @@ async fn start() -> Result<(), error::MdownError> {
         debug!("url is not specified");
         String::from("*")
     } else {
-        string(3, 0, &format!("Wrong format of UUID ({})", url));
-        string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
-        String::from("*")
+        wrong_uuid_format(&url)
     };
 
     // Process manga information if valid ID is found

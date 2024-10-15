@@ -638,7 +638,7 @@ pub(crate) fn resolve_start() -> Result<String, MdownError> {
         eprintln!(
             "Lock file has been found;\nSee README.md;\nCannot run multiple instances of mdown"
         );
-        exit(11501);
+        exit(10401);
     }
     match File::create(&file_path) {
         Ok(_) => (),

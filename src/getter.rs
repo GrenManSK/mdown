@@ -889,7 +889,7 @@ pub(crate) fn get_attr_as_same_as_index(data_array: &[String], item: usize) -> &
         Some(value) => value,
         None => {
             eprintln!("{}", MdownError::NotFoundError(String::from("get_attr_as_same_as_index")));
-            exit(10601);
+            exit(10801);
         }
     }
 }
@@ -928,7 +928,7 @@ pub(crate) fn get_attr_as_same_from_vec(
         Some(value) => value,
         None => {
             eprintln!("{}", MdownError::NotFoundError(String::from("get_attr_as_same_from_vec")));
-            exit(10602);
+            exit(10802);
         }
     }
 }

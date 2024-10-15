@@ -4,4 +4,22 @@
         2 - settings
 5 digits - program errors
     first digit - 1
-    second and third digits - alphabetical file order
+    second and third digits - file order
+        main.rs - 1
+        resolute.rs - 2
+        download.rs - 3
+        utils.rs - 4
+        args.rs - 5
+        db.rs - 6
+        zip_func.rs - 7
+        getter.rs - 8
+        metadata.rs - 9
+        error.rs - 10
+        macros.rs - 11
+        server.rs - 12
+        web.rs - 13
+        gui.rs - 14
+        tutorial.rs - 15
+        version_manager.rs - 16
+        music.rs - 17
+        build.rs - 18
