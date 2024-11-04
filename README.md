@@ -97,6 +97,8 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 
 `--reset` - after confirmation will do factory reset
 
+`--backup` - will force backup
+
 ### database
 
 `--check` - check for for any manga updates
@@ -107,13 +109,21 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 
 `--show-all` - will show current chapters in database
 
-`--show-log` - will Shows current logs in database
+`--show-log` - will show current logs in database
+
+`--show-settings` - will show current settings in database
+
+`--backup-choose` - will choose which backup for retrieve
 
 ### settings
 
 `--folder` - will set default folder name; if its left empty then it will remove the default folder
 
 `--stat` - will set if stat flag should be automatically enabled; 1 for yes 0 for no or nothing to remove the default option
+
+`--backup` - will set if backup should be disabled or enabled; 1 for yes 0 for no or nothing to remove the default option; default is yes
+
+`--clear` - will remove all settings from database
 
 ## Help
 
@@ -137,3 +147,5 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 - Will start tutorial when you run first time, can be reset with `mdown app --reset`
 
 - App stores manga data in `dat.json` which is located in the same directory as the original application same as `resources.db` which contains data for application
+
+- Lowest tier in time in the name of backup is a day so if it is forced it will overwrite existing backup is same day

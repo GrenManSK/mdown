@@ -5,10 +5,12 @@ use std::collections::BTreeMap;
 use crate::resolute;
 
 /// Represents settings for the application, such as folder paths.
+/// Don't forget to change utils::show_settings
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Settings {
     pub(crate) folder: String,
     pub(crate) stat: bool,
+    pub(crate) backup: bool,
 }
 
 /// Contains metadata for a specific manga chapter.

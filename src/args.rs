@@ -96,6 +96,20 @@ lazy_static! {
         Some(_) => false,
         None => false,
     };
+
+    /// Indicates whether to force backup.
+    pub(crate) static ref ARGS_BACKUP: bool = match ARGS.lock().subcommands {
+        Some(Commands::App { backup, .. }) => backup,
+        Some(_) => true,
+        None => true,
+    };
+
+    /// If true program will ask user which backup file to retrieve.
+    pub(crate) static ref ARGS_CH_BACKUP: bool = match ARGS.lock().subcommands {
+        Some(Commands::Database { backup_choose, .. }) => backup_choose,
+        Some(_) => false,
+        None => false,
+    };
 }
 
 /// Mangadex Manga downloader
@@ -355,6 +369,10 @@ pub(crate) enum Commands {
         /// Show current logs in the database.
         #[arg(long, next_line_help = true, help = "Shows current logs in database")]
         show_settings: bool,
+
+        /// You will choose which backup to retrieve.
+        #[arg(long, next_line_help = true, help = "You will choose which backup to retrieve")]
+        backup_choose: bool,
     },
 
     /// Subcommands related to application settings.
@@ -373,6 +391,17 @@ pub(crate) enum Commands {
             help = "set if --stat should be default\n[default: Will remove current folder setting; 1 is for yes, 0 for no]"
         )]
         stat: Option<Option<String>>,
+        /// Will backup files
+        #[arg(
+            long,
+            next_line_help = true,
+            help = "Will set default of backup files n[default: Will remove current backup setting; 1 is for yes, 0 for no][default for backup is 1]"
+        )]
+        backup: Option<Option<String>>,
+
+        /// Will remove all settings
+        #[arg(long, next_line_help = true, help = "Will remove all settings")]
+        clear: bool,
     },
 
     /// Subcommands related to application management.
@@ -396,6 +425,10 @@ pub(crate) enum Commands {
         /// Delete all files created by the program.
         #[arg(long, next_line_help = true, help = "Delete all files created by program")]
         reset: bool,
+
+        /// Will backup files
+        #[arg(long, next_line_help = true, help = "Will backup files")]
+        backup: bool,
     },
     Default,
 }
@@ -442,6 +475,7 @@ pub(crate) struct Args {
     pub(crate) gui: bool,
     pub(crate) debug: bool,
     pub(crate) debug_file: bool,
+    pub(crate) backup: bool,
     pub(crate) dev: bool,
     pub(crate) music: Option<Option<String>>,
     pub(crate) subcommands: Option<Commands>,
@@ -461,6 +495,9 @@ impl Args {
             }
             ("stat", Value::Bool(value)) => {
                 self.stat = value;
+            }
+            ("backup", Value::Bool(value)) => {
+                self.backup = value;
             }
             (_, _) => (),
         }
@@ -517,6 +554,10 @@ impl Args {
             },
             show_settings: match subcommands {
                 Commands::Database { show_settings, .. } => *show_settings,
+                _ => false,
+            },
+            backup: match subcommands {
+                Commands::App { backup, .. } => *backup,
                 _ => false,
             },
             web: args.web,
@@ -595,6 +636,7 @@ impl Args {
             debug: *ARGS_DEBUG,
             debug_file: *ARGS_DEBUG_FILE,
             dev: *ARGS_DEV,
+            backup: ARGS_BACKUP.clone(),
             music: ARGS_MUSIC.clone(),
             tutorial: *ARGS_TUTORIAL,
             skip_tutorial: *ARGS_SKIP_TUTORIAL,

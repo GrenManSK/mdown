@@ -279,7 +279,7 @@ pub(crate) async fn download_cover(
     let (total_size, _) = get_size(&response);
 
     // Create or open the file to save the cover image
-    let mut file = if args::ARGS.lock().update {
+    let mut file = if *args::ARGS_UPDATE {
         match File::create("_cover.png") {
             Ok(file) => file,
             Err(err) => {
@@ -418,7 +418,7 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
     };
 
     // Create or open the file for saving statistics
-    let mut file = if args::ARGS.lock().update {
+    let mut file = if *args::ARGS_UPDATE {
         match File::create("_statistics.md") {
             Ok(file) => file,
             Err(err) => {

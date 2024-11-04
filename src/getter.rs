@@ -77,6 +77,32 @@ pub(crate) fn get_exe_path() -> Result<String, MdownError> {
     Ok(path)
 }
 
+/// Retrieves the path to the `backup` folder used by the application.
+///
+/// This function uses `get_exe_path` to obtain the base executable path, then appends
+/// `\backup` to it, returning the full path as a `String`.
+///
+/// # Returns
+/// - `Ok(String)`: The full path to `backup` if `get_exe_path` succeeds.
+/// - `Err(MdownError)`: If an error occurs when trying to retrieve the executable path.
+pub(crate) fn get_bac_path() -> Result<String, MdownError> {
+    let path = match get_exe_path() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    Ok(format!("{}\\backup", path))
+}
+
+/// Retrieves the path to the `dat.json` file used by the application.
+///
+/// This function uses `get_exe_path` to obtain the base executable path, then appends
+/// `\dat.json` to it, returning the full path as a `String`.
+///
+/// # Returns
+/// - `Ok(String)`: The full path to `dat.json` if `get_exe_path` succeeds.
+/// - `Err(MdownError)`: If an error occurs when trying to retrieve the executable path.
 pub(crate) fn get_dat_path() -> Result<String, MdownError> {
     let path = match get_exe_path() {
         Ok(value) => value,
@@ -86,6 +112,15 @@ pub(crate) fn get_dat_path() -> Result<String, MdownError> {
     };
     Ok(format!("{}\\dat.json", path))
 }
+
+/// Retrieves the path to the `resources.db` file used by the application.
+///
+/// This function calls `get_exe_path` to obtain the base path, appends `\resources.db`
+/// to it, and returns the resulting full path as a `String`.
+///
+/// # Returns
+/// - `Ok(String)`: The full path to `resources.db` if `get_exe_path` succeeds.
+/// - `Err(MdownError)`: If an error occurs when trying to retrieve the executable path.
 pub(crate) fn get_db_path() -> Result<String, MdownError> {
     let path = match get_exe_path() {
         Ok(value) => value,
@@ -95,6 +130,15 @@ pub(crate) fn get_db_path() -> Result<String, MdownError> {
     };
     Ok(format!("{}\\resources.db", path))
 }
+
+/// Retrieves the path to the `log.json` file used by the application for logging purposes.
+///
+/// This function uses `get_exe_path` to obtain the executable path, appends `\log.json`
+/// to it, and returns the full path as a `String`.
+///
+/// # Returns
+/// - `Ok(String)`: The full path to `log.json` if `get_exe_path` succeeds.
+/// - `Err(MdownError)`: If an error occurs when trying to retrieve the executable path.
 pub(crate) fn get_log_path() -> Result<String, MdownError> {
     let path: String = match get_exe_path() {
         Ok(value) => value,
@@ -104,6 +148,15 @@ pub(crate) fn get_log_path() -> Result<String, MdownError> {
     };
     Ok(format!("{}\\log.json", path))
 }
+
+/// Retrieves the path to the `log.lock` file used by the application to manage logging locks.
+///
+/// This function uses `get_exe_path` to obtain the executable path, appends `\log.lock`
+/// to it, and returns the full path as a `String`.
+///
+/// # Returns
+/// - `Ok(String)`: The full path to `log.lock` if `get_exe_path` succeeds.
+/// - `Err(MdownError)`: If an error occurs when trying to retrieve the executable path.
 pub(crate) fn get_log_lock_path() -> Result<String, MdownError> {
     let path: String = match get_exe_path() {
         Ok(value) => value,
@@ -699,7 +752,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                 response.status(),
                 full_url
             );
-            return Err(MdownError::StatusError(response.status()))
+            return Err(MdownError::StatusError(response.status()));
         }
         json = match response.text().await {
             Ok(text) => text,

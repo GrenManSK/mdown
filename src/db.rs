@@ -16,6 +16,7 @@ include!(concat!(env!("OUT_DIR"), "/data_json.rs"));
 pub const DB_FOLDER: &str = "2001";
 pub const DB_STAT: &str = "2002";
 pub const DB_TUTORIAL: &str = "2003";
+pub const DB_BACKUP: &str = "2004";
 
 /// Initializes the database by creating the `resources` table if it does not already exist.
 ///
@@ -347,7 +348,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
             debug!("yt-dlp");
 
             // Check if the file is already in the database
-            let db_item = match read_resource(&conn, &db_name) {
+            let db_item = match read_resource(&conn, db_name) {
                 Ok(value) => value,
                 Err(err) => {
                     return Err(err);
@@ -430,7 +431,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                 };
 
                 let initial_data_1: &[u8] = &file_bytes;
-                match write_resource(&conn, &db_name, initial_data_1, true) {
+                match write_resource(&conn, db_name, initial_data_1, true) {
                     Ok(_id) => (),
                     Err(err) => {
                         return Err(err);
@@ -759,7 +760,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
 
     // Update settings in the database based on command-line arguments
     match args::ARGS.lock().subcommands.clone() {
-        Some(args::Commands::Settings { folder, stat }) => {
+        Some(args::Commands::Settings { folder, stat, backup, clear }) => {
             match folder {
                 Some(Some(folder)) => {
                     match write_resource(&conn, DB_FOLDER, folder.as_bytes(), false) {
@@ -806,6 +807,51 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     }
                 }
                 None => (),
+            }
+            match backup {
+                Some(Some(backup)) => {
+                    match write_resource(&conn, DB_BACKUP, backup.as_bytes(), false) {
+                        Ok(_id) => (),
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    }
+                }
+                Some(None) => {
+                    match delete_resource(&conn, DB_BACKUP) {
+                        Ok(_id) => (),
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    }
+                }
+                None => (),
+            }
+            if clear {
+                match delete_resource(&conn, DB_FOLDER) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
+                match delete_resource(&conn, DB_STAT) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
+                match delete_resource(&conn, DB_TUTORIAL) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
+                match delete_resource(&conn, DB_BACKUP) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
             }
             changed = true;
         }
@@ -869,8 +915,43 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
         }
     };
 
+    // Read the backup setting from the database
+    let backup = match read_resource(&conn, DB_BACKUP) {
+        Ok(Some(value)) =>
+            match
+                String::from_utf8(value).map_err(|e|
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                )
+            {
+                Ok(backup) => {
+                    let backup = match backup.as_str() {
+                        "1" => true,
+                        "0" => false,
+                        _ => {
+                            suspend_error(
+                                MdownError::CustomError(
+                                    String::from("backup should be 1 or 0"),
+                                    String::from("UserError")
+                                )
+                            );
+                            false
+                        }
+                    };
+                    debug!("backup from database: {:?}", backup);
+                    backup
+                }
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+        Ok(None) => true,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
     // Create and return the settings object
-    let settings = metadata::Settings { folder, stat };
+    let settings = metadata::Settings { folder, stat, backup };
 
     debug!("{:?}\n", settings);
 

@@ -1159,7 +1159,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             .and_then(Value::as_str)
             .unwrap_or_default();
 
-        let mut desc_file = if args::ARGS.lock().update {
+        let mut desc_file = if *args::ARGS_UPDATE {
             match
                 OpenOptions::new()
                     .read(true)
@@ -1371,7 +1371,7 @@ pub(crate) async fn resolve_group(
 }
 
 pub(crate) fn parse_scanlation_file() -> Result<(), MdownError> {
-    let file_name = if ARGS.lock().update {
+    let file_name = if *args::ARGS_UPDATE {
         String::from("_scanlation_groups.txt")
     } else {
         format!("{}\\_scanlation_groups.txt", get_folder_name())
@@ -1416,7 +1416,7 @@ pub(crate) fn get_scanlation_group_to_file(
         SCANLATION_GROUPS.lock().push(scanlation.clone());
     }
 
-    let file_name = if ARGS.lock().update {
+    let file_name = if *args::ARGS_UPDATE {
         String::from("_scanlation_groups.txt")
     } else {
         format!("{}\\_scanlation_groups.txt", get_folder_name())

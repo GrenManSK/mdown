@@ -281,6 +281,13 @@ async fn start() -> Result<(), error::MdownError> {
         }
     };
 
+    if args::ARGS.lock().backup {
+        return match utils::backup_handler(true) {
+            Ok(()) => Ok(()),
+            Err(err) => Err(err),
+        };
+    }
+
     if *args::ARGS_SHOW_SETTINGS {
         utils::show_settings(settings);
         return Ok(());
@@ -293,6 +300,7 @@ async fn start() -> Result<(), error::MdownError> {
     // Update arguments with folder settings from the configuration
     args::ARGS.lock().change("folder", args::Value::Str(settings.folder));
     args::ARGS.lock().change("stat", args::Value::Bool(settings.stat));
+    args::ARGS.lock().change("backup", args::Value::Bool(settings.backup));
 
     // Handle encoding argument
     if !(*args::ARGS_ENCODE).is_empty() {
@@ -308,6 +316,12 @@ async fn start() -> Result<(), error::MdownError> {
     if *args::ARGS_RESET {
         debug!("args_reset");
         return utils::reset();
+    }
+
+    // Handle backup argument
+    if *args::ARGS_CH_BACKUP {
+        debug!("args_ch_backup");
+        return utils::backup_choose();
     }
 
     // Initialize the database
@@ -560,6 +574,13 @@ async fn start() -> Result<(), error::MdownError> {
     match utils::resolve_end(&file_path, &manga_name, status_code) {
         Ok(()) => (),
         Err(err) => eprintln!("Error: {}", err),
+    }
+
+    if args::ARGS.lock().backup {
+        match utils::backup_handler(false) {
+            Ok(()) => (),
+            Err(err) => debug!("Error: {}", err),
+        }
     }
 
     utils::resolve_final_end();

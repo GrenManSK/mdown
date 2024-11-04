@@ -3,6 +3,7 @@ use crosscurses::*;
 use rand::{ distributions::Alphanumeric, Rng };
 use remove_dir_all::remove_dir_all;
 use serde_json::{ json, Value };
+use sha2::{ Sha256, Digest };
 use std::{
     cmp::Ordering,
     collections::BTreeMap,
@@ -860,9 +861,250 @@ pub(crate) fn resolve_end(
     Ok(())
 }
 
+fn calculate_sha256(file_path: &str) -> Result<String, MdownError> {
+    let mut file = match File::open(file_path) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(MdownError::IoError(err, file_path.to_string()));
+        }
+    };
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 4096];
+
+    loop {
+        let n = match file.read(&mut buffer) {
+            Ok(n) => n,
+            Err(err) => {
+                return Err(MdownError::IoError(err, file_path.to_string()));
+            }
+        };
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
+
+    let hash_result = hasher.finalize();
+    Ok(format!("{:x}", hash_result))
+}
+
+fn get_backup_dat(backup_dir: &str) -> Result<(Vec<NaiveDate>, Vec<String>), MdownError> {
+    let mut dats = Vec::new();
+    let mut dats_filename = Vec::new();
+
+    match fs::read_dir(backup_dir) {
+        Ok(entries) => {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+
+                    if let Some(file_name) = path.file_name().and_then(|f| f.to_str()) {
+                        if file_name.starts_with("dat_") && file_name.ends_with(".json") {
+                            let stripped_name = &file_name[4..file_name.len() - 5];
+                            let date = match NaiveDate::parse_from_str(stripped_name, "%Y_%m_%d") {
+                                Ok(date) => date,
+                                Err(_err) => {
+                                    continue;
+                                }
+                            };
+                            dats.push(date);
+                            dats_filename.push(file_name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        Err(err) => {
+            return Err(MdownError::IoError(err, backup_dir.to_string()));
+        }
+    }
+
+    dats.sort();
+    dats_filename.sort();
+    Ok((dats, dats_filename))
+}
+
+pub(crate) fn backup_choose() -> Result<(), MdownError> {
+    let backup_dir = match getter::get_bac_path() {
+        Ok(exe_path) => exe_path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    let dat_file = match getter::get_dat_path() {
+        Ok(exe_path) => exe_path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    let exe_dir = match getter::get_exe_path() {
+        Ok(exe_path) => exe_path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    let (dats, dats_filename) = match get_backup_dat(&backup_dir) {
+        Ok((dats, dats_filename)) => (dats, dats_filename),
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    for (i, (value, filename)) in dats.iter().zip(dats_filename.iter()).enumerate() {
+        let file_size = match std::fs::metadata(format!("{}\\{}", backup_dir, filename)) {
+            Ok(metadata) => metadata.len(),
+            Err(err) => {
+                return Err(MdownError::IoError(err, filename.to_string()));
+            }
+        };
+        let file_size_string = bytefmt::format(file_size);
+        println!("{}) {} ({})", i + 1, value, file_size_string);
+    }
+
+    let vstup = match input("> ") {
+        Ok(input) => {
+            match input.trim().parse::<usize>() {
+                Ok(index) => index,
+                Err(_err) => 1
+            }
+        }
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    if vstup > 0 && vstup <= dats.len() {
+        let filename = &dats_filename[vstup - 1];
+        let file_path = format!("{}\\{}", backup_dir, filename);
+        let backup_file_path = format!("{}\\{}", exe_dir, "dat.json.tmp");
+
+        let vstup = match
+            input(&format!("Are you sure you want to choose \"{}\"? (y/N) > ", filename))
+        {
+            Ok(input) => input.to_ascii_lowercase(),
+            Err(err) => {
+                return Err(err);
+            }
+        };
+        if vstup == "y" {
+            match fs::copy(&dat_file, &backup_file_path) {
+                Ok(_) => (),
+                Err(err) => {
+                    return Err(MdownError::IoError(err, dat_file));
+                }
+            }
+            match fs::copy(&file_path, &dat_file) {
+                Ok(_) => (),
+                Err(err) => {
+                    return Err(MdownError::IoError(err, dat_file));
+                }
+            }
+            match fs::remove_file(&backup_file_path) {
+                Ok(_) => (),
+                Err(err) => {
+                    return Err(MdownError::IoError(err, dat_file));
+                }
+            }
+            println!("Backup successful");
+        } else {
+            println!("Backup canceled due user wishes");
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
+    debug!("backup_handler");
+    let backup_dir = match getter::get_bac_path() {
+        Ok(exe_path) => exe_path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    match fs::create_dir_all(&backup_dir) {
+        Ok(()) => (),
+        Err(err) => {
+            return Err(MdownError::IoError(err, backup_dir));
+        }
+    }
+
+    let (dats, dats_filename) = match get_backup_dat(&backup_dir) {
+        Ok((dats, dats_filename)) => (dats, dats_filename),
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    if dats.is_empty() {
+        return Ok(());
+    }
+
+    let latest_date = match dats.last() {
+        Some(date) => date,
+        None => &chrono::Local::now().naive_local().date(),
+    };
+
+    let current_date = Local::now().naive_local().date();
+
+    let day_before = match current_date.pred_opt() {
+        Some(date) => date,
+        None => *latest_date,
+    };
+
+    if latest_date < &day_before || dats.is_empty() || force {
+        debug!("creating backup");
+        let source_file = match getter::get_dat_path() {
+            Ok(source) => source,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+
+        if !dats_filename.is_empty() {
+            let current_file = match dats_filename.last() {
+                Some(date) => date,
+                None => "",
+            };
+            let source_sha = match calculate_sha256(&source_file) {
+                Ok(hash) => hash,
+                Err(err) => {
+                    return Err(err);
+                }
+            };
+
+            let latest_sha = match calculate_sha256(&format!("{}\\{}", backup_dir, current_file)) {
+                Ok(hash) => hash,
+                Err(err) => {
+                    return Err(err);
+                }
+            };
+            if source_sha == latest_sha && !force {
+                debug!("No changes detected, not backing up");
+                return Ok(());
+            }
+        }
+
+        let date_name = chrono::Local::now().naive_local().date().format("%Y_%m_%d").to_string();
+
+        let destination_file = format!("{}\\dat_{}.json", backup_dir, date_name);
+
+        match fs::copy(&source_file, &destination_file) {
+            Ok(_) => {
+                debug!("Copied successfully");
+            }
+            Err(err) => {
+                return Err(MdownError::IoError(err, source_file));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub(crate) fn show_settings(settings: metadata::Settings) {
     println!("folder: {}", settings.folder);
     println!("stat: {}", settings.stat);
+    println!("backup: {}", settings.backup);
 }
 
 pub(crate) fn is_directory_empty(path: &str) -> bool {
@@ -909,7 +1151,7 @@ impl FileName {
         }
     }
     pub(crate) fn get_file_w_folder(&self) -> String {
-        if args::ARGS.lock().update {
+        if *args::ARGS_UPDATE {
             format!("{}.cbz", process_filename(&self.get_folder_name()))
         } else {
             format!("{}\\{}.cbz", self.folder, process_filename(&self.get_folder_name()))
