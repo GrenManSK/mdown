@@ -123,6 +123,8 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 
 `--backup` - will set if backup should be disabled or enabled; 1 for yes 0 for no or nothing to remove the default option; default is yes
 
+`--music` - will set if the default music choice; have to specify a number; only works if it is compiled with music feature
+
 `--clear` - will remove all settings from database
 
 ## Help
@@ -149,3 +151,5 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 - App stores manga data in `dat.json` which is located in the same directory as the original application same as `resources.db` which contains data for application
 
 - Lowest tier in time in the name of backup is a day so if it is forced it will overwrite existing backup is same day
+
+- GUI: When you set default for music and start gui, music will not be automatically start; due to Mutex issues

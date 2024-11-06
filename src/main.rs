@@ -301,6 +301,8 @@ async fn start() -> Result<(), error::MdownError> {
     args::ARGS.lock().change("folder", args::Value::Str(settings.folder));
     args::ARGS.lock().change("stat", args::Value::Bool(settings.stat));
     args::ARGS.lock().change("backup", args::Value::Bool(settings.backup));
+    #[cfg(feature = "music")]
+    args::ARGS.lock().change("music", args::Value::OptOptStr(settings.music));
 
     // Handle encoding argument
     if !(*args::ARGS_ENCODE).is_empty() {
@@ -360,7 +362,7 @@ async fn start() -> Result<(), error::MdownError> {
     }
 
     // Handle music feature
-    if args::ARGS_MUSIC.is_some() {
+    if args::ARGS.lock().music.is_some() {
         #[cfg(feature = "music")]
         tokio::spawn(async { music::start() });
         debug!("music instance started");

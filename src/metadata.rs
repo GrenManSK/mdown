@@ -11,6 +11,8 @@ pub(crate) struct Settings {
     pub(crate) folder: String,
     pub(crate) stat: bool,
     pub(crate) backup: bool,
+    #[cfg(feature = "music")]
+    pub(crate) music: Option<Option<String>>,
 }
 
 /// Contains metadata for a specific manga chapter.

@@ -177,18 +177,32 @@ pub(crate) fn to_zip(src_dir: &str, dst_file: &str) {
         log!(&format!("Zipping files to: {} ...", dst_file));
     }
     match doit(src_dir, dst_file) {
-        Ok(_) => string(7, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str()),
-        Err(e) => eprintln!("  Error: {e:?}"),
-    }
-    if
-        *args::ARGS_WEB ||
-        *args::ARGS_GUI ||
-        *args::ARGS_CHECK ||
-        *args::ARGS_UPDATE ||
-        *args::ARGS_LOG ||
-        *args::ARGS_SERVER
-    {
-        log!(&format!("Zipping files to: {} Done", dst_file));
+        Ok(_) => {
+            string(7, 0, format!("   done: {} written to {}", src_dir, dst_file).as_str());
+            if
+                *args::ARGS_WEB ||
+                *args::ARGS_GUI ||
+                *args::ARGS_CHECK ||
+                *args::ARGS_UPDATE ||
+                *args::ARGS_LOG ||
+                *args::ARGS_SERVER
+            {
+                log!(&format!("Zipping files to: {} Done", dst_file));
+            }
+        }
+        Err(e) => {
+            eprintln!("  Error: {e:?}");
+            if
+                *args::ARGS_WEB ||
+                *args::ARGS_GUI ||
+                *args::ARGS_CHECK ||
+                *args::ARGS_UPDATE ||
+                *args::ARGS_LOG ||
+                *args::ARGS_SERVER
+            {
+                log!(&format!("Zipping files to: {} ERROR", dst_file));
+            }
+        }
     }
 }
 

@@ -17,6 +17,8 @@ pub const DB_FOLDER: &str = "2001";
 pub const DB_STAT: &str = "2002";
 pub const DB_TUTORIAL: &str = "2003";
 pub const DB_BACKUP: &str = "2004";
+#[cfg(feature = "music")]
+pub const DB_MUSIC: &str = "2101";
 
 /// Initializes the database by creating the `resources` table if it does not already exist.
 ///
@@ -760,7 +762,18 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
 
     // Update settings in the database based on command-line arguments
     match args::ARGS.lock().subcommands.clone() {
-        Some(args::Commands::Settings { folder, stat, backup, clear }) => {
+        Some(
+            args::Commands::Settings {
+                folder,
+                stat,
+                backup,
+                #[cfg(feature = "music")]
+                music,
+                clear,
+                #[cfg(not(feature = "music"))]
+                ..
+            },
+        ) => {
             match folder {
                 Some(Some(folder)) => {
                     match write_resource(&conn, DB_FOLDER, folder.as_bytes(), false) {
@@ -827,6 +840,26 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                 }
                 None => (),
             }
+            #[cfg(feature = "music")]
+            match music {
+                Some(Some(music)) => {
+                    match write_resource(&conn, DB_MUSIC, music.as_bytes(), false) {
+                        Ok(_id) => (),
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    }
+                }
+                Some(None) => {
+                    match delete_resource(&conn, DB_MUSIC) {
+                        Ok(_id) => (),
+                        Err(err) => {
+                            return Err(err);
+                        }
+                    }
+                }
+                None => (),
+            }
             if clear {
                 match delete_resource(&conn, DB_FOLDER) {
                     Ok(_id) => (),
@@ -847,6 +880,13 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     }
                 }
                 match delete_resource(&conn, DB_BACKUP) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
+                #[cfg(feature = "music")]
+                match delete_resource(&conn, DB_MUSIC) {
                     Ok(_id) => (),
                     Err(err) => {
                         return Err(err);
@@ -950,8 +990,31 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
         }
     };
 
+    #[cfg(feature = "music")]
+    // Read the music setting from the database
+    let music = match read_resource(&conn, DB_MUSIC) {
+        Ok(Some(value)) =>
+            match
+                String::from_utf8(value).map_err(|e|
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                )
+            {
+                Ok(music) => {
+                    debug!("music from database: {:?}", music);
+                    Some(Some(music))
+                }
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+        Ok(None) => args::ARGS.lock().music.clone(),
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
     // Create and return the settings object
-    let settings = metadata::Settings { folder, stat, backup };
+    let settings = metadata::Settings { folder, stat, backup, #[cfg(feature = "music")] music };
 
     debug!("{:?}\n", settings);
 

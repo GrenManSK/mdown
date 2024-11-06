@@ -398,6 +398,13 @@ pub(crate) enum Commands {
             help = "Will set default of backup files n[default: Will remove current backup setting; 1 is for yes, 0 for no][default for backup is 1]"
         )]
         backup: Option<Option<String>>,
+        /// Will start music
+        #[arg(
+            long,
+            next_line_help = true,
+            help = "Will play music during downloading\n1. Wushu Dolls\n2. Militech\n3. You Shall Never Have to Forgive Me Again\n4. Valentinos\n5. Force Projection\n[default: Will remove current setting]"
+        )]
+        music: Option<Option<String>>,
 
         /// Will remove all settings
         #[arg(long, next_line_help = true, help = "Will remove all settings")]
@@ -440,6 +447,10 @@ pub(crate) enum Value {
 
     /// A string value.
     Str(String),
+
+    #[cfg(feature = "music")]
+    /// A option option string value used.
+    OptOptStr(Option<Option<String>>),
 }
 
 /// Structure representing the parsed command-line arguments.
@@ -498,6 +509,10 @@ impl Args {
             }
             ("backup", Value::Bool(value)) => {
                 self.backup = value;
+            }
+            #[cfg(feature = "music")]
+            ("music", Value::OptOptStr(value)) => {
+                self.music = value.clone();
             }
             (_, _) => (),
         }
@@ -637,6 +652,7 @@ impl Args {
             debug_file: *ARGS_DEBUG_FILE,
             dev: *ARGS_DEV,
             backup: ARGS_BACKUP.clone(),
+            // ARGS_MUSIC is not synchronized with database
             music: ARGS_MUSIC.clone(),
             tutorial: *ARGS_TUTORIAL,
             skip_tutorial: *ARGS_SKIP_TUTORIAL,

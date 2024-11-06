@@ -1,7 +1,7 @@
 use rodio::{ Decoder, OutputStream, Sink, Source };
 use std::{ io::Cursor, thread, time::Duration };
 
-use crate::{ args::ARGS_MUSIC, metadata::MusicStage, resolute::{ MUSIC_END, MUSIC_STAGE } };
+use crate::{ args::ARGS, metadata::MusicStage, resolute::{ MUSIC_END, MUSIC_STAGE } };
 
 include!(concat!(env!("OUT_DIR"), "/no_mp3.rs"));
 
@@ -67,7 +67,7 @@ pub(crate) fn start() {
     let mut stealth_sink = None;
     let mut combat_sink = None;
 
-    let music_pack = match ARGS_MUSIC.clone() {
+    let music_pack = match ARGS.lock().music.clone() {
         Some(s) => {
             match s.clone() {
                 Some(value) => {

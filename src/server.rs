@@ -198,14 +198,30 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             };
 
             let decoded_str = match percent_encoding::percent_decode_str(&file_path).decode_utf8() {
-                Ok(decoded_str) => decoded_str.to_string().replace("./", "").replace("/", ""),
+                Ok(decoded_str) => decoded_str.to_string(),
                 Err(err) => {
                     return Err(MdownError::ConversionError(err.to_string()));
                 }
             };
 
-            let dst_file = match decoded_str.split('/').last() {
-                Some(value) => format!("{}.zip", value),
+            let dst_file = match decoded_str.replace("./", "").replace("/", "").split('/').last() {
+                Some(value) => {
+                    if value == "" {
+                        let current_dir = match std::env::current_dir() {
+                            Ok(dir) => dir,
+                            Err(err) => {
+                                eprintln!("Error getting current directory: {}", err);
+                                std::process::exit(1);
+                            }
+                        };
+                        match current_dir.file_name() {
+                            Some(last_folder) => format!("{}.zip", last_folder.to_string_lossy()),
+                            None => String::from("base.zip"),
+                        }
+                    } else {
+                        format!("{}.zip", value)
+                    }
+                }
                 None => {
                     return Ok(());
                 }
