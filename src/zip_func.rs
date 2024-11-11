@@ -59,7 +59,7 @@ fn zip_dir<T>(
         let name = match path.strip_prefix(Path::new(prefix)) {
             Ok(name) => name,
             Err(err) => {
-                return Err(error::MdownError::ConversionError(err.to_string()));
+                return Err(error::MdownError::ConversionError(err.to_string(), 10700));
             }
         };
 
@@ -69,13 +69,13 @@ fn zip_dir<T>(
             match zip.start_file_from_path(name, options) {
                 Ok(()) => (),
                 Err(err) => {
-                    return Err(error::MdownError::ZipError(err));
+                    return Err(error::MdownError::ZipError(err, 10701));
                 }
             }
             let mut f = match File::open(path) {
                 Ok(file) => file,
                 Err(err) => {
-                    return Err(error::MdownError::IoError(err, String::new()));
+                    return Err(error::MdownError::IoError(err, String::new(), 10702));
                 }
             };
 
@@ -83,13 +83,13 @@ fn zip_dir<T>(
             match f.read_to_end(&mut buffer) {
                 Ok(_size) => (),
                 Err(err) => {
-                    return Err(error::MdownError::IoError(err, String::new()));
+                    return Err(error::MdownError::IoError(err, String::new(), 10703));
                 }
             }
             match zip.write_all(&buffer) {
                 Ok(()) => (),
                 Err(err) => {
-                    return Err(error::MdownError::IoError(err, String::new()));
+                    return Err(error::MdownError::IoError(err, String::new(), 10704));
                 }
             }
             buffer.clear();
@@ -100,7 +100,7 @@ fn zip_dir<T>(
             match zip.add_directory_from_path(name, options) {
                 Ok(()) => (),
                 Err(err) => {
-                    return Err(error::MdownError::ZipError(err));
+                    return Err(error::MdownError::ZipError(err, 10705));
                 }
             };
         }
@@ -111,7 +111,7 @@ fn zip_dir<T>(
     match zip.finish() {
         Ok(_writer) => (),
         Err(err) => {
-            return Err(error::MdownError::ZipError(err));
+            return Err(error::MdownError::ZipError(err, 10706));
         }
     }
     Ok(())
@@ -132,13 +132,13 @@ fn zip_dir<T>(
 fn doit(src_dir: &str, dst_file: &str) -> Result<(), error::MdownError> {
     // Check if the source directory exists.
     if !Path::new(src_dir).is_dir() {
-        return Err(error::MdownError::ZipError(ZipError::FileNotFound));
+        return Err(error::MdownError::ZipError(ZipError::FileNotFound, 10707));
     }
     let path = Path::new(dst_file);
     let file = match File::create(path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, String::new()));
+            return Err(error::MdownError::IoError(err, String::new(), 10708));
         }
     };
 
@@ -224,23 +224,25 @@ pub(crate) fn extract_file_from_zip(
     let zip_file = match File::open(zip_file_path) {
         Ok(zip_file) => zip_file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, zip_file_path.to_string()));
+            return Err(error::MdownError::IoError(err, zip_file_path.to_string(), 10709));
         }
     };
     let mut archive = match ZipArchive::new(zip_file) {
         Ok(archive) => archive,
         Err(err) => {
-            return Err(error::MdownError::ZipError(err));
+            return Err(error::MdownError::ZipError(err, 10710));
         }
     };
 
-    let answer = match archive.by_name(metadata_file_name).map_err(error::MdownError::ZipError) {
+    let answer = match archive.by_name(metadata_file_name) {
         Ok(mut file) => {
             let mut metadata_content = String::new();
             match file.read_to_string(&mut metadata_content) {
                 Ok(_) => (),
                 Err(err) => {
-                    return Err(error::MdownError::IoError(err, metadata_file_name.to_string()));
+                    return Err(
+                        error::MdownError::IoError(err, metadata_file_name.to_string(), 10712)
+                    );
                 }
             }
             let json_value = match utils::get_json(&metadata_content) {
@@ -254,14 +256,15 @@ pub(crate) fn extract_file_from_zip(
                     return Ok(obj);
                 }
                 Err(err) => {
-                    return Err(error::MdownError::JsonError(err.to_string()));
+                    return Err(error::MdownError::JsonError(err.to_string(), 10713));
                 }
             }
         }
         Err(_err) => {
             Err(
                 error::MdownError::NotFoundError(
-                    format!("File '{}' not found in the zip archive", metadata_file_name)
+                    format!("File '{}' not found in the zip archive", metadata_file_name),
+                    10714
                 )
             )
         }
@@ -284,13 +287,13 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
     let zip_file = match File::open(zip_file_path) {
         Ok(zip_file) => zip_file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, zip_file_path.to_string()));
+            return Err(error::MdownError::IoError(err, zip_file_path.to_string(), 10715));
         }
     };
     let mut archive = match ZipArchive::new(zip_file) {
         Ok(archive) => archive,
         Err(err) => {
-            return Err(error::MdownError::ZipError(err));
+            return Err(error::MdownError::ZipError(err, 10716));
         }
     };
 
@@ -298,7 +301,7 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
         let mut file = match archive.by_index(i) {
             Ok(file) => file,
             Err(err) => {
-                return Err(error::MdownError::ZipError(err));
+                return Err(error::MdownError::ZipError(err, 10717));
             }
         };
         if let Some(file_name) = file.name().to_lowercase().split('.').last() {
@@ -306,7 +309,7 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
                 "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => {
                     let mut content = Vec::new();
                     if let Err(err) = file.read_to_end(&mut content) {
-                        return Err(error::MdownError::IoError(err, file.name().to_string()));
+                        return Err(error::MdownError::IoError(err, file.name().to_string(), 10718));
                     }
                     return Ok(content);
                 }
@@ -317,7 +320,7 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
         }
     }
 
-    Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned()))
+    Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned(), 10719))
 }
 
 /// Extracts multiple images from a set of ZIP files, selecting up to 10 images randomly.
@@ -340,13 +343,13 @@ pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownErro
             let file = match File::open(zip_file_path) {
                 Ok(file) => file,
                 Err(err) => {
-                    return Err(error::MdownError::IoError(err, zip_file_path.to_string()));
+                    return Err(error::MdownError::IoError(err, zip_file_path.to_string(), 10720));
                 }
             };
             let mut archive = match ZipArchive::new(file) {
                 Ok(archive) => archive,
                 Err(err) => {
-                    return Err(error::MdownError::ZipError(err));
+                    return Err(error::MdownError::ZipError(err, 10721));
                 }
             };
 
@@ -354,7 +357,7 @@ pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownErro
                 let mut file = match archive.by_index(i) {
                     Ok(file) => file,
                     Err(err) => {
-                        return Err(error::MdownError::ZipError(err));
+                        return Err(error::MdownError::ZipError(err, 10722));
                     }
                 };
                 if let Some(file_name) = file.name().to_lowercase().split('.').last() {
@@ -363,7 +366,7 @@ pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownErro
                             let mut content = Vec::new();
                             if let Err(err) = file.read_to_end(&mut content) {
                                 return Err(
-                                    error::MdownError::IoError(err, file.name().to_string())
+                                    error::MdownError::IoError(err, file.name().to_string(), 10723)
                                 );
                             }
                             images.push(content);

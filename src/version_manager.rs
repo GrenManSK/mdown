@@ -75,26 +75,26 @@ pub(crate) fn check_ver(
             let mut file = match File::create(&dat_path) {
                 Ok(path) => path,
                 Err(err) => {
-                    return Err(MdownError::IoError(err, dat_path));
+                    return Err(MdownError::IoError(err, dat_path, 11600));
                 }
             };
 
             let json = match serde_json::to_value::<Dat>(dat.clone()) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(MdownError::JsonError(err.to_string()));
+                    return Err(MdownError::JsonError(err.to_string(), 11601));
                 }
             };
 
             let json_string = match serde_json::to_string_pretty(&json) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(MdownError::JsonError(err.to_string()));
+                    return Err(MdownError::JsonError(err.to_string(), 11602));
                 }
             };
 
             if let Err(err) = writeln!(file, "{}", json_string) {
-                return Err(MdownError::IoError(err, dat_path));
+                return Err(MdownError::IoError(err, dat_path, 11603));
             }
         } else {
             break;

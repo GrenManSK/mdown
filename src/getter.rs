@@ -49,7 +49,8 @@ pub(crate) fn get_exe_path() -> Result<String, MdownError> {
             return Err(
                 MdownError::IoError(
                     err,
-                    String::from("The path to your executable file is invalid")
+                    String::from("The path to your executable file is invalid"),
+                    10800
                 )
             );
         }
@@ -59,7 +60,9 @@ pub(crate) fn get_exe_path() -> Result<String, MdownError> {
     let parent = match current.parent() {
         Some(value) => value,
         None => {
-            return Err(MdownError::NotFoundError(String::from("Parent directory not found")));
+            return Err(
+                MdownError::NotFoundError(String::from("Parent directory not found"), 10801)
+            );
         }
     };
 
@@ -68,7 +71,7 @@ pub(crate) fn get_exe_path() -> Result<String, MdownError> {
         Some(value) => value.to_string(),
         None => {
             return Err(
-                MdownError::ConversionError(String::from("Failed to convert path to string"))
+                MdownError::ConversionError(String::from("Failed to convert path to string"), 10802)
             );
         }
     };
@@ -432,16 +435,20 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
             Ok(text) => Ok(text),
             Err(err) =>
                 Err(
-                    MdownError::StatusError(match err.status() {
-                        Some(status) => status,
-                        None => {
-                            return Err(
-                                MdownError::NotFoundError(
-                                    String::from("StatusCode (get_manga_json)")
-                                )
-                            );
-                        }
-                    })
+                    MdownError::StatusError(
+                        match err.status() {
+                            Some(status) => status,
+                            None => {
+                                return Err(
+                                    MdownError::NotFoundError(
+                                        String::from("StatusCode (get_manga_json)"),
+                                        10803
+                                    )
+                                );
+                            }
+                        },
+                        10804
+                    )
                 ),
         }
     } else {
@@ -450,7 +457,7 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
             "Error: get manga json Failed to fetch data from the API. Status code: {:?}",
             response.status()
         );
-        Err(MdownError::StatusError(response.status()))
+        Err(MdownError::StatusError(response.status(), 10804))
     }
 }
 
@@ -505,7 +512,7 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, MdownError> {
         let json = match response.text().await {
             Ok(res) => res,
             Err(err) => {
-                return Err(MdownError::JsonError(err.to_string()));
+                return Err(MdownError::JsonError(err.to_string(), 10806));
             }
         };
 
@@ -516,7 +523,7 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, MdownError> {
             "Error: get statistic json Failed to fetch data from the API. Status code: {:?}",
             response.status()
         );
-        Err(MdownError::StatusError(response.status()))
+        Err(MdownError::StatusError(response.status(), 10807))
     }
 }
 
@@ -583,16 +590,20 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
                 Ok(text) => text,
                 Err(err) => {
                     return Err(
-                        MdownError::StatusError(match err.status() {
-                            Some(status) => status,
-                            None => {
-                                return Err(
-                                    MdownError::NotFoundError(
-                                        String::from("StatusCode (get_chapter)")
-                                    )
-                                );
-                            }
-                        })
+                        MdownError::StatusError(
+                            match err.status() {
+                                Some(status) => status,
+                                None => {
+                                    return Err(
+                                        MdownError::NotFoundError(
+                                            String::from("StatusCode (get_chapter)"),
+                                            10807
+                                        )
+                                    );
+                                }
+                            },
+                            10808
+                        )
                     );
                 }
             };
@@ -611,16 +622,20 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
                         Ok(text) => text,
                         Err(err) => {
                             return Err(
-                                MdownError::StatusError(match err.status() {
-                                    Some(status) => status,
-                                    None => {
-                                        return Err(
-                                            MdownError::NotFoundError(
-                                                String::from("StatusCode (get_chapter)")
-                                            )
-                                        );
-                                    }
-                                })
+                                MdownError::StatusError(
+                                    match err.status() {
+                                        Some(status) => status,
+                                        None => {
+                                            return Err(
+                                                MdownError::NotFoundError(
+                                                    String::from("StatusCode (get_chapter)"),
+                                                    10809
+                                                )
+                                            );
+                                        }
+                                    },
+                                    10810
+                                )
                             );
                         }
                     }
@@ -752,20 +767,26 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                 response.status(),
                 full_url
             );
-            return Err(MdownError::StatusError(response.status()));
+            return Err(MdownError::StatusError(response.status(), 10811));
         }
         json = match response.text().await {
             Ok(text) => text,
             Err(err) => {
                 return Err(
-                    MdownError::StatusError(match err.status() {
-                        Some(status) => status,
-                        None => {
-                            return Err(
-                                MdownError::NotFoundError(String::from("StatusCode (get_manga)"))
-                            );
-                        }
-                    })
+                    MdownError::StatusError(
+                        match err.status() {
+                            Some(status) => status,
+                            None => {
+                                return Err(
+                                    MdownError::NotFoundError(
+                                        String::from("StatusCode (get_manga)"),
+                                        10812
+                                    )
+                                );
+                            }
+                        },
+                        10813
+                    )
                 );
             }
         };
@@ -822,7 +843,9 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                 }
             }
             _ => {
-                return Err(MdownError::JsonError(String::from("Could not parse manga json")));
+                return Err(
+                    MdownError::JsonError(String::from("Could not parse manga json"), 10814)
+                );
             }
         }
 
@@ -883,13 +906,13 @@ fn crossfade_data(json: &str, json_2: &str) -> Result<String, MdownError> {
     let data1_array = match data1.get_mut("data") {
         Some(value) => value,
         None => {
-            return Err(MdownError::JsonError(String::from("Didn't found data")));
+            return Err(MdownError::JsonError(String::from("Didn't found data"), 10815));
         }
     };
     let data2_array = match data2.get("data") {
         Some(value) => value,
         None => {
-            return Err(MdownError::JsonError(String::from("Didn't found data")));
+            return Err(MdownError::JsonError(String::from("Didn't found data"), 10816));
         }
     };
     let empty_array = vec![];
@@ -907,7 +930,7 @@ fn crossfade_data(json: &str, json_2: &str) -> Result<String, MdownError> {
 
     match serde_json::to_string(&data1) {
         Ok(value) => Ok(value),
-        Err(err) => { Err(MdownError::JsonError(err.to_string())) }
+        Err(err) => { Err(MdownError::JsonError(err.to_string(), 10817)) }
     }
 }
 
@@ -941,8 +964,11 @@ pub(crate) fn get_attr_as_same_as_index(data_array: &[String], item: usize) -> &
     match data_array.get(item) {
         Some(value) => value,
         None => {
-            eprintln!("{}", MdownError::NotFoundError(String::from("get_attr_as_same_as_index")));
-            exit(10801);
+            eprintln!(
+                "{}",
+                MdownError::NotFoundError(String::from("get_attr_as_same_as_index"), 10818)
+            );
+            exit(10818);
         }
     }
 }
@@ -980,8 +1006,11 @@ pub(crate) fn get_attr_as_same_from_vec(
     match data_array.get(item) {
         Some(value) => value,
         None => {
-            eprintln!("{}", MdownError::NotFoundError(String::from("get_attr_as_same_from_vec")));
-            exit(10802);
+            eprintln!(
+                "{}",
+                MdownError::NotFoundError(String::from("get_attr_as_same_from_vec"), 10819)
+            );
+            exit(10819);
         }
     }
 }

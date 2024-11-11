@@ -55,7 +55,7 @@ fn initialize_db(conn: &Connection) -> Result<(), MdownError> {
     {
         Ok(_) => (),
         Err(err) => {
-            return Err(MdownError::DatabaseError(err));
+            return Err(MdownError::DatabaseError(err, 10600));
         }
     }
     Ok(())
@@ -89,7 +89,7 @@ pub(crate) fn read_resource(conn: &Connection, name: &str) -> Result<Option<Vec<
         Ok(stmt) => stmt,
         Err(err) => {
             // Return a DatabaseError if preparing the statement fails
-            return Err(MdownError::DatabaseError(err));
+            return Err(MdownError::DatabaseError(err, 10601));
         }
     };
 
@@ -119,7 +119,11 @@ pub(crate) fn read_resource(conn: &Connection, name: &str) -> Result<Option<Vec<
                     let decoded_data = match
                         base64::decode(&data).map_err(|e| {
                             // Wrap base64 decoding errors in a CustomError
-                            MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                            MdownError::CustomError(
+                                e.to_string(),
+                                String::from("Base64Error"),
+                                10602
+                            )
                         })
                     {
                         Ok(value) => value,
@@ -137,7 +141,7 @@ pub(crate) fn read_resource(conn: &Connection, name: &str) -> Result<Option<Vec<
             .optional()
     {
         Ok(result) => Ok(result.unwrap_or_default()),
-        Err(err) => Err(MdownError::DatabaseError(err)),
+        Err(err) => Err(MdownError::DatabaseError(err, 10603)),
     }
 }
 
@@ -180,7 +184,7 @@ fn write_resource(
         match
             String::from_utf8(data.to_vec()).map_err(|e| {
                 // Wrap UTF-8 conversion errors in a CustomError
-                MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10604)
             })
         {
             Ok(value) => value,
@@ -206,7 +210,7 @@ fn write_resource(
         }
         Err(err) => {
             // Return a DatabaseError if executing the statement fails
-            Err(MdownError::DatabaseError(err))
+            Err(MdownError::DatabaseError(err, 10605))
         }
     }
 }
@@ -233,7 +237,7 @@ fn delete_resource(conn: &Connection, name: &str) -> Result<(), MdownError> {
     // Execute the SQL statement to delete the resource with the given name
     match conn.execute("DELETE FROM resources WHERE name = ?1", params![name]) {
         Ok(_) => Ok(()),
-        Err(err) => Err(MdownError::DatabaseError(err)),
+        Err(err) => Err(MdownError::DatabaseError(err, 10606)),
     }
 }
 
@@ -281,7 +285,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
     let conn = match Connection::open(&db_path) {
         Ok(conn) => conn,
         Err(err) => {
-            return Err(MdownError::DatabaseError(err));
+            return Err(MdownError::DatabaseError(err, 10607));
         }
     };
 
@@ -304,7 +308,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
     let json_data = match serde_json::from_str::<metadata::DB>(&json_data_string) {
         Ok(value) => value,
         Err(err) => {
-            return Err(MdownError::JsonError(err.to_string()));
+            return Err(MdownError::JsonError(err.to_string(), 10608));
         }
     };
 
@@ -443,7 +447,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                 match std::fs::remove_file(name) {
                     Ok(_) => (),
                     Err(err) => {
-                        return Err(MdownError::IoError(err, String::from(name)));
+                        return Err(MdownError::IoError(err, String::from(name), 10609));
                     }
                 };
             } else {
@@ -457,7 +461,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
         match std::fs::remove_file(&full_path) {
             Ok(_) => (),
             Err(err) => {
-                return Err(MdownError::IoError(err, full_path));
+                return Err(MdownError::IoError(err, full_path, 10610));
             }
         };
     }
@@ -612,7 +616,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let client = match download::get_client() {
         Ok(client) => client,
         Err(err) => {
-            return Err(MdownError::NetworkError(err));
+            return Err(MdownError::NetworkError(err, 10611));
         }
     };
     let url = "https://github.com/yt-dlp/yt-dlp/releases/download/2024.04.09/yt-dlp_min.exe";
@@ -622,7 +626,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     match std::io::stdout().flush() {
         Ok(()) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, String::new()));
+            return Err(MdownError::IoError(err, String::new(), 10612));
         }
     }
 
@@ -630,7 +634,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let mut response = match client.get(url).send().await {
         Ok(response) => response,
         Err(err) => {
-            return Err(MdownError::NetworkError(err));
+            return Err(MdownError::NetworkError(err, 10613));
         }
     };
     println!("Fetching {} DONE", url);
@@ -642,7 +646,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let mut file = match std::fs::File::create(full_path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, full_path.to_string()));
+            return Err(MdownError::IoError(err, full_path.to_string(), 10614));
         }
     };
     let (mut downloaded, mut last_size) = (0, 0);
@@ -656,7 +660,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
             Ok(Some(chunk)) => Some(chunk),
             Ok(None) => None,
             Err(err) => {
-                return Err(MdownError::NetworkError(err));
+                return Err(MdownError::NetworkError(err, 10615));
             }
         }
     {
@@ -664,7 +668,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                return Err(MdownError::IoError(err, full_path.to_string()));
+                return Err(MdownError::IoError(err, full_path.to_string(), 10616));
             }
         }
         downloaded += chunk.len() as u64;
@@ -687,7 +691,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
             match std::io::stdout().flush() {
                 Ok(()) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, String::new()));
+                    return Err(MdownError::IoError(err, String::new(), 10617));
                 }
             }
             last_check_time = current_time;
@@ -746,7 +750,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
     let conn = match Connection::open(&db_path) {
         Ok(conn) => conn,
         Err(err) => {
-            return Err(MdownError::DatabaseError(err));
+            return Err(MdownError::DatabaseError(err, 10618));
         }
     };
 
@@ -806,7 +810,8 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                         suspend_error(
                             MdownError::CustomError(
                                 String::from("stat should be 1 or 0"),
-                                String::from("UserError")
+                                String::from("UserError"),
+                                10619
                             )
                         );
                     }
@@ -904,7 +909,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10620)
                 )
             {
                 Ok(folder) => {
@@ -925,7 +930,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10621)
                 )
             {
                 Ok(stat) => {
@@ -936,7 +941,8 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                             suspend_error(
                                 MdownError::CustomError(
                                     String::from("stat should be 1 or 0"),
-                                    String::from("UserError")
+                                    String::from("UserError"),
+                                    10622
                                 )
                             );
                             false
@@ -960,7 +966,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10623)
                 )
             {
                 Ok(backup) => {
@@ -971,7 +977,8 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                             suspend_error(
                                 MdownError::CustomError(
                                     String::from("backup should be 1 or 0"),
-                                    String::from("UserError")
+                                    String::from("UserError"),
+                                    10624
                                 )
                             );
                             false
@@ -996,7 +1003,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10625)
                 )
             {
                 Ok(music) => {
@@ -1040,7 +1047,7 @@ pub(crate) fn check_tutorial() -> Result<(), MdownError> {
     let conn = match Connection::open(&db_path) {
         Ok(conn) => conn,
         Err(err) => {
-            return Err(MdownError::DatabaseError(err));
+            return Err(MdownError::DatabaseError(err, 10626));
         }
     };
 
@@ -1048,7 +1055,7 @@ pub(crate) fn check_tutorial() -> Result<(), MdownError> {
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"))
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10627)
                 )
             {
                 Ok(tutorial) => {

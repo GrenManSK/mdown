@@ -299,7 +299,7 @@ pub(crate) fn reset() -> Result<(), MdownError> {
 }
 
 fn push_suspended(err: std::io::Error, name: &str) {
-    suspend_error(MdownError::IoError(err, name.to_string()));
+    suspend_error(MdownError::IoError(err, name.to_string(), 10400));
 }
 
 pub(crate) fn remove_cache() -> Result<(), MdownError> {
@@ -307,7 +307,7 @@ pub(crate) fn remove_cache() -> Result<(), MdownError> {
         match remove_dir_all(".cache") {
             Ok(()) => (),
             Err(err) => {
-                suspend_error(MdownError::IoError(err, String::from(".cache\\")));
+                suspend_error(MdownError::IoError(err, String::from(".cache\\"), 10401));
             }
         };
     }
@@ -319,7 +319,7 @@ pub(crate) fn input(text: &str) -> Result<String, MdownError> {
     match std::io::stdout().flush() {
         Ok(()) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, String::new()));
+            return Err(MdownError::IoError(err, String::new(), 10402));
         }
     }
 
@@ -327,7 +327,7 @@ pub(crate) fn input(text: &str) -> Result<String, MdownError> {
     match std::io::stdin().read_line(&mut input) {
         Ok(_) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, String::new()));
+            return Err(MdownError::IoError(err, String::new(), 10403));
         }
     }
     Ok(input.trim().to_string())
@@ -347,7 +347,8 @@ pub(crate) fn setup_subscriber() -> Result<(), MdownError> {
             suspend_error(
                 MdownError::CustomError(
                     String::from("Failed to set up tracing_subscriber (basically info)"),
-                    String::from("Subscriber")
+                    String::from("Subscriber"),
+                    10404
                 )
             );
             Ok(())
@@ -359,7 +360,7 @@ pub(crate) fn create_cache_folder() -> Result<(), MdownError> {
     match fs::create_dir(".cache") {
         Ok(()) => Ok(()),
         Err(err) => {
-            suspend_error(MdownError::IoError(err, String::from(".cache\\")));
+            suspend_error(MdownError::IoError(err, String::from(".cache\\"), 10405));
             Ok(())
         }
     }
@@ -412,7 +413,7 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
                     let image_content: f64 = match image_content.parse() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(MdownError::ConversionError(err.to_string()));
+                            return Err(MdownError::ConversionError(err.to_string(), 10406));
                         }
                     };
                     size += image_content / 1024.0 / 1024.0;
@@ -437,7 +438,7 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
                     let image_content: f64 = match image_content.parse() {
                         Ok(value) => value,
                         Err(err) => {
-                            return Err(MdownError::ConversionError(err.to_string()));
+                            return Err(MdownError::ConversionError(err.to_string(), 10407));
                         }
                     };
                     full_size += image_content / 1024.0 / 1024.0;
@@ -544,7 +545,7 @@ pub(crate) fn sort(data: &Vec<metadata::ChapterResponse>) -> Vec<metadata::Chapt
 pub(crate) fn get_json(manga_name_json: &str) -> Result<Value, MdownError> {
     match serde_json::from_str(manga_name_json) {
         Ok(value) => Ok(value),
-        Err(err) => Err(MdownError::JsonError(err.to_string())),
+        Err(err) => Err(MdownError::JsonError(err.to_string(), 10408)),
     }
 }
 
@@ -555,7 +556,7 @@ pub(crate) async fn search() -> Result<String, MdownError> {
     let client = match download::get_client() {
         Ok(client) => client,
         Err(err) => {
-            return Err(MdownError::NetworkError(err));
+            return Err(MdownError::NetworkError(err, 10409));
         }
     };
 
@@ -571,7 +572,7 @@ pub(crate) async fn search() -> Result<String, MdownError> {
     {
         Ok(response) => response,
         Err(err) => {
-            return Err(MdownError::NetworkError(err));
+            return Err(MdownError::NetworkError(err, 10410));
         }
     };
 
@@ -579,7 +580,7 @@ pub(crate) async fn search() -> Result<String, MdownError> {
         let manga_data: serde_json::Value = match response.json().await {
             Ok(value) => value,
             Err(err) => {
-                return Err(MdownError::JsonError(err.to_string()));
+                return Err(MdownError::JsonError(err.to_string(), 10411));
             }
         };
 
@@ -587,7 +588,7 @@ pub(crate) async fn search() -> Result<String, MdownError> {
             Some(data) => data,
             None => {
                 return Err(
-                    MdownError::NotFoundError(String::from("data in manga_data in main.rs"))
+                    MdownError::NotFoundError(String::from("data in manga_data in main.rs"), 10412)
                 );
             }
         };
@@ -595,7 +596,10 @@ pub(crate) async fn search() -> Result<String, MdownError> {
             Some(data) => data,
             None => {
                 return Err(
-                    MdownError::ConversionError(String::from("manga_data to array in main.rs"))
+                    MdownError::ConversionError(
+                        String::from("manga_data to array in main.rs"),
+                        10413
+                    )
                 );
             }
         };
@@ -613,10 +617,15 @@ pub(crate) async fn search() -> Result<String, MdownError> {
         return match manga_ids.first() {
             Some(id) => Ok(id.to_string()),
             None =>
-                Err(MdownError::NotFoundError(String::from("manga_id in manga_ids in main.rs"))),
+                Err(
+                    MdownError::NotFoundError(
+                        String::from("manga_id in manga_ids in main.rs"),
+                        10414
+                    )
+                ),
         };
     } else {
-        Err(MdownError::StatusError(response.status()))
+        Err(MdownError::StatusError(response.status(), 10415))
     }
 }
 
@@ -639,7 +648,7 @@ pub(crate) fn resolve_start() -> Result<String, MdownError> {
         eprintln!(
             "Lock file has been found;\nSee README.md;\nCannot run multiple instances of mdown"
         );
-        exit(10401);
+        exit(10499);
     }
     match File::create(&file_path) {
         Ok(_) => (),
@@ -791,7 +800,7 @@ pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match> {
     let re = match regex::Regex::new(r"https://mangadex.org/title/([\w-]+)/?") {
         Ok(value) => value,
         Err(err) => {
-            suspend_error(MdownError::RegexError(err));
+            suspend_error(MdownError::RegexError(err, 10416));
             return None;
         }
     };
@@ -865,7 +874,7 @@ fn calculate_sha256(file_path: &str) -> Result<String, MdownError> {
     let mut file = match File::open(file_path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, file_path.to_string()));
+            return Err(MdownError::IoError(err, file_path.to_string(), 10417));
         }
     };
     let mut hasher = Sha256::new();
@@ -875,7 +884,7 @@ fn calculate_sha256(file_path: &str) -> Result<String, MdownError> {
         let n = match file.read(&mut buffer) {
             Ok(n) => n,
             Err(err) => {
-                return Err(MdownError::IoError(err, file_path.to_string()));
+                return Err(MdownError::IoError(err, file_path.to_string(), 10418));
             }
         };
         if n == 0 {
@@ -915,7 +924,7 @@ fn get_backup_dat(backup_dir: &str) -> Result<(Vec<NaiveDate>, Vec<String>), Mdo
             }
         }
         Err(err) => {
-            return Err(MdownError::IoError(err, backup_dir.to_string()));
+            return Err(MdownError::IoError(err, backup_dir.to_string(), 10419));
         }
     }
 
@@ -955,7 +964,7 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
         let file_size = match std::fs::metadata(format!("{}\\{}", backup_dir, filename)) {
             Ok(metadata) => metadata.len(),
             Err(err) => {
-                return Err(MdownError::IoError(err, filename.to_string()));
+                return Err(MdownError::IoError(err, filename.to_string(), 10420));
             }
         };
         let file_size_string = bytefmt::format(file_size);
@@ -966,7 +975,7 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
         Ok(input) => {
             match input.trim().parse::<usize>() {
                 Ok(index) => index,
-                Err(_err) => 1
+                Err(_err) => 1,
             }
         }
         Err(err) => {
@@ -990,19 +999,19 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
             match fs::copy(&dat_file, &backup_file_path) {
                 Ok(_) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, dat_file));
+                    return Err(MdownError::IoError(err, dat_file, 10421));
                 }
             }
             match fs::copy(&file_path, &dat_file) {
                 Ok(_) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, dat_file));
+                    return Err(MdownError::IoError(err, dat_file, 10422));
                 }
             }
             match fs::remove_file(&backup_file_path) {
                 Ok(_) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, dat_file));
+                    return Err(MdownError::IoError(err, dat_file, 10423));
                 }
             }
             println!("Backup successful");
@@ -1024,7 +1033,7 @@ pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
     match fs::create_dir_all(&backup_dir) {
         Ok(()) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, backup_dir));
+            return Err(MdownError::IoError(err, backup_dir, 10424));
         }
     }
 
@@ -1093,7 +1102,7 @@ pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
                 debug!("Copied successfully");
             }
             Err(err) => {
-                return Err(MdownError::IoError(err, source_file));
+                return Err(MdownError::IoError(err, source_file, 10425));
             }
         }
     }
@@ -1258,13 +1267,13 @@ pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(),
     {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, String::from(file)));
+            return Err(MdownError::IoError(err, String::from(file), 10426));
         }
     };
     match write!(file_inst, "{:?}", item) {
         Ok(()) => (),
         Err(err) => {
-            suspend_error(MdownError::IoError(err, String::from(file)));
+            suspend_error(MdownError::IoError(err, String::from(file), 10427));
         }
     }
     Ok(())

@@ -25,21 +25,21 @@ fn get_directory_content(path: &str) -> Result<Value, MdownError> {
     let decoded_str = match percent_encoding::percent_decode_str(path).decode_utf8() {
         Ok(decoded_str) => decoded_str.to_string(),
         Err(err) => {
-            return Err(MdownError::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string(), 11200));
         }
     };
 
     let dir = match fs::read_dir(&decoded_str) {
         Ok(dir) => dir,
         Err(err) => {
-            return Err(MdownError::IoError(err, decoded_str));
+            return Err(MdownError::IoError(err, decoded_str, 11201));
         }
     };
     for entry in dir {
         let entry = match entry {
             Ok(entry) => entry,
             Err(err) => {
-                return Err(MdownError::IoError(err, decoded_str));
+                return Err(MdownError::IoError(err, decoded_str, 11202));
             }
         };
         let file_name = match entry.file_name().into_string() {
@@ -47,7 +47,8 @@ fn get_directory_content(path: &str) -> Result<Value, MdownError> {
             Err(_err) => {
                 return Err(
                     MdownError::ConversionError(
-                        String::from("Failed to convert file name to string")
+                        String::from("Failed to convert file name to string"),
+                        11203
                     )
                 );
             }
@@ -55,7 +56,7 @@ fn get_directory_content(path: &str) -> Result<Value, MdownError> {
         let metadata = match entry.metadata() {
             Ok(metadata) => metadata,
             Err(err) => {
-                return Err(MdownError::IoError(err, file_name));
+                return Err(MdownError::IoError(err, file_name, 11204));
             }
         };
         let mut file_info =
@@ -64,7 +65,7 @@ fn get_directory_content(path: &str) -> Result<Value, MdownError> {
             "modified": match metadata.modified() {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(MdownError::IoError(err, file_name));
+                    return Err(MdownError::IoError(err, file_name, 11205));
                 }
             },
             "path": file_name,
@@ -78,7 +79,8 @@ fn get_directory_content(path: &str) -> Result<Value, MdownError> {
                     None => {
                         return Err(
                             MdownError::NotFoundError(
-                                String::from("Could not get file_info as mutable object")
+                                String::from("Could not get file_info as mutable object"),
+                                11206
                             )
                         );
                     }
@@ -98,7 +100,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
     match stream.read_line(&mut request_line) {
         Ok(_n) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, String::new()));
+            return Err(MdownError::IoError(err, String::new(), 11207));
         }
     }
 
@@ -118,13 +120,13 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             let json_response = match get_directory_content(&file_path) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(MdownError::JsonError(err.to_string()));
+                    return Err(MdownError::JsonError(err.to_string(), 11208));
                 }
             };
             let response_body = match serde_json::to_string(&json_response) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(MdownError::JsonError(err.to_string()));
+                    return Err(MdownError::JsonError(err.to_string(), 11209));
                 }
             };
             let mut response = String::new();
@@ -136,7 +138,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, String::new()));
+                    return Err(MdownError::IoError(err, String::new(), 11210));
                 }
             };
         } else if path.starts_with("/__preview__?") {
@@ -150,7 +152,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             let decoded_str = match percent_encoding::percent_decode_str(&file_path).decode_utf8() {
                 Ok(decoded_str) => decoded_str.to_string().replace("./", "").replace("/", ""),
                 Err(err) => {
-                    return Err(MdownError::ConversionError(err.to_string()));
+                    return Err(MdownError::ConversionError(err.to_string(), 11211));
                 }
             };
 
@@ -165,7 +167,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 match fs::read(&decoded_str) {
                     Ok(contents) => contents,
                     Err(err) => {
-                        return Err(MdownError::IoError(err, decoded_str));
+                        return Err(MdownError::IoError(err, decoded_str, 11212));
                     }
                 }
             };
@@ -180,13 +182,13 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, String::new()));
+                    return Err(MdownError::IoError(err, String::new(), 11213));
                 }
             }
             match stream.get_mut().write_all(&contents) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, String::new()));
+                    return Err(MdownError::IoError(err, String::new(), 11214));
                 }
             }
         } else if path.starts_with("/__download__?") {
@@ -200,28 +202,12 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             let decoded_str = match percent_encoding::percent_decode_str(&file_path).decode_utf8() {
                 Ok(decoded_str) => decoded_str.to_string(),
                 Err(err) => {
-                    return Err(MdownError::ConversionError(err.to_string()));
+                    return Err(MdownError::ConversionError(err.to_string(), 11215));
                 }
             };
 
-            let dst_file = match decoded_str.replace("./", "").replace("/", "").split('/').last() {
-                Some(value) => {
-                    if value == "" {
-                        let current_dir = match std::env::current_dir() {
-                            Ok(dir) => dir,
-                            Err(err) => {
-                                eprintln!("Error getting current directory: {}", err);
-                                std::process::exit(1);
-                            }
-                        };
-                        match current_dir.file_name() {
-                            Some(last_folder) => format!("{}.zip", last_folder.to_string_lossy()),
-                            None => String::from("base.zip"),
-                        }
-                    } else {
-                        format!("{}.zip", value)
-                    }
-                }
+            let dst_file = match decoded_str.split('/').last() {
+                Some(value) => format!("{}.zip", value),
                 None => {
                     return Ok(());
                 }
@@ -232,7 +218,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             let contents = match fs::read(&dst_file) {
                 Ok(contents) => contents,
                 Err(err) => {
-                    return Err(MdownError::IoError(err, dst_file));
+                    return Err(MdownError::IoError(err, dst_file, 11216));
                 }
             };
             let mut response = String::new();
@@ -247,20 +233,20 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, String::new()));
+                    return Err(MdownError::IoError(err, String::new(), 11217));
                 }
             }
             match stream.get_mut().write_all(&contents) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, String::new()));
+                    return Err(MdownError::IoError(err, String::new(), 11218));
                 }
             }
 
             match fs::remove_file(&dst_file) {
                 Ok(_) => {}
                 Err(err) => {
-                    return Err(MdownError::IoError(err, dst_file));
+                    return Err(MdownError::IoError(err, dst_file, 11219));
                 }
             };
         } else if path.starts_with("/__version__") {
@@ -272,7 +258,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, String::new()));
+                    return Err(MdownError::IoError(err, String::new(), 11220));
                 }
             };
         } else if path.starts_with("/__get__?") {
@@ -289,7 +275,8 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                     return Err(
                         MdownError::CustomError(
                             String::from("Didn't find resource"),
-                            String::from("Resource")
+                            String::from("Resource"),
+                            11221
                         )
                     );
                 }
@@ -297,7 +284,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             match stream.get_mut().write_all(content) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, String::new()));
+                    return Err(MdownError::IoError(err, String::new(), 11223));
                 }
             }
         } else if path == "/" {
@@ -310,14 +297,14 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, String::new()));
+                    return Err(MdownError::IoError(err, String::new(), 11224));
                 }
             };
         } else {
             let decoded_str = match percent_encoding::percent_decode_str(path).decode_utf8() {
                 Ok(decoded_str) => decoded_str.to_string(),
                 Err(err) => {
-                    return Err(MdownError::ConversionError(err.to_string()));
+                    return Err(MdownError::ConversionError(err.to_string(), 11225));
                 }
             };
             let file_path = format!(".{}", decoded_str);
@@ -325,7 +312,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 let contents = match fs::read(&file_path) {
                     Ok(contents) => contents,
                     Err(err) => {
-                        return Err(MdownError::IoError(err, String::new()));
+                        return Err(MdownError::IoError(err, String::new(), 11226));
                     }
                 };
                 let mut response = String::new();
@@ -344,13 +331,13 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 match stream.get_mut().write_all(response.as_bytes()) {
                     Ok(_n) => (),
                     Err(err) => {
-                        return Err(MdownError::IoError(err, String::new()));
+                        return Err(MdownError::IoError(err, String::new(), 11227));
                     }
                 }
                 match stream.get_mut().write_all(&contents) {
                     Ok(_n) => (),
                     Err(err) => {
-                        return Err(MdownError::IoError(err, String::new()));
+                        return Err(MdownError::IoError(err, String::new(), 11228));
                     }
                 };
             } else {
@@ -358,7 +345,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 match stream.get_mut().write_all(response.as_bytes()) {
                     Ok(_n) => (),
                     Err(err) => {
-                        return Err(MdownError::IoError(err, String::new()));
+                        return Err(MdownError::IoError(err, String::new(), 11229));
                     }
                 };
             }
@@ -410,7 +397,7 @@ pub(crate) fn start() -> Result<(), MdownError> {
     match io::stdout().flush() {
         Ok(_) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, String::new()));
+            return Err(MdownError::IoError(err, String::new(), 11230));
         }
     }
 
@@ -419,14 +406,14 @@ pub(crate) fn start() -> Result<(), MdownError> {
     match io::stdin().read_line(&mut input) {
         Ok(_) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, String::new()));
+            return Err(MdownError::IoError(err, String::new(), 11231));
         }
     }
 
     let number: usize = match input.trim().parse() {
         Ok(value) => value,
         Err(err) => {
-            return Err(MdownError::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string(), 11232));
         }
     };
 
@@ -436,7 +423,8 @@ pub(crate) fn start() -> Result<(), MdownError> {
             return Err(
                 MdownError::CustomError(
                     String::from("Invalid IP address"),
-                    String::from("IP_address")
+                    String::from("IP_address"),
+                    11233
                 )
             );
         }
@@ -461,7 +449,8 @@ pub(crate) fn start() -> Result<(), MdownError> {
             return Err(
                 MdownError::CustomError(
                     format!("Failed setting up ctrl handler, {}", err),
-                    String::from("CTRL_handler")
+                    String::from("CTRL_handler"),
+                    11234
                 )
             );
         }
@@ -470,7 +459,7 @@ pub(crate) fn start() -> Result<(), MdownError> {
     let listener = match TcpListener::bind(format!("{}:3000", ip_address)) {
         Ok(listener) => listener,
         Err(err) => {
-            return Err(MdownError::IoError(err, String::new()));
+            return Err(MdownError::IoError(err, String::new(), 11235));
         }
     };
     println!("Server listening on {}:3000 ...", ip_address);

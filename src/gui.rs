@@ -377,19 +377,19 @@ async fn resolve_download(url: &str, handle_id: Box<str>) -> Result<String, Mdow
                 let json_value = match serde_json::from_str(&manga_name_json) {
                     Ok(value) => value,
                     Err(_) => {
-                        return Err(MdownError::JsonError(String::from("Invalid JSON")));
+                        return Err(MdownError::JsonError(String::from("Invalid JSON"), 11400));
                     }
                 };
                 if let Value::Object(obj) = json_value {
                     resolute::resolve(obj, id).await
                 } else {
-                    Err(MdownError::JsonError(String::from("Unexpected JSON value")))
+                    Err(MdownError::JsonError(String::from("Unexpected JSON value"), 11401))
                 }
             }
             Err(err) => Err(err),
         }
     } else {
         info!("@{} Didn't find any id", handle_id);
-        Err(MdownError::NotFoundError(String::from("ID")))
+        Err(MdownError::NotFoundError(String::from("ID"), 11402))
     }
 }

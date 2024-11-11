@@ -85,7 +85,7 @@ pub(crate) fn args_delete() -> Result<(), MdownError> {
     };
     match fs::remove_file(&path) {
         Ok(()) => Ok(()),
-        Err(err) => Err(MdownError::IoError(err, path)),
+        Err(err) => Err(MdownError::IoError(err, path, 10200)),
     }
 }
 
@@ -99,7 +99,7 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
     match fs::metadata(&log_path) {
         Ok(_metadata) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, log_path));
+            return Err(MdownError::IoError(err, log_path, 10201));
         }
     }
     let json = match get_dat_content(log_path.as_str()) {
@@ -146,24 +146,24 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
             let code = match vstup.parse::<usize>() {
                 Ok(code) => code,
                 Err(err) => {
-                    return Err(MdownError::ConversionError(err.to_string()));
+                    return Err(MdownError::ConversionError(err.to_string(), 10202));
                 }
             };
             if code >= data.len() {
-                return Err(MdownError::ConversionError(String::from("code")));
+                return Err(MdownError::ConversionError(String::from("code"), 10203));
             }
 
             let name = match names.get(code) {
                 Some((name, _)) => name,
                 None => {
-                    return Err(MdownError::ConversionError(String::from("name")));
+                    return Err(MdownError::ConversionError(String::from("name"), 10204));
                 }
             };
 
             let log = match logs.logs.get(name) {
                 Some(items) => items.clone(),
                 None => {
-                    return Err(MdownError::NotFoundError(name.to_string()));
+                    return Err(MdownError::NotFoundError(name.to_string(), 10205));
                 }
             };
 
@@ -210,11 +210,11 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
             let code = match vstup.parse::<usize>() {
                 Ok(code) => code,
                 Err(err) => {
-                    return Err(MdownError::ConversionError(err.to_string()));
+                    return Err(MdownError::ConversionError(err.to_string(), 10206));
                 }
             };
             if code >= logs.len() {
-                return Err(MdownError::ConversionError(String::from("code")));
+                return Err(MdownError::ConversionError(String::from("code"), 10207));
             }
 
             let name = match names.get(code) {
@@ -224,7 +224,7 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
                         x => x,
                     }
                 None => {
-                    return Err(MdownError::ConversionError(String::from("name")));
+                    return Err(MdownError::ConversionError(String::from("name"), 10208));
                 }
             };
 
@@ -246,13 +246,13 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
                     {
                         Ok(_) => {}
                         Err(err) => {
-                            return Err(MdownError::IoError(err, String::from("stdout")));
+                            return Err(MdownError::IoError(err, String::from("stdout"), 10209));
                         }
                     }
                     match stdout.flush() {
                         Ok(_) => {}
                         Err(err) => {
-                            return Err(MdownError::IoError(err, String::from("stdout")));
+                            return Err(MdownError::IoError(err, String::from("stdout"), 10210));
                         }
                     }
 
@@ -272,7 +272,7 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
             }
         }
         Err(err) => {
-            return Err(MdownError::JsonError(err.to_string()));
+            return Err(MdownError::JsonError(err.to_string(), 10211));
         }
     }
 
@@ -288,7 +288,7 @@ pub(crate) async fn show() -> Result<(), MdownError> {
     };
     if let Err(err) = fs::metadata(&dat_path) {
         debug!("dat.json not found: {}", err.to_string());
-        return Err(MdownError::IoError(err, dat_path));
+        return Err(MdownError::IoError(err, dat_path, 10212));
     }
 
     let json = match get_dat_content(dat_path.as_str()) {
@@ -536,7 +536,7 @@ pub(crate) async fn show() -> Result<(), MdownError> {
             }
         }
         Err(err) => {
-            return Err(MdownError::JsonError(err.to_string()));
+            return Err(MdownError::JsonError(err.to_string(), 10213));
         }
     }
 
@@ -576,7 +576,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
     match fs::metadata(&dat_path) {
         Ok(_metadata) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, dat_path));
+            return Err(MdownError::IoError(err, dat_path, 10214));
         }
     }
     let mut json = match get_dat_content(dat_path.as_str()) {
@@ -607,14 +607,15 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                                 None => {
                                     return Err(
                                         MdownError::ConversionError(
-                                            String::from("cwd conversion to string slice failed")
+                                            String::from("cwd conversion to string slice failed"),
+                                            10215
                                         )
                                     );
                                 }
                             }
                         ).to_string(),
                     Err(err) => {
-                        return Err(MdownError::IoError(err, String::new()));
+                        return Err(MdownError::IoError(err, String::new(), 10216));
                     }
                 };
                 let mwd: String = item.mwd.clone();
@@ -677,7 +678,8 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                                 None => {
                                     return Err(
                                         MdownError::NotFoundError(
-                                            String::from("Didn't find ID property")
+                                            String::from("Didn't find ID property"),
+                                            10217
                                         )
                                     );
                                 }
@@ -692,7 +694,8 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                                         MdownError::NotFoundError(
                                             String::from(
                                                 "Didn't find attributes property (title_data)"
-                                            )
+                                            ),
+                                            10218
                                         )
                                     );
                                 }
@@ -824,31 +827,31 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
             match serde_json::to_value(dat) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(MdownError::JsonError(err.to_string()));
+                    return Err(MdownError::JsonError(err.to_string(), 10219));
                 }
             }
         }
         Err(err) => {
-            return Err(MdownError::JsonError(err.to_string()));
+            return Err(MdownError::JsonError(err.to_string(), 10220));
         }
     };
 
     let mut file = match File::create(&dat_path) {
         Ok(path) => path,
         Err(err) => {
-            return Err(MdownError::IoError(err, dat_path));
+            return Err(MdownError::IoError(err, dat_path, 10221));
         }
     };
 
     let json_string = match serde_json::to_string_pretty(&json) {
         Ok(value) => value,
         Err(err) => {
-            return Err(MdownError::JsonError(err.to_string()));
+            return Err(MdownError::JsonError(err.to_string(), 10222));
         }
     };
 
     if let Err(err) = writeln!(file, "{}", json_string) {
-        return Err(MdownError::IoError(err, dat_path));
+        return Err(MdownError::IoError(err, dat_path, 10223));
     }
     Ok(())
 }
@@ -864,7 +867,7 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
         let mut file = match fs::File::create(&dat_path) {
             Ok(file) => file,
             Err(err) => {
-                return Err(MdownError::IoError(err, dat_path));
+                return Err(MdownError::IoError(err, dat_path, 10224));
             }
         };
 
@@ -902,7 +905,7 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
                     chapters.push(match serde_json::to_value(i) {
                         Ok(v) => v,
                         Err(err) => {
-                            return Err(MdownError::JsonError(err.to_string()));
+                            return Err(MdownError::JsonError(err.to_string(), 10225));
                         }
                     });
                 }
@@ -912,7 +915,7 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
                     genres.push(match serde_json::to_value(i) {
                         Ok(v) => v,
                         Err(err) => {
-                            return Err(MdownError::JsonError(err.to_string()));
+                            return Err(MdownError::JsonError(err.to_string(), 10226));
                         }
                     });
                 }
@@ -922,7 +925,7 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
                     themes.push(match serde_json::to_value(i) {
                         Ok(v) => v,
                         Err(err) => {
-                            return Err(MdownError::JsonError(err.to_string()));
+                            return Err(MdownError::JsonError(err.to_string(), 10227));
                         }
                     });
                 }
@@ -979,31 +982,31 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
             match serde_json::to_value(dat) {
                 Ok(json) => json,
                 Err(err) => {
-                    return Err(MdownError::JsonError(err.to_string()));
+                    return Err(MdownError::JsonError(err.to_string(), 10228));
                 }
             }
         }
         Err(err) => {
-            return Err(MdownError::JsonError(err.to_string()));
+            return Err(MdownError::JsonError(err.to_string(), 10229));
         }
     };
 
     let mut file = match File::create(&dat_path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, dat_path));
+            return Err(MdownError::IoError(err, dat_path, 10230));
         }
     };
 
     let json_string = match serde_json::to_string_pretty(&json) {
         Ok(value) => value,
         Err(err) => {
-            return Err(MdownError::JsonError(err.to_string()));
+            return Err(MdownError::JsonError(err.to_string(), 10231));
         }
     };
 
     if let Err(err) = writeln!(file, "{}", json_string) {
-        return Err(MdownError::JsonError(err.to_string()));
+        return Err(MdownError::JsonError(err.to_string(), 10232));
     }
     Ok(())
 }
@@ -1013,12 +1016,12 @@ pub(crate) fn get_dat_content(dat_path: &str) -> Result<Value, MdownError> {
     let mut file = match file {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, dat_path.to_string()));
+            return Err(MdownError::IoError(err, dat_path.to_string(), 10233));
         }
     };
     let mut contents = String::new();
     if let Err(err) = file.read_to_string(&mut contents) {
-        return Err(MdownError::IoError(err, dat_path.to_string()));
+        return Err(MdownError::IoError(err, dat_path.to_string(), 10234));
     }
     utils::get_json(&contents)
 }
@@ -1030,7 +1033,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     let title_data = match obj.get("data").and_then(|name_data| name_data.get("attributes")) {
         Some(value) => value,
         None => {
-            return Err(MdownError::NotFoundError(String::from("resolve")));
+            return Err(MdownError::NotFoundError(String::from("resolve"), 10235));
         }
     };
 
@@ -1049,7 +1052,9 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         let orig_lang = match title_data.get("originalLanguage").and_then(Value::as_str) {
             Some(value) => value,
             None => {
-                return Err(MdownError::NotFoundError(String::from("Didn't find originalLanguage")));
+                return Err(
+                    MdownError::NotFoundError(String::from("Didn't find originalLanguage"), 10236)
+                );
             }
         };
         let languages = match
@@ -1059,7 +1064,8 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             None => {
                 return Err(
                     MdownError::NotFoundError(
-                        String::from("Didn't find availableTranslatedLanguages")
+                        String::from("Didn't find availableTranslatedLanguages"),
+                        10237
                     )
                 );
             }
@@ -1071,7 +1077,8 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
                 None => {
                     return Err(
                         MdownError::ConversionError(
-                            String::from("final_lang could not convert to string slice ?")
+                            String::from("final_lang could not convert to string slice ?"),
+                            10238
                         )
                     );
                 }
@@ -1091,7 +1098,8 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
                     None => {
                         return Err(
                             MdownError::ConversionError(
-                                String::from("final_lang could not convert to string slice ?")
+                                String::from("final_lang could not convert to string slice ?"),
+                                10239
                             )
                         );
                     }
@@ -1143,13 +1151,14 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
                 None => {
                     return Err(
                         MdownError::ConversionError(
-                            String::from("final_lang could not convert to string slice ?")
+                            String::from("final_lang could not convert to string slice ?"),
+                            10240
                         )
                     );
                 }
             }
         Err(err) => {
-            return Err(MdownError::IoError(err, folder.to_string()));
+            return Err(MdownError::IoError(err, folder.to_string(), 10241));
         }
     };
     {
@@ -1171,7 +1180,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
                 Ok(file) => file,
                 Err(err) => {
                     return Err(
-                        MdownError::IoError(err, format!("{}\\_description.txt", MWD.lock()))
+                        MdownError::IoError(err, format!("{}\\_description.txt", MWD.lock()), 10242)
                     );
                 }
             }
@@ -1185,7 +1194,9 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             {
                 Ok(file) => file,
                 Err(err) => {
-                    return Err(MdownError::IoError(err, format!("{}\\_description.txt", folder)));
+                    return Err(
+                        MdownError::IoError(err, format!("{}\\_description.txt", folder), 10243)
+                    );
                 }
             }
         };
@@ -1292,7 +1303,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         let langs = match title_data.get("availableTranslatedLanguages").and_then(Value::as_array) {
             Some(value) => value,
             None => {
-                return Err(MdownError::NotFoundError(String::from("resolve")));
+                return Err(MdownError::NotFoundError(String::from("resolve"), 10244));
             }
         };
         let mut langs_final: Vec<String> = Vec::new();
@@ -1344,7 +1355,7 @@ pub(crate) async fn resolve_group(
     let scanlation_group_id = match get_scanlation_group(&scanlation_group) {
         Some(value) => value,
         None => {
-            suspend_error(MdownError::NotFoundError(String::from("resolve_group")));
+            suspend_error(MdownError::NotFoundError(String::from("resolve_group"), 10245));
             return Ok(metadata::ScanlationMetadata {
                 name: String::from("None"),
                 website: String::from("None"),
@@ -1379,7 +1390,7 @@ pub(crate) fn parse_scanlation_file() -> Result<(), MdownError> {
     let file = match File::open(&file_name) {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, file_name));
+            return Err(MdownError::IoError(err, file_name, 10246));
         }
     };
     let reader = std::io::BufReader::new(file);
@@ -1425,7 +1436,7 @@ pub(crate) fn get_scanlation_group_to_file(
     let mut file_inst = match OpenOptions::new().create(true).append(true).open(&file_name) {
         Ok(file_inst) => file_inst,
         Err(err) => {
-            return Err(MdownError::IoError(err, file_name));
+            return Err(MdownError::IoError(err, file_name, 10247));
         }
     };
 
@@ -1458,7 +1469,7 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
         let json = match response.text().await {
             Ok(json) => json,
             Err(err) => {
-                return Err(MdownError::JsonError(err.to_string()));
+                return Err(MdownError::JsonError(err.to_string(), 10248));
             }
         };
         let json_value = match utils::get_json(&json) {
@@ -1473,7 +1484,10 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
                     Some(value) => value,
                     None => {
                         return Err(
-                            MdownError::NotFoundError("data in resolve_group_metadata".to_string())
+                            MdownError::NotFoundError(
+                                "data in resolve_group_metadata".to_string(),
+                                10249
+                            )
                         );
                     }
                 };
@@ -1482,7 +1496,8 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
                     None => {
                         return Err(
                             MdownError::NotFoundError(
-                                "attributes in resolve_group_metadata".to_string()
+                                "attributes in resolve_group_metadata".to_string(),
+                                10250
                             )
                         );
                     }
@@ -1505,7 +1520,7 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
             }
         }
     }
-    Err(MdownError::NetworkError(response.error_for_status().unwrap_err()))
+    Err(MdownError::NetworkError(response.error_for_status().unwrap_err(), 10251))
 }
 
 async fn resolve_manga(id: &str, was_rewritten: bool) -> Result<(), MdownError> {
@@ -1513,7 +1528,7 @@ async fn resolve_manga(id: &str, was_rewritten: bool) -> Result<(), MdownError> 
     let going_offset: u32 = match ARGS.lock().database_offset.as_str().parse() {
         Ok(offset) => offset,
         Err(err) => {
-            return Err(MdownError::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string(), 10252));
         }
     };
     let arg_force = ARGS.lock().force;

@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.13.2-1"
+version = "0.13.2-2"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"
@@ -33,7 +33,7 @@ rand = "0.8.5"
 regex = "1.11.1"
 remove_dir_all = "0.8.4"
 reqwest = { version = "0.12.9", features = ["json"] }
-rodio = { version = "0.19.0", optional = true }
+rodio = { version = "0.20.1", optional = true }
 rusqlite = { version = "0.32.1", features = ["bundled"] }
 ryu = "1.0.18"
 semver = "1.0.23"
@@ -41,8 +41,8 @@ serde = { version = "1.0.214", features = ["derive"] }
 serde_json = "1.0.132"
 sha2 = "0.10.8"
 smallvec = "1.13.2"
-thiserror = "1.0.68"
-tokio = { version = "1.41.0", features = ["full"] }
+thiserror = "2.0.3"
+tokio = { version = "1.41.1", features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
 url = "2.5.3"

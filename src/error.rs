@@ -89,67 +89,92 @@ pub fn suspend_error(err: MdownError) {
 #[derive(Debug, Error)]
 pub enum MdownError {
     /// Represents an I/O error, with an associated message and file name.
-    #[error("I/O error: {0} ({1})")]
-    IoError(std::io::Error, String),
+    #[error("I/O error: {0} ({1}) ({2})")]
+    IoError(std::io::Error, String, u32),
 
     /// Represents an HTTP status error, capturing the HTTP status code.
-    #[error("Status error: {0}")]
-    StatusError(reqwest::StatusCode),
+    #[error("Status error: {0} ({1})")]
+    StatusError(reqwest::StatusCode, u32),
 
     /// Represents a network-related error, capturing the underlying `reqwest::Error`.
-    #[error("Network error: {0}")]
-    NetworkError(reqwest::Error),
+    #[error("Network error: {0} ({1})")]
+    NetworkError(reqwest::Error, u32),
 
     /// Represents an error related to regular expressions, capturing the `regex::Error`.
-    #[error("Regex error: {0}")]
-    RegexError(regex::Error),
+    #[error("Regex error: {0} ({1})")]
+    RegexError(regex::Error, u32),
 
     /// Represents a JSON parsing or serialization error with an associated message.
-    #[error("Json error: {0}")]
-    JsonError(String),
+    #[error("Json error: {0} ({1})")]
+    JsonError(String, u32),
 
     /// Represents a data conversion error with an associated message.
-    #[error("Conversion error: {0}")]
-    ConversionError(String),
+    #[error("Conversion error: {0} ({1})")]
+    ConversionError(String, u32),
 
     /// Represents a "not found" error with a description of what was not found.
-    #[error("NotFound error: Didn't found {0}")]
-    NotFoundError(String),
+    #[error("NotFound error: Didn't found {0} ({1})")]
+    NotFoundError(String, u32),
 
     /// Represents a ZIP file processing error, capturing the `zip::result::ZipError`.
-    #[error("Zip error: {0}")]
-    ZipError(zip::result::ZipError),
+    #[error("Zip error: {0} ({1})")]
+    ZipError(zip::result::ZipError, u32),
 
     /// Represents a database-related error, capturing the `rusqlite::Error`.
-    #[error("Database error: {0}")]
-    DatabaseError(rusqlite::Error),
+    #[error("Database error: {0} ({1})")]
+    DatabaseError(rusqlite::Error, u32),
 
     /// Represents a custom error with a message and an associated error name.
-    #[error("{1} error: {0}")]
-    CustomError(String, String),
+    #[error("{1} error: {0} ({2})")]
+    CustomError(String, String, u32),
 }
 
 impl MdownError {
     /// Converts the `MdownError` into a `String` representation, based on the type of error.
     pub fn into(self) -> String {
         match self {
-            MdownError::IoError(msg, _name) => msg.to_string(),
-            MdownError::StatusError(msg) => msg.to_string(),
-            MdownError::NetworkError(msg) => msg.to_string(),
-            MdownError::JsonError(msg) => msg,
-            MdownError::ConversionError(msg) => msg,
-            MdownError::NotFoundError(msg) => msg,
-            MdownError::ZipError(msg) => msg.to_string(),
-            MdownError::RegexError(msg) => msg.to_string(),
-            MdownError::DatabaseError(msg) => msg.to_string(),
-            MdownError::CustomError(msg, name) => format!("Error: {} {}", name, msg),
+            MdownError::IoError(msg, _name, err_code) =>
+                format!("{} Code: {}", msg.to_string(), err_code),
+            MdownError::StatusError(msg, err_code) =>
+                format!("{} Code: {}", msg.to_string(), err_code),
+            MdownError::NetworkError(msg, err_code) =>
+                format!("{} Code: {}", msg.to_string(), err_code),
+            MdownError::JsonError(msg, err_code) => format!("{} Code: {}", msg, err_code),
+            MdownError::ConversionError(msg, err_code) => format!("{} Code: {}", msg, err_code),
+            MdownError::NotFoundError(msg, err_code) => format!("{} Code: {}", msg, err_code),
+            MdownError::ZipError(msg, err_code) =>
+                format!("{} Code: {}", msg.to_string(), err_code),
+            MdownError::RegexError(msg, err_code) =>
+                format!("{} Code: {}", msg.to_string(), err_code),
+            MdownError::DatabaseError(msg, err_code) =>
+                format!("{} Code: {}", msg.to_string(), err_code),
+            MdownError::CustomError(msg, name, err_code) =>
+                format!("Error: {} {} Code {}", name, msg, err_code),
         }
     }
 
+    pub fn code(&self) -> i32 {
+        *(match self {
+            MdownError::IoError(_, _, err_code) => err_code,
+            MdownError::StatusError(_, err_code) => err_code,
+            MdownError::NetworkError(_, err_code) => err_code,
+            MdownError::JsonError(_, err_code) => err_code,
+            MdownError::ConversionError(_, err_code) => err_code,
+            MdownError::NotFoundError(_, err_code) => err_code,
+            MdownError::ZipError(_, err_code) => err_code,
+            MdownError::RegexError(_, err_code) => err_code,
+            MdownError::DatabaseError(_, err_code) => err_code,
+            MdownError::CustomError(_, _, err_code) => err_code,
+        }) as i32
+    }
     /// Creates a new `MdownError` of type `CustomError` with a default message and error name.
     #[allow(dead_code)]
     pub fn new() -> MdownError {
-        MdownError::CustomError(String::from("Nothing to worry about"), String::from("TestError"))
+        MdownError::CustomError(
+            String::from("Nothing to worry about"),
+            String::from("TestError"),
+            11000
+        )
     }
 }
 
@@ -185,10 +210,11 @@ pub(crate) fn handle_error(err: &MdownError, from: Option<String>) {
         None => String::new(),
     };
     match err {
-        MdownError::IoError(err, name) => {
+        MdownError::IoError(err, name, err_code) => {
             match name.as_str() {
-                "" => eprintln!("Error: IO Error {} ({})", err, to),
-                name => eprintln!("Error: IO Error {} in file {}{}", err, name, to),
+                "" => eprintln!("Error: IO Error {} ({}) Code: {}", err, to, err_code),
+                name =>
+                    eprintln!("Error: IO Error {} in file {}{} Code: {}", err, name, to, err_code),
             }
         }
         error => eprintln!("Error: {}{}", error, to),
@@ -207,12 +233,14 @@ pub(crate) fn handle_error(err: &MdownError, from: Option<String>) {
 macro_rules! handle_error {
     ($err:expr) => {
         {
-            $crate::error::handle_error($err, None);
+            let err_code = $crate::error::handle_error($err, None);
+            err_code
         }
     };
     ($err:expr, $from:expr) => {
         {
-            $crate::error::handle_error($err, Some($from));
+            let err_code = $crate::error::handle_error($err, Some($from));
+            err_code
         }
     };
 }
@@ -232,7 +260,9 @@ pub(crate) fn handle_suspended() {
 /// Handles a final error and any suspended errors by printing their messages.
 /// The function first handles the provided error and then processes any errors
 /// that were previously suspended.
-pub(crate) fn handle_final(err: &MdownError) {
+pub(crate) fn handle_final(err: &MdownError) -> i32 {
+    let err_code = err.code();
     handle_error!(err);
     handle_suspended();
+    err_code
 }

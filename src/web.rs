@@ -111,7 +111,9 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
                 };
             }
             _ => {
-                return Err(MdownError::JsonError(String::from("Could not parse manga json")));
+                return Err(
+                    MdownError::JsonError(String::from("Could not parse manga json"), 11300)
+                );
             }
         }
     }
@@ -149,7 +151,7 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
 
         match serde_json::to_string(&response_map) {
             Ok(value) => Ok(value),
-            Err(err) => { Err(MdownError::JsonError(err.to_string())) }
+            Err(err) => { Err(MdownError::JsonError(err.to_string(), 11301)) }
         }
     }
 }
@@ -159,7 +161,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
     match stream.read(&mut buffer) {
         Ok(_n) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, String::new()));
+            return Err(MdownError::IoError(err, String::new(), 11302));
         }
     }
 
@@ -230,7 +232,8 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
                     return Err(
                         MdownError::CustomError(
                             String::from("Didn't find resource"),
-                            String::from("Resource")
+                            String::from("Resource"),
+                            11303
                         )
                     );
                 }
@@ -418,12 +421,12 @@ fn parse_request(url: String) -> Result<String, MdownError> {
         let json = match serde_json::to_string(&response_map) {
             Ok(value) => value,
             Err(err) => {
-                return Err(MdownError::JsonError(err.to_string()));
+                return Err(MdownError::JsonError(err.to_string(), 11304));
             }
         };
         Ok(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}", json))
     } else {
-        Err(MdownError::NotFoundError(String::new()))
+        Err(MdownError::NotFoundError(String::new(), 11305))
     }
 }
 
@@ -458,7 +461,7 @@ async fn web() -> Result<(), MdownError> {
     let listener = match TcpListener::bind("127.0.0.1:8080") {
         Ok(listener) => listener,
         Err(err) => {
-            return Err(MdownError::IoError(err, String::new()));
+            return Err(MdownError::IoError(err, String::new(), 11306));
         }
     };
     log!("Server listening on 127.0.0.1:8080");
@@ -499,7 +502,8 @@ pub(crate) async fn start() -> Result<(), MdownError> {
             return Err(
                 MdownError::CustomError(
                     format!("Failed setting up ctrl handler, {}", err),
-                    String::from("CTRL_handler")
+                    String::from("CTRL_handler"),
+                    11307
                 )
             );
         }

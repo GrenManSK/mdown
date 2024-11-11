@@ -96,13 +96,13 @@ pub(crate) async fn get_response(
     let client = match get_client() {
         Ok(client) => client,
         Err(err) => {
-            return Err(MdownError::NetworkError(err));
+            return Err(MdownError::NetworkError(err, 10300));
         }
     };
     let base_url = match url::Url::parse(base_url.as_ref()) {
         Ok(url) => url,
         Err(err) => {
-            return Err(MdownError::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string(), 10301));
         }
     };
     let url = format!("\\{}\\{}\\{}", mode, c_hash, cover_hash);
@@ -110,7 +110,7 @@ pub(crate) async fn get_response(
     let full_url = match base_url.join(&url) {
         Ok(url) => url,
         Err(err) => {
-            return Err(MdownError::ConversionError(err.to_string()));
+            return Err(MdownError::ConversionError(err.to_string(), 10302));
         }
     };
 
@@ -118,7 +118,7 @@ pub(crate) async fn get_response(
 
     match client.get(full_url).send().await {
         Ok(response) => { Ok(response) }
-        Err(err) => { Err(MdownError::NetworkError(err)) }
+        Err(err) => { Err(MdownError::NetworkError(err, 10303)) }
     }
 }
 
@@ -201,13 +201,13 @@ pub(crate) async fn get_response_client(full_url: &str) -> Result<reqwest::Respo
     let client = match get_client() {
         Ok(client) => client,
         Err(err) => {
-            return Err(MdownError::NetworkError(err));
+            return Err(MdownError::NetworkError(err, 10304));
         }
     };
 
     match client.get(full_url).send().await {
         Ok(response) => Ok(response),
-        Err(err) => { Err(MdownError::NetworkError(err)) }
+        Err(err) => { Err(MdownError::NetworkError(err, 10305)) }
     }
 }
 
@@ -283,14 +283,14 @@ pub(crate) async fn download_cover(
         match File::create("_cover.png") {
             Ok(file) => file,
             Err(err) => {
-                return Err(MdownError::IoError(err, format!("{}\\_cover.png", MWD.lock())));
+                return Err(MdownError::IoError(err, format!("{}\\_cover.png", MWD.lock()), 10306));
             }
         }
     } else {
         match File::create(format!("{}\\_cover.png", folder)) {
             Ok(file) => file,
             Err(err) => {
-                return Err(MdownError::IoError(err, format!("{}\\_cover.png", folder)));
+                return Err(MdownError::IoError(err, format!("{}\\_cover.png", folder), 10307));
             }
         }
     };
@@ -305,14 +305,14 @@ pub(crate) async fn download_cover(
         let Some(chunk) = match response.chunk().await {
             Ok(size) => size,
             Err(err) => {
-                return Err(MdownError::NetworkError(err));
+                return Err(MdownError::NetworkError(err, 10308));
             }
         }
     {
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                suspend_error(MdownError::IoError(err, format!("{}\\_cover.png", folder)));
+                suspend_error(MdownError::IoError(err, format!("{}\\_cover.png", folder), 10309));
             }
         }
         downloaded += chunk.len() as u64;
@@ -422,14 +422,16 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
         match File::create("_statistics.md") {
             Ok(file) => file,
             Err(err) => {
-                return Err(MdownError::IoError(err, format!("{}\\_statistics.md", MWD.lock())));
+                return Err(
+                    MdownError::IoError(err, format!("{}\\_statistics.md", MWD.lock()), 10309)
+                );
             }
         }
     } else {
         match File::create(format!("{}\\_statistics.md", folder)) {
             Ok(file) => file,
             Err(err) => {
-                return Err(MdownError::IoError(err, format!("{}\\_statistics.md", folder)));
+                return Err(MdownError::IoError(err, format!("{}\\_statistics.md", folder), 10310));
             }
         }
     };
@@ -441,7 +443,7 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
     let json_value = match utils::get_json(&response) {
         Ok(value) => value,
         Err(err) => {
-            suspend_error(MdownError::JsonError(err.to_string()));
+            suspend_error(MdownError::JsonError(err.to_string(), 10311));
             return Ok(());
         }
     };
@@ -450,7 +452,9 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
             let statistics = match obj.get("statistics").and_then(|stat| stat.get(id)) {
                 Some(stat) => stat,
                 None => {
-                    return Err(MdownError::JsonError(String::from("Didn't find statistics")));
+                    return Err(
+                        MdownError::JsonError(String::from("Didn't find statistics"), 10312)
+                    );
                 }
             };
             match serde_json::from_value::<metadata::Statistics>(statistics.clone()) {
@@ -478,13 +482,15 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
                     );
                 }
                 Err(err) => {
-                    suspend_error(MdownError::JsonError(err.to_string()));
+                    suspend_error(MdownError::JsonError(err.to_string(), 10313));
                     return Ok(());
                 }
             }
         }
         _ => {
-            return Err(MdownError::JsonError(String::from("Could not parse statistics json")));
+            return Err(
+                MdownError::JsonError(String::from("Could not parse statistics json"), 10314)
+            );
         }
     }
 
@@ -492,7 +498,7 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
     match file.write_all(data.as_bytes()) {
         Ok(()) => (),
         Err(err) => {
-            return Err(MdownError::IoError(err, format!("{}\\_statistics.md", folder)));
+            return Err(MdownError::IoError(err, format!("{}\\_statistics.md", folder), 10315));
         }
     }
 
@@ -655,7 +661,7 @@ pub(crate) async fn download_image(
     let mut file = match File::create(full_path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, full_path.to_string()));
+            return Err(MdownError::IoError(err, full_path.to_string(), 10316));
         }
     };
 
@@ -676,7 +682,11 @@ pub(crate) async fn download_image(
         Ok(lock_file) => lock_file,
         Err(err) => {
             return Err(
-                MdownError::IoError(err, format!(".cache\\{}_{}_final.lock", folder_name, page))
+                MdownError::IoError(
+                    err,
+                    format!(".cache\\{}_{}_final.lock", folder_name, page),
+                    10317
+                )
             );
         }
     };
@@ -684,7 +694,11 @@ pub(crate) async fn download_image(
         Ok(()) => (),
         Err(err) => {
             suspend_error(
-                MdownError::IoError(err, format!(".cache\\{}_{}_final.lock", folder_name, page))
+                MdownError::IoError(
+                    err,
+                    format!(".cache\\{}_{}_final.lock", folder_name, page),
+                    10318
+                )
             );
         }
     }
@@ -695,7 +709,7 @@ pub(crate) async fn download_image(
             Ok(Some(chunk)) => Some(chunk),
             Ok(None) => None,
             Err(err) => {
-                return Err(MdownError::NetworkError(err));
+                return Err(MdownError::NetworkError(err, 10319));
             }
         }
     {
@@ -705,7 +719,7 @@ pub(crate) async fn download_image(
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                suspend_error(MdownError::IoError(err, full_path.to_string()));
+                suspend_error(MdownError::IoError(err, full_path.to_string(), 10320));
             }
         }
         downloaded += chunk.len() as u64;
@@ -724,7 +738,8 @@ pub(crate) async fn download_image(
                         return Err(
                             MdownError::IoError(
                                 err,
-                                format!(".cache\\{}_{}.lock", folder_name, page)
+                                format!(".cache\\{}_{}.lock", folder_name, page),
+                                10321
                             )
                         );
                     }
@@ -735,7 +750,8 @@ pub(crate) async fn download_image(
                         suspend_error(
                             MdownError::IoError(
                                 err,
-                                format!(".cache\\{}_{}.lock", folder_name, page)
+                                format!(".cache\\{}_{}.lock", folder_name, page),
+                                10322
                             )
                         );
                     }
@@ -822,14 +838,16 @@ pub(crate) async fn download_image(
     {
         Ok(file) => file,
         Err(err) => {
-            return Err(MdownError::IoError(err, format!(".cache\\{}_{}.lock", folder_name, page)));
+            return Err(
+                MdownError::IoError(err, format!(".cache\\{}_{}.lock", folder_name, page), 10323)
+            );
         }
     };
     match lock_file.write(format!("{}", downloaded).as_bytes()) {
         Ok(_size) => (),
         Err(err) => {
             suspend_error(
-                MdownError::IoError(err, format!(".cache\\{}_{}.lock", folder_name, page))
+                MdownError::IoError(err, format!(".cache\\{}_{}.lock", folder_name, page), 10324)
             );
         }
     }
@@ -848,7 +866,9 @@ pub(crate) async fn download_image(
         match fs::create_dir_all(".cache\\preview") {
             Ok(()) => (),
             Err(err) => {
-                return Err(MdownError::IoError(err, format!(".cache\\preview\\{}", full_path)));
+                return Err(
+                    MdownError::IoError(err, format!(".cache\\preview\\{}", full_path), 10325)
+                );
             }
         }
         let target_file = std::path::Path::new(".cache\\preview").join("preview.png");
@@ -857,14 +877,18 @@ pub(crate) async fn download_image(
             match fs::remove_file(&target_file) {
                 Ok(()) => (),
                 Err(err) => {
-                    return Err(MdownError::IoError(err, format!(".cache\\preview\\{}", full_path)));
+                    return Err(
+                        MdownError::IoError(err, format!(".cache\\preview\\{}", full_path), 10326)
+                    );
                 }
             };
         }
         match fs::copy(full_path, target_file) {
             Ok(_) => (),
             Err(err) => {
-                return Err(MdownError::IoError(err, format!(".cache\\preview\\{}", full_path)));
+                return Err(
+                    MdownError::IoError(err, format!(".cache\\preview\\{}", full_path), 10327)
+                );
             }
         };
     }

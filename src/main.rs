@@ -210,8 +210,8 @@ async fn main() {
     match start().await {
         Ok(()) => error::handle_suspended(),
         Err(err) => {
-            error::handle_final(&err);
-            exit(10101);
+            let err_code = error::handle_final(&err);
+            exit(err_code);
         }
     }
 
@@ -338,7 +338,7 @@ async fn start() -> Result<(), error::MdownError> {
     match env::set_current_dir(args::ARGS_CWD.as_str()) {
         Ok(()) => debug!("cwd set to {}", *args::ARGS_CWD),
         Err(err) => {
-            return Err(error::MdownError::IoError(err, args::ARGS_CWD.to_string()));
+            return Err(error::MdownError::IoError(err, args::ARGS_CWD.to_string(), 10100));
         }
     }
 
@@ -461,7 +461,11 @@ async fn start() -> Result<(), error::MdownError> {
         Ok(code) => code,
         Err(err) => {
             return Err(
-                error::MdownError::CustomError(err.to_string(), String::from("InvalidStatusCode"))
+                error::MdownError::CustomError(
+                    err.to_string(),
+                    String::from("InvalidStatusCode"),
+                    10101
+                )
             );
         }
     };
@@ -534,14 +538,16 @@ async fn start() -> Result<(), error::MdownError> {
                         }
                     };
                 } else {
-                    return Err(error::MdownError::JsonError(String::from("Unexpected JSON value")));
+                    return Err(
+                        error::MdownError::JsonError(String::from("Unexpected JSON value"), 10102)
+                    );
                 }
             }
             Err(code) => {
                 string(1, 0, "Getting manga information ERROR");
                 println!("{}", code);
                 match code {
-                    error::MdownError::NetworkError(ref err) => {
+                    error::MdownError::NetworkError(ref err, _) => {
                         if let Some(status_error) = err.status() {
                             status_code = status_error;
                         } else {
@@ -1097,7 +1103,9 @@ pub(crate) async fn download_manga(
                                 {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(error::MdownError::JsonError(err.to_string()));
+                                        return Err(
+                                            error::MdownError::JsonError(err.to_string(), 10103)
+                                        );
                                     }
                                 };
                                 #[cfg(feature = "music")]
@@ -1148,7 +1156,7 @@ pub(crate) async fn download_manga(
                             Ok(()) => (),
                             Err(err) => {
                                 return Err(
-                                    error::MdownError::IoError(err, folder_path.to_string())
+                                    error::MdownError::IoError(err, folder_path.to_string(), 10104)
                                 );
                             }
                         }
@@ -1221,7 +1229,7 @@ pub(crate) async fn download_manga(
             string(0, MAXPOINTS.max_x - (parsed.len() as u32), &parsed);
         }
         Err(err) => {
-            return Err(error::MdownError::JsonError(err.to_string()));
+            return Err(error::MdownError::JsonError(err.to_string(), 10105));
         }
     }
     Ok(downloaded)
@@ -1352,7 +1360,7 @@ pub(crate) async fn download_chapter(
     let mut lock_file_inst = match File::create(&lock_file) {
         Ok(file) => file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, lock_file.clone()));
+            return Err(error::MdownError::IoError(err, lock_file.clone(), 10106));
         }
     };
     match write!(lock_file_inst, "0") {
@@ -1371,7 +1379,7 @@ pub(crate) async fn download_chapter(
     let mut metadata_file = match File::create(format!("{}_metadata", filename.get_folder_w_end())) {
         Ok(file) => file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, lock_file.clone()));
+            return Err(error::MdownError::IoError(err, lock_file.clone(), 10107));
         }
     };
     let attr = manga_json.attributes.clone();
@@ -1393,7 +1401,7 @@ pub(crate) async fn download_chapter(
     let json = match serde_json::to_string_pretty(&response_map) {
         Ok(value) => value,
         Err(err) => {
-            return Err(error::MdownError::JsonError(err.to_string()));
+            return Err(error::MdownError::JsonError(err.to_string(), 10108));
         }
     };
     match write!(metadata_file, "{}", json) {
@@ -1421,7 +1429,8 @@ pub(crate) async fn download_chapter(
                 .lock()
                 .push(
                     error::MdownError::ConversionError(
-                        String::from("Failed to parse max_consecutive")
+                        String::from("Failed to parse max_consecutive"),
+                        10109
                     )
                 );
             40_usize
