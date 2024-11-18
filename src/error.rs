@@ -70,6 +70,8 @@ use parking_lot::Mutex;
 use thiserror::Error;
 use smallvec::{ SmallVec, smallvec };
 
+use crate::{ MAXPOINTS, resolute::INITSCR_INIT, string };
+
 lazy_static! {
     pub static ref SUSPENDED: Mutex<SmallVec<[MdownError; 3]>> = Mutex::new(smallvec![]);
 }
@@ -250,9 +252,34 @@ macro_rules! handle_error {
 pub(crate) fn handle_suspended() {
     let suspended = SUSPENDED.lock();
     if !suspended.is_empty() {
-        println!("Suspended errors:");
-        for i in suspended.iter() {
-            handle_error!(i, String::from("suspended"));
+        if *INITSCR_INIT.lock() {
+            let start = MAXPOINTS.max_y - 1 - (suspended.len() as u32);
+            string(start - 1, 0, "Suspended errors:");
+            for (times, err) in suspended.iter().enumerate() {
+                let to = " (suspended)";
+                let message = match err {
+                    MdownError::IoError(err, name, err_code) => {
+                        match name.as_str() {
+                            "" => format!("Error: IO Error {} ({}) Code: {}", err, to, err_code),
+                            name =>
+                                format!(
+                                    "Error: IO Error {} in file {}{} Code: {}",
+                                    err,
+                                    name,
+                                    to,
+                                    err_code
+                                ),
+                        }
+                    }
+                    error => format!("Error: {}{}", error, to),
+                };
+                string(start + (times as u32), 0, &message);
+            }
+        } else {
+            println!("Suspended errors:");
+            for i in suspended.iter() {
+                handle_error!(i, String::from("suspended"));
+            }
         }
     }
 }

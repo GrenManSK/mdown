@@ -16,7 +16,7 @@ use crate::{
     debug,
     download,
     download_manga,
-    error::{ MdownError, suspend_error },
+    error::{ MdownError, suspend_error, SUSPENDED },
     getter::{ self, get_folder_name, get_manga, get_manga_name, get_scanlation_group },
     handle_error,
     log,
@@ -1552,9 +1552,14 @@ async fn resolve_manga(id: &str, was_rewritten: bool) -> Result<(), MdownError> 
     }
     if !*args::ARGS_WEB && !*args::ARGS_GUI && !*args::ARGS_CHECK && !*args::ARGS_UPDATE {
         if !downloaded.is_empty() {
+            let moved_by_temp = SUSPENDED.lock().len() as u32;
+            let moved_by = match moved_by_temp {
+                0 => 0,
+                other => other + 2,
+            };
             string(1, 0, "Downloaded files:");
             for i in 0..downloaded.len() {
-                resolve_move(i as u32, downloaded, 2, 1);
+                resolve_move(i as u32, downloaded, 2, 1 + moved_by);
             }
         } else if !was_rewritten {
             match remove_dir_all(get_folder_name()) {
