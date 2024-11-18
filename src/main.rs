@@ -288,21 +288,17 @@ async fn start() -> Result<(), error::MdownError> {
         };
     }
 
+    if changed {
+        return Ok(());
+    }
+
     if *args::ARGS_SHOW_SETTINGS {
         utils::show_settings(settings);
         return Ok(());
     }
 
-    if changed {
-        return Ok(());
-    }
-
     // Update arguments with folder settings from the configuration
-    args::ARGS.lock().change("folder", args::Value::Str(settings.folder));
-    args::ARGS.lock().change("stat", args::Value::Bool(settings.stat));
-    args::ARGS.lock().change("backup", args::Value::Bool(settings.backup));
-    #[cfg(feature = "music")]
-    args::ARGS.lock().change("music", args::Value::OptOptStr(settings.music));
+    args::ARGS.lock().change_settings(settings);
 
     // Handle encoding argument
     if !(*args::ARGS_ENCODE).is_empty() {
@@ -364,8 +360,10 @@ async fn start() -> Result<(), error::MdownError> {
     // Handle music feature
     if args::ARGS.lock().music.is_some() {
         #[cfg(feature = "music")]
-        tokio::spawn(async { music::start() });
-        debug!("music instance started");
+        {
+            tokio::spawn(async { music::start() });
+            debug!("music instance started");
+        }
         #[cfg(not(feature = "music"))]
         eprintln!("Music feature is not enabled; You have to enable music feature");
     }
@@ -469,6 +467,7 @@ async fn start() -> Result<(), error::MdownError> {
             );
         }
     };
+    let mut err_code_network = 0;
 
     // Retrieve and debug URL
     let url = args::ARGS.lock().url.clone();
@@ -545,9 +544,9 @@ async fn start() -> Result<(), error::MdownError> {
             }
             Err(code) => {
                 string(1, 0, "Getting manga information ERROR");
-                println!("{}", code);
                 match code {
-                    error::MdownError::NetworkError(ref err, _) => {
+                    error::MdownError::NetworkError(ref err, err_code) => {
+                        err_code_network = err_code;
                         if let Some(status_error) = err.status() {
                             status_code = status_error;
                         } else {
@@ -568,6 +567,10 @@ async fn start() -> Result<(), error::MdownError> {
                             }
                         }
                     }
+                    error::MdownError::StatusError(ref err, err_code) => {
+                        err_code_network = err_code;
+                        status_code = *err;
+                    }
                     _ => {
                         println!("Unexpected error");
                     }
@@ -579,7 +582,7 @@ async fn start() -> Result<(), error::MdownError> {
     }
 
     // Finalize the process and cleanup
-    match utils::resolve_end(&file_path, &manga_name, status_code) {
+    match utils::resolve_end(&file_path, &manga_name, status_code, err_code_network) {
         Ok(()) => (),
         Err(err) => eprintln!("Error: {}", err),
     }
@@ -1425,14 +1428,12 @@ pub(crate) async fn download_chapter(
     let iter = match args::ARGS.lock().max_consecutive.parse() {
         Ok(x) => x,
         Err(_err) => {
-            error::SUSPENDED
-                .lock()
-                .push(
-                    error::MdownError::ConversionError(
-                        String::from("Failed to parse max_consecutive"),
-                        10109
-                    )
-                );
+            error::suspend_error(
+                error::MdownError::ConversionError(
+                    String::from("Failed to parse max_consecutive"),
+                    10109
+                )
+            );
             40_usize
         }
     };

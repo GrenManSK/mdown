@@ -2,6 +2,8 @@ use clap::{ ArgGroup, Parser, Subcommand };
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 
+use crate::metadata::Settings;
+
 const MAX_CONSECUTIVE: &str = "40";
 const DEFAULT_LANG: &str = "en";
 
@@ -516,6 +518,14 @@ impl Args {
             }
             (_, _) => (),
         }
+    }
+
+    pub(crate) fn change_settings(&mut self, settings: Settings) {
+        self.change("folder", Value::Str(settings.folder));
+        self.change("stat", Value::Bool(settings.stat));
+        self.change("backup", Value::Bool(settings.backup));
+        #[cfg(feature = "music")]
+        self.change("music", Value::OptOptStr(settings.music));
     }
 
     /// Creates an `Args` instance from the command-line arguments.

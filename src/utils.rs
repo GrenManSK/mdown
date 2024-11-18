@@ -810,7 +810,8 @@ pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match> {
 pub(crate) fn resolve_end(
     file_path: &str,
     manga_name: &str,
-    status_code: reqwest::StatusCode
+    status_code: reqwest::StatusCode,
+    err_code: u32
 ) -> Result<(), String> {
     match fs::remove_file(file_path) {
         Ok(()) => (),
@@ -834,18 +835,20 @@ pub(crate) fn resolve_end(
     let message = if status_code.is_client_error() {
         string(0, 0, "Id was not found, please recheck the id and try again");
         format!(
-            "Ending session: {} has NOT been downloaded, because: {:?}",
+            "Ending session: {} has NOT been downloaded, because: {:?} ({})",
             manga_name,
-            status_code.canonical_reason().unwrap_or("Didn't find error :/")
+            status_code.canonical_reason().unwrap_or("Didn't find error :/"),
+            err_code
         )
     } else if status_code.is_server_error() {
         string(
             0,
             0,
             &format!(
-                "Server error: {}: {:?}",
+                "Server error: {}: {:?} ({})",
                 status_code,
-                status_code.canonical_reason().unwrap_or("Didn't find error :/")
+                status_code.canonical_reason().unwrap_or("Didn't find error :/"),
+                err_code
             )
         );
         format!("Ending session: {} has NOT been downloaded", manga_name)

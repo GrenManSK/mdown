@@ -457,7 +457,7 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
             "Error: get manga json Failed to fetch data from the API. Status code: {:?}",
             response.status()
         );
-        Err(MdownError::StatusError(response.status(), 10804))
+        Err(MdownError::StatusError(response.status(), 10805))
     }
 }
 

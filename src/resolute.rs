@@ -1440,13 +1440,13 @@ pub(crate) fn get_scanlation_group_to_file(
         }
     };
 
-    let messaage = if website == "None" {
+    let message = if website == "None" {
         format!("{}\n", name)
     } else {
         format!("{} - {}\n", name, website)
     };
 
-    match file_inst.write_all(messaage.as_bytes()) {
+    match file_inst.write_all(message.as_bytes()) {
         Ok(()) => (),
         Err(err) => eprintln!("Error: writing to {}: {}", name, err),
     }
