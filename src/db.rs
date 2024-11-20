@@ -799,7 +799,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
             }
             match stat {
                 Some(Some(stat)) => {
-                    if stat != "0" || stat != "1" {
+                    if stat == "0" || stat == "1" {
                         match write_resource(&conn, DB_STAT, stat.as_bytes(), false) {
                             Ok(_id) => (),
                             Err(err) => {
