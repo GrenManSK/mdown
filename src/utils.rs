@@ -1026,7 +1026,7 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
 }
 
 pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
-    debug!("backup_handler");
+    debug!("\nbackup_handler");
     let backup_dir = match getter::get_bac_path() {
         Ok(exe_path) => exe_path,
         Err(err) => {
@@ -1046,10 +1046,6 @@ pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
             return Err(err);
         }
     };
-
-    if dats.is_empty() {
-        return Ok(());
-    }
 
     let latest_date = match dats.last() {
         Some(date) => date,
@@ -1108,6 +1104,8 @@ pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
                 return Err(MdownError::IoError(err, source_file, 10425));
             }
         }
+    } else {
+        debug!("No backup needed");
     }
 
     Ok(())
