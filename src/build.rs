@@ -15,11 +15,11 @@ fn main() {
 
     // Iterate over predefined directories and process each one.
     for directory in [
-        "resources/server",
-        "resources/web",
         "resources/combined",
         "resources/database",
         "resources/music",
+        "resources/server",
+        "resources/web",
     ] {
         setup(directory);
     }

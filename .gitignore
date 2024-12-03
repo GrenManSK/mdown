@@ -5,6 +5,8 @@
 .vscode/
 .sync/
 src/_*
+/resources/music/M*
+/resources/test
 *.cbz
 *.lock
 _cover.png
@@ -14,5 +16,4 @@ _statistics.md
 github_info.txt
 release.py
 *.exe
-/resources/music/M*
 debug.log

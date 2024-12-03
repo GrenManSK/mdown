@@ -211,6 +211,11 @@ async fn main() {
         Ok(()) => error::handle_suspended(),
         Err(err) => {
             let err_code = error::handle_final(&err);
+            // Attempt to remove any cache files and ignore errors.
+            match utils::remove_cache() {
+                Ok(()) => (),
+                Err(_err) => (),
+            }
             exit(err_code);
         }
     }
@@ -762,7 +767,7 @@ pub(crate) async fn download_manga(
                         let folder_path = filename.get_folder_name();
 
                         if lang != language && language != "*" {
-                            moves = utils::skip(folder_path, data_number, moves, hist, 1);
+                            utils::skip(folder_path, data_number, &mut moves, hist, 1);
                             debug!(
                                 "Removing {} from data array because wrong language; found '{}', target '{}'",
                                 id_string,
@@ -770,7 +775,7 @@ pub(crate) async fn download_manga(
                                 language
                             );
                         } else {
-                            moves = utils::skip(folder_path, data_number, moves, hist, 1);
+                            utils::skip(folder_path, data_number, &mut moves, hist, 1);
                             debug!("Removing {} from data array because is already downloaded", id_string);
                         }
                         *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() -= 1;
@@ -790,7 +795,7 @@ pub(crate) async fn download_manga(
                         };
 
                         let folder_path = filename.get_folder_name();
-                        moves = utils::skip(folder_path, data_number, moves, hist, 1);
+                        utils::skip(folder_path, data_number, &mut moves, hist, 1);
                         *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() -= 1;
                         debug!(
                             "Removing {} from data array because wrong language; found '{}', target '{}'",
@@ -955,7 +960,7 @@ pub(crate) async fn download_manga(
                         resolute::CHAPTERS
                             .lock()
                             .push(metadata::ChapterMetadata::new(&chapter_num, &update_date, id));
-                        moves = utils::skip(folder_path, item, moves, hist, 2);
+                        utils::skip(folder_path, item, &mut moves, hist, 2);
                         continue;
                     }
                 }
@@ -963,7 +968,7 @@ pub(crate) async fn download_manga(
                 // Skip chapter if conditions are not met
                 if con_vol {
                     debug!("skipping because volume didn't match");
-                    moves = utils::skip_didnt_match("volume", item, moves, hist);
+                    utils::skip_didnt_match("volume", item, &mut moves, hist);
                     if *tutorial::TUTORIAL.lock() && tutorial_skip {
                         tutorial::skip();
                         tutorial_skip = false;
@@ -972,7 +977,7 @@ pub(crate) async fn download_manga(
                 }
                 if con_chap {
                     debug!("skipping because chapter didn't match");
-                    moves = utils::skip_didnt_match("chapter", item, moves, hist);
+                    utils::skip_didnt_match("chapter", item, &mut moves, hist);
                     if *tutorial::TUTORIAL.lock() && tutorial_skip {
                         tutorial::skip();
                         tutorial_skip = false;
@@ -983,7 +988,7 @@ pub(crate) async fn download_manga(
                     debug!(
                         "skipping because variable pages is 0; probably because chapter is not supported on mangadex, third party"
                     );
-                    moves = utils::skip_custom("pages is 0", item, moves, hist);
+                    utils::skip_custom("pages is 0", item, &mut moves, hist);
                     if *tutorial::TUTORIAL.lock() && tutorial_skip {
                         tutorial::skip();
                         tutorial_skip = false;
@@ -1026,7 +1031,7 @@ pub(crate) async fn download_manga(
                             "skipping because offset flag is set, {} times more",
                             arg_offset - times
                         );
-                        moves = utils::skip_offset(item, moves, hist);
+                        utils::skip_offset(item, &mut moves, hist);
                         times += 1;
                         *resolute::CURRENT_CHAPTER_PARSED.lock() += 1;
                         continue;

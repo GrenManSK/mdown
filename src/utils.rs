@@ -1189,9 +1189,9 @@ impl FileName {
 pub(crate) fn skip_didnt_match<'a>(
     attr: &'a str,
     item: usize,
-    moves: u32,
+    moves: &mut u32,
     hist: &'a mut Vec<String>
-) -> u32 {
+) {
     let message = format!("({}) Skipping because supplied {} doesn't match", item as u32, attr);
     if
         *args::ARGS_WEB ||
@@ -1209,9 +1209,9 @@ pub(crate) fn skip_didnt_match<'a>(
 pub(crate) fn skip_custom<'a>(
     attr: &'a str,
     item: usize,
-    moves: u32,
+    moves: &mut u32,
     hist: &'a mut Vec<String>
-) -> u32 {
+) {
     let message = format!("({}) Skipping because {}", item as u32, attr);
     if
         *args::ARGS_WEB ||
@@ -1226,13 +1226,7 @@ pub(crate) fn skip_custom<'a>(
     resolve_move(moves, hist, 3, 0)
 }
 
-pub(crate) fn skip(
-    attr: String,
-    item: usize,
-    moves: u32,
-    hist: &mut Vec<String>,
-    start: u32
-) -> u32 {
+pub(crate) fn skip(attr: String, item: usize, moves: &mut u32, hist: &mut Vec<String>, start: u32) {
     let al_dow = format!("({}) Skipping because file is already downloaded {}", item, attr);
     if
         *args::ARGS_WEB ||
@@ -1246,7 +1240,7 @@ pub(crate) fn skip(
     hist.push(al_dow);
     resolve_move(moves, hist, start, 0)
 }
-pub(crate) fn skip_offset(item: usize, moves: u32, hist: &mut Vec<String>) -> u32 {
+pub(crate) fn skip_offset(item: usize, moves: &mut u32, hist: &mut Vec<String>) {
     let al_dow = format!("({}) Skipping because of offset", item);
     if
         *args::ARGS_WEB ||
@@ -1262,7 +1256,7 @@ pub(crate) fn skip_offset(item: usize, moves: u32, hist: &mut Vec<String>) -> u3
 }
 
 #[allow(dead_code)]
-pub(crate) fn debug_print<T: std::fmt::Debug>(item: T, file: &str) -> Result<(), MdownError> {
+pub(crate) fn debug_print<T>(item: T, file: &str) -> Result<(), MdownError> where T: std::fmt::Debug {
     let mut file_inst = match
         std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(file)
     {
