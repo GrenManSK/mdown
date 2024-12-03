@@ -502,7 +502,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
 ///
 /// # Panics
 /// * This function does not explicitly panic.
-fn print_output<R: Read + Send + 'static>(reader: R, label: String) {
+fn print_output<R>(reader: R, label: String) where R: Read + Send + 'static {
     let mut reader = std::io::BufReader::new(reader);
     let mut buffer = [0; 1024];
     std::thread::spawn(move || {

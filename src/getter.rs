@@ -523,7 +523,7 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, MdownError> {
             "Error: get statistic json Failed to fetch data from the API. Status code: {:?}",
             response.status()
         );
-        Err(MdownError::StatusError(response.status(), 10807))
+        Err(MdownError::StatusError(response.status(), 10820))
     }
 }
 

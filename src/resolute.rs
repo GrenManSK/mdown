@@ -1558,8 +1558,9 @@ async fn resolve_manga(id: &str, was_rewritten: bool) -> Result<(), MdownError> 
                 other => other + 2,
             };
             string(1, 0, "Downloaded files:");
-            for i in 0..downloaded.len() {
-                resolve_move(i as u32, downloaded, 2, 1 + moved_by);
+            let mut moves = 0;
+            for _ in 0..downloaded.len() {
+                resolve_move(&mut moves, downloaded, 2, 1 + moved_by);
             }
         } else if !was_rewritten {
             match remove_dir_all(get_folder_name()) {
@@ -1571,13 +1572,13 @@ async fn resolve_manga(id: &str, was_rewritten: bool) -> Result<(), MdownError> 
     Ok(())
 }
 
-pub(crate) fn resolve_move(mut moves: u32, hist: &mut Vec<String>, start: u32, end: u32) -> u32 {
-    if moves + start >= MAXPOINTS.max_y - end {
+pub(crate) fn resolve_move(moves: &mut u32, hist: &mut Vec<String>, start: u32, end: u32) {
+    if *moves + start >= MAXPOINTS.max_y - end {
         hist.remove(0);
     } else {
-        moves += 1;
+        *moves += 1;
     }
-    for i in 0..moves {
+    for i in 0..*moves {
         if (i as usize) == hist.len() {
             break;
         }
@@ -1593,7 +1594,6 @@ pub(crate) fn resolve_move(mut moves: u32, hist: &mut Vec<String>, start: u32, e
             string(start + i, 0, &message.to_string());
         }
     }
-    moves
 }
 
 pub(crate) fn title(mut title: String) -> String {

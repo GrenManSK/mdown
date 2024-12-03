@@ -34,11 +34,11 @@ lazy_static! {
     static ref RAMBLING_PLEAT_OGG: Vec<u8> = {
         let db_path = match getter::get_db_path() {
             Ok(path) => path,
-            Err(_err) => std::process::exit(11301),
+            Err(_err) => std::process::exit(11308),
         };
         let conn = match rusqlite::Connection::open(db_path) {
             Ok(conn) => conn,
-            Err(_err) => std::process::exit(11302),
+            Err(_err) => std::process::exit(11309),
         };
         match db::read_resource(&conn, "1001") {
             Ok(value) =>
@@ -53,11 +53,11 @@ lazy_static! {
     static ref SYSTEM_HAVEN_OGG: Vec<u8> = {
         let db_path = match getter::get_db_path() {
             Ok(path) => path,
-            Err(_err) => std::process::exit(11303),
+            Err(_err) => std::process::exit(11310),
         };
         let conn = match rusqlite::Connection::open(db_path) {
             Ok(conn) => conn,
-            Err(_err) => std::process::exit(11304),
+            Err(_err) => std::process::exit(11311),
         };
         match db::read_resource(&conn, "1002") {
             Ok(value) =>

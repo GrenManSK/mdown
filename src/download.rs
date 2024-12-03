@@ -312,7 +312,7 @@ pub(crate) async fn download_cover(
         match file.write_all(&chunk) {
             Ok(()) => (),
             Err(err) => {
-                suspend_error(MdownError::IoError(err, format!("{}\\_cover.png", folder), 10309));
+                suspend_error(MdownError::IoError(err, format!("{}\\_cover.png", folder), 10328));
             }
         }
         downloaded += chunk.len() as u64;
