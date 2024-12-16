@@ -14,6 +14,71 @@ use crate::{
     utils,
 };
 
+pub(crate) fn get_exe_file_path() -> Result<String, MdownError> {
+    let current = match std::env::current_exe() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(
+                MdownError::IoError(
+                    err,
+                    String::from("The path to your executable file is invalid"),
+                    10821
+                )
+            );
+        }
+    };
+    let path = match current.to_str() {
+        Some(value) => value.to_string(),
+        None => {
+            return Err(
+                MdownError::ConversionError(String::from("Failed to convert path to string"), 10822)
+            );
+        }
+    };
+
+    // Return the directory path as a result.
+    Ok(path)
+}
+
+pub(crate) fn get_exe_name() -> Result<String, MdownError> {
+    // Attempt to get the path of the current executable.
+    let current = match std::env::current_exe() {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(
+                MdownError::IoError(
+                    err,
+                    String::from("The path to your executable file is invalid"),
+                    10825
+                )
+            );
+        }
+    };
+
+    // Attempt to get the parent directory of the executable path.
+    let parent = match current.file_name() {
+        Some(value) => value,
+        None => {
+            return Err(
+                MdownError::NotFoundError(String::from("File name  not found"), 10823)
+            );
+        }
+    };
+
+    // Attempt to convert the parent directory path to a string.
+    let path = match parent.to_str() {
+        Some(value) => value.to_string(),
+        None => {
+            return Err(
+                MdownError::ConversionError(String::from("Failed to convert path to string"), 10824)
+            );
+        }
+    };
+
+    // Return the directory path as a result.
+    Ok(path)
+}
+
 /// Retrieves the directory path of the currently running executable.
 ///
 /// This function obtains the path to the executable file of the currently running program
@@ -199,6 +264,7 @@ pub(crate) fn get_log_lock_path() -> Result<String, MdownError> {
 /// * The function handles cases where query parameters are missing or have empty values, and will
 ///   include them in the resulting `HashMap` with empty strings as values.
 #[cfg(any(feature = "server", feature = "web"))]
+#[inline]
 pub(crate) fn get_query(parts: Vec<&str>) -> std::collections::HashMap<String, String> {
     parts[1]
         .split('?')
@@ -306,17 +372,16 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                 .and_then(Value::as_str)
         {
             // If there is manga name with language from args
-            Some(manga_name) => {
-                drop(lang);
-                manga_name.to_string()
-            }
+            Some(manga_name) => manga_name.to_string(),
             None => {
                 // Check altTitles for language that corresponds to args language
-                drop(lang);
                 let mut return_title = String::from("Unrecognized title");
-                let get = title_data.get("altTitles").and_then(|val| val.as_array());
-                if let Some(get) = get {
-                    if let Some(title_object) = get.iter().next() {
+                if
+                    let Some(alt_titles) = title_data
+                        .get("altTitles")
+                        .and_then(|val| val.as_array())
+                {
+                    if let Some(title_object) = alt_titles.iter().next() {
                         if let Some(lang_object) = title_object.as_object() {
                             for (lang, title) in lang_object.iter() {
                                 if lang == "en" {
@@ -352,16 +417,19 @@ pub(crate) fn get_manga_name(title_data: &Value) -> String {
                     // If still not found checks for english and japanese title in title data
 
                     if return_title == "Unrecognized title" {
-                        let mut get_final: serde_json::Map<String, Value> = serde_json::Map::new();
+                        let mut alt_titles_final: serde_json::Map<
+                            String,
+                            Value
+                        > = serde_json::Map::new();
 
-                        for obj in get {
+                        for obj in alt_titles {
                             if let Value::Object(inner_map) = obj {
                                 for (key, value) in inner_map {
-                                    get_final.insert(key.to_string(), value.clone());
+                                    alt_titles_final.insert(key.to_string(), value.clone());
                                 }
                             }
                         }
-                        for (lang, title) in get_final {
+                        for (lang, title) in alt_titles_final {
                             if lang == "en" || lang == "ja-ro" {
                                 return_title = title.to_string();
                                 break;
@@ -960,6 +1028,7 @@ fn crossfade_data(json: &str, json_2: &str) -> Result<String, MdownError> {
 /// let value = get_attr_as_same_as_index(&data, item);
 /// println!("{}", value); // Prints: second
 /// ```
+#[inline]
 pub(crate) fn get_attr_as_same_as_index(data_array: &[String], item: usize) -> &String {
     match data_array.get(item) {
         Some(value) => value,
@@ -999,6 +1068,7 @@ pub(crate) fn get_attr_as_same_as_index(data_array: &[String], item: usize) -> &
 /// let value = get_attr_as_same_from_vec(&data, item);
 /// println!("{:?}", value); // Prints: The ChapterResponse at index 0
 /// ```
+#[inline]
 pub(crate) fn get_attr_as_same_from_vec(
     data_array: &[metadata::ChapterResponse],
     item: usize
@@ -1074,6 +1144,7 @@ pub(crate) fn get_metadata(
 /// let result = get_arg(arg);
 /// println!("{}", result); // Prints: some_value
 /// ```
+#[inline]
 pub(crate) fn get_arg(arg: &str) -> &str {
     match arg {
         "" => "*",

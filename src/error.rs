@@ -81,6 +81,7 @@ lazy_static! {
 /// # Arguments
 ///
 /// * `err` - The `MdownError` instance to be suspended.
+#[inline]
 pub fn suspend_error(err: MdownError) {
     SUSPENDED.lock().push(err);
 }
@@ -155,6 +156,7 @@ impl MdownError {
         }
     }
 
+    #[cold]
     pub fn code(&self) -> i32 {
         *(match self {
             MdownError::IoError(_, _, err_code) => err_code,
@@ -206,6 +208,7 @@ impl MdownError {
 /// # Notes
 /// * The function uses `eprintln!` to print error messages to the standard error output.
 /// * The optional `from` argument provides additional context that helps in understanding where the error occurred.
+#[cold]
 pub(crate) fn handle_error(err: &MdownError, from: Option<String>) {
     let to = match from {
         Some(value) => format!(" ({})", value),
@@ -251,35 +254,36 @@ macro_rules! handle_error {
 /// that were previously added to the `SUSPENDED` list using `suspend_error`.
 pub(crate) fn handle_suspended() {
     let suspended = SUSPENDED.lock();
-    if !suspended.is_empty() {
-        if *INITSCR_INIT.lock() {
-            let start = MAXPOINTS.max_y - 1 - (suspended.len() as u32);
-            string(start - 1, 0, "Suspended errors:");
-            for (times, err) in suspended.iter().enumerate() {
-                let to = " (suspended)";
-                let message = match err {
-                    MdownError::IoError(err, name, err_code) => {
-                        match name.as_str() {
-                            "" => format!("Error: IO Error {} ({}) Code: {}", err, to, err_code),
-                            name =>
-                                format!(
-                                    "Error: IO Error {} in file {}{} Code: {}",
-                                    err,
-                                    name,
-                                    to,
-                                    err_code
-                                ),
-                        }
+    if suspended.is_empty() {
+        return;
+    }
+    if *INITSCR_INIT.lock() {
+        let start = MAXPOINTS.max_y - 1 - (suspended.len() as u32);
+        string(start - 1, 0, "Suspended errors:");
+        for (times, err) in suspended.iter().enumerate() {
+            let to = " (suspended)";
+            let message = match err {
+                MdownError::IoError(err, name, err_code) => {
+                    match name.as_str() {
+                        "" => format!("Error: IO Error {} ({}) Code: {}", err, to, err_code),
+                        name =>
+                            format!(
+                                "Error: IO Error {} in file {}{} Code: {}",
+                                err,
+                                name,
+                                to,
+                                err_code
+                            ),
                     }
-                    error => format!("Error: {}{}", error, to),
-                };
-                string(start + (times as u32), 0, &message);
-            }
-        } else {
-            println!("Suspended errors:");
-            for i in suspended.iter() {
-                handle_error!(i, String::from("suspended"));
-            }
+                }
+                error => format!("Error: {}{}", error, to),
+            };
+            string(start + (times as u32), 0, &message);
+        }
+    } else {
+        println!("Suspended errors:");
+        for i in suspended.iter() {
+            handle_error!(i, String::from("suspended"));
         }
     }
 }
@@ -287,6 +291,7 @@ pub(crate) fn handle_suspended() {
 /// Handles a final error and any suspended errors by printing their messages.
 /// The function first handles the provided error and then processes any errors
 /// that were previously suspended.
+#[cold]
 pub(crate) fn handle_final(err: &MdownError) -> i32 {
     let err_code = err.code();
     handle_error!(err);

@@ -1,7 +1,17 @@
+use bytes::BytesMut;
+use chrono::{ NaiveDateTime, Local };
 use semver::{ BuildMetadata, Prerelease, Version, VersionReq };
-use std::{ fs::File, io::Write };
+use std::{ fs::{ File, write }, io::Write, process::Command };
+use sha2::{ Digest, Sha256 };
 
-use crate::{ error::MdownError, getter::get_dat_path, metadata::Dat };
+use crate::{
+    db,
+    download,
+    debug,
+    error::MdownError,
+    getter::{ get_dat_path, get_exe_path, get_exe_file_path, get_exe_name },
+    metadata::Dat,
+};
 
 /// Checks and updates the version in the provided `Dat` object.
 ///
@@ -103,6 +113,329 @@ pub(crate) fn check_ver(
     Ok(require_confirmation_from_user)
 }
 
+pub(crate) async fn app_update() -> Result<bool, MdownError> {
+    debug!("app_update");
+
+    let (current_version, latest_version, data, client) = match version_preparation().await {
+        Ok(t) => t,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    if latest_version > current_version {
+        debug!("New version available: {}", latest_version);
+        let target_files = ["mdown.exe", "mdown_min.exe"];
+        let current_name = match get_exe_name() {
+            Ok(name) => name,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+
+        let asset_url = match search_url(&data, &current_name) {
+            Ok(value) => value,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+
+        let target_file = if target_files.contains(&current_name.as_str()) {
+            current_name.as_str()
+        } else {
+            "mdown.exe"
+        };
+        let body = match data["body"].as_str() {
+            Some(s) => s,
+            None => {
+                return Err(
+                    MdownError::ConversionError(
+                        String::from("Body could not be converted to string"),
+                        11609
+                    )
+                );
+            }
+        };
+        let checksum = match
+            body
+                .lines()
+                .skip_while(|line| !line.contains("## SHA256"))
+                .skip_while(|line| !line.contains(target_file))
+                .nth(2)
+                .map(str::trim)
+                .ok_or("Checksum not found")
+        {
+            Ok(checksum) => checksum,
+            Err(err) => {
+                return Err(MdownError::NotFoundError(err.to_string(), 11610));
+            }
+        };
+        let checksum = &checksum[1..checksum.len() - 1];
+
+        debug!("Checksum for {}: {}", target_file, checksum);
+        debug!("Downloading from {}", asset_url);
+
+        let mut binary_data = BytesMut::new();
+
+        let mut response = match download::get_response_from_client(&asset_url, &client).await {
+            Ok(response) => response,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+
+        let (total_size, final_size_string) = download::get_size(&response);
+        let (mut downloaded, mut last_size) = (0, 0);
+        let interval = std::time::Duration::from_millis(250);
+        let mut last_check_time = std::time::Instant::now();
+
+        while
+            //prettier-ignore
+            let Some(chunk) = match response.chunk().await {
+                Ok(Some(chunk)) => Some(chunk),
+                Ok(None) => None,
+                Err(err) => {
+                    return Err(MdownError::NetworkError(err, 11619));
+                }
+            }
+        {
+            binary_data.extend_from_slice(&chunk);
+            downloaded += chunk.len() as u64;
+            let current_time = std::time::Instant::now();
+            if current_time.duration_since(last_check_time) >= interval {
+                last_check_time = current_time;
+                let percentage = (100.0 / (total_size as f32)) * (downloaded as f32);
+                let perc_string = download::get_perc(percentage);
+                let current_mbs = bytefmt::format(downloaded - last_size);
+                let current_mb = bytefmt::format(downloaded);
+                println!(
+                    "Downloading {} {}% - {} of {} [{}/s]",
+                    target_file,
+                    perc_string,
+                    current_mb,
+                    final_size_string,
+                    current_mbs
+                );
+                last_size = downloaded;
+            }
+        }
+
+        let mut hasher = Sha256::new();
+        debug!("Calculating checksum");
+        hasher.update(&binary_data);
+        let calculated_hash = format!("{:x}", hasher.finalize());
+
+        debug!("Checksum for downloaded file: {}", calculated_hash);
+        if calculated_hash != checksum {
+            return Err(
+                MdownError::CustomError(
+                    String::from("Checksum verification failed"),
+                    String::from(""),
+                    11614
+                )
+            );
+        }
+
+        let current_exe = match get_exe_path() {
+            Ok(path) => path,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+
+        let temp_dir = std::env::temp_dir();
+        let temp_exe = match temp_dir.join("mdown.exe").to_str() {
+            Some(s) => s.to_string(),
+            None => {
+                return Err(
+                    MdownError::ConversionError(
+                        String::from("Temp directory path could not be converted to string"),
+                        11613
+                    )
+                );
+            }
+        };
+        match write(&temp_exe, binary_data) {
+            Ok(_) => (),
+            Err(err) => {
+                return Err(MdownError::IoError(err, temp_exe, 11612));
+            }
+        }
+        let batch_script = format!(
+            "@echo off\n\
+             timeout /t 1 /nobreak >nul\n\
+             move \"{}\" \"{}\" >nul\n\
+             >nul 2>nul del \"%~f0\" & exit\n",
+            temp_exe,
+            current_exe
+        );
+
+        let script_path = match temp_dir.join("mdown.update.bat").to_str() {
+            Some(s) => s.to_string(),
+            None => {
+                return Err(
+                    MdownError::ConversionError(
+                        String::from("Temp directory path could not be converted to string"),
+                        11618
+                    )
+                );
+            }
+        };
+        match write(&script_path, batch_script) {
+            Ok(_) => (),
+            Err(err) => {
+                return Err(MdownError::IoError(err, temp_exe, 11617));
+            }
+        }
+
+        // Launch the script and exit
+        Command::new("cmd")
+            .args(["/c", &script_path])
+            .spawn()
+            .map_err(|err| MdownError::IoError(err, script_path, 11616))?;
+
+        println!("Update successful! Quiting...");
+        Ok(true)
+    } else {
+        println!("Already up to date!");
+        Ok(false)
+    }
+}
+
+fn search_url<'a>(data: &'a serde_json::Value, target_file: &str) -> Result<&'a str, MdownError> {
+    let items = data["assets"]
+        .as_array()
+        .ok_or_else(|| {
+            MdownError::ConversionError(String::from("Expected 'assets' to be an array"), 11615)
+        })?;
+
+    for item in items {
+        if let Some(url) = item["browser_download_url"].as_str() {
+            if url.ends_with(target_file) {
+                return Ok(url);
+            }
+        }
+    }
+
+    Err(MdownError::NotFoundError(String::from("No matching URL found"), 11620))
+}
+
+async fn version_preparation() -> Result<
+    (Version, Version, serde_json::Value, reqwest::Client),
+    MdownError
+> {
+    let current_version = match Version::parse(&get_current_version()) {
+        Ok(version) => version,
+        Err(_err) => {
+            Version {
+                major: 0,
+                minor: 0,
+                patch: 0,
+                pre: Prerelease::EMPTY,
+                build: BuildMetadata::EMPTY,
+            }
+        }
+    };
+    debug!("Current version: {}", current_version);
+    let repo = "GrenManSK/mdown";
+    let url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+    let client = match download::get_client() {
+        Ok(client) => client,
+        Err(err) => {
+            return Err(MdownError::NetworkError(err, 11604));
+        }
+    };
+    let response = match download::get_response_from_client(&url, &client).await {
+        Ok(res) => res,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    let data = match response.json::<serde_json::Value>().await {
+        Ok(json) => json,
+        Err(err) => {
+            return Err(MdownError::JsonError(err.to_string(), 11605));
+        }
+    };
+
+    let latest_version = match
+        Version::parse(
+            &(
+                match data["tag_name"].as_str() {
+                    Some(s) => s,
+                    None => {
+                        return Err(
+                            MdownError::ConversionError(
+                                String::from("Tag name could not be converted to string"),
+                                11606
+                            )
+                        );
+                    }
+                }
+            )[1..]
+        )
+    {
+        Ok(version) => version,
+        Err(_err) => {
+            return Err(
+                MdownError::ConversionError(String::from("Unable to parse latest version"), 11607)
+            );
+        }
+    };
+    Ok((current_version, latest_version, data, client))
+}
+pub(crate) async fn check_update() -> Result<bool, MdownError> {
+    debug!("check_update");
+
+    match db::get_update_time() {
+        Ok(Some(time)) => {
+            if let Ok(parsed_time) = NaiveDateTime::parse_from_str(&time, "%Y-%m-%d %H:%M:%S") {
+                let current_time = Local::now().naive_local();
+                let difference = current_time.signed_duration_since(parsed_time);
+                if difference < chrono::Duration::days(1) {
+                    debug!("No update needed (last check: {})\n", time);
+                    return Ok(false);
+                }
+            }
+        }
+        _ => (),
+    }
+
+    let (current_version, latest_version, _, _) = match version_preparation().await {
+        Ok(t) => t,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    let now = Local::now(); // Get the current local time
+    let formatted_time = now.format("%Y-%m-%d %H:%M:%S").to_string();
+
+    match db::set_update_time(&formatted_time) {
+        Ok(()) => (),
+        Err(err) => {
+            return Err(err);
+        }
+    }
+
+    if latest_version > current_version {
+        debug!("New version available: {}", latest_version);
+        let exe_path = match get_exe_file_path() {
+            Ok(exe) => exe,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+        println!("Update of mdown is available");
+        println!("mdown: {} => {}", current_version, latest_version);
+        println!("Run {} app --update", exe_path);
+
+        Ok(true)
+    } else {
+        debug!("Already up to date!\n");
+        Ok(false)
+    }
+}
+
 /// Removes the pre-release suffix from a version string.
 ///
 /// This function takes a version string, splits it at the hyphen (`-`),
@@ -144,6 +477,7 @@ fn remove_prerelease(version: &str) -> String {
 ///
 /// # Panics
 /// * This function does not explicitly panic.
+#[inline]
 pub(crate) fn get_current_version() -> String {
     remove_prerelease(env!("CARGO_PKG_VERSION"))
 }

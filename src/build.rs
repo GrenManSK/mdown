@@ -1,5 +1,9 @@
 use std::{ fs::{ self, File }, io::prelude::*, path::Path };
 
+
+#[cfg(not(target_os = "windows"))]
+compile_error!("This app only supports Windows.");
+
 /// The build script for configuring and processing project resources.
 ///
 /// This script performs different tasks based on the target OS and resource directories. It handles resource compilation for Windows, processes files in specified resource directories, and generates corresponding Rust source files with binary data. It also handles conditional compilation flags related to music resources.

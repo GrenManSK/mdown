@@ -144,17 +144,19 @@ mod web;
 /// # Note
 ///
 /// This function uses `stdscr()` from the `curses` library to manage terminal output.
+#[inline]
 fn string(y: u32, x: u32, value: &str) {
     if
-        !*args::ARGS_WEB &&
-        !*args::ARGS_GUI &&
-        !*args::ARGS_CHECK &&
-        !*args::ARGS_UPDATE &&
-        !*args::ARGS_QUIET
+        *args::ARGS_WEB ||
+        *args::ARGS_GUI ||
+        *args::ARGS_CHECK ||
+        *args::ARGS_UPDATE ||
+        *args::ARGS_QUIET
     {
-        stdscr().mvaddnstr(y as i32, x as i32, value, (MAXPOINTS.max_x - x) as i32);
-        stdscr().refresh();
+        return;
     }
+    stdscr().mvaddnstr(y as i32, x as i32, value, (MAXPOINTS.max_x - x) as i32);
+    stdscr().refresh();
 }
 
 /// Logs the end of a process identified by `handle_id`.
@@ -170,6 +172,7 @@ fn string(y: u32, x: u32, value: &str) {
 /// # Note
 ///
 /// This function utilizes a mutex to ensure thread-safe access to the `HANDLE_ID_END` list.
+#[inline]
 fn log_end(handle_id: Box<str>) {
     resolute::HANDLE_ID_END.lock().push(handle_id);
 }
@@ -198,10 +201,11 @@ lazy_static! {
     pub(crate) static ref IS_END: Mutex<bool> = Mutex::new(false);
 }
 
-fn wrong_uuid_format(url: &str) -> String {
+#[inline]
+fn wrong_uuid_format(url: &str) -> &str {
     string(3, 0, &format!("Wrong format of UUID ({})", url));
     string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
-    String::from("*")
+    "*"
 }
 
 #[tokio::main]
@@ -285,6 +289,20 @@ async fn start() -> Result<(), error::MdownError> {
             return Err(err);
         }
     };
+
+    if *args::ARGS_APP_UPDATE {
+        return match version_manager::app_update().await {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err),
+        };
+    }
+
+    match version_manager::check_update().await {
+        Ok(_) => (),
+        Err(err) => {
+            handle_error!(&err);
+        }
+    }
 
     if args::ARGS.lock().backup {
         return match utils::backup_handler(true) {
@@ -376,12 +394,11 @@ async fn start() -> Result<(), error::MdownError> {
     // Setup subscriber for web, GUI, update, or server modes
     if *args::ARGS_WEB || *args::ARGS_GUI || *args::ARGS_UPDATE || *args::ARGS_SERVER {
         match utils::setup_subscriber() {
-            Ok(()) => (),
+            Ok(()) => debug!("setup subscriber"),
             Err(err) => {
                 return Err(err);
             }
         }
-        debug!("setup subscriber");
     }
 
     // Start log handler if enabled
@@ -390,15 +407,15 @@ async fn start() -> Result<(), error::MdownError> {
         tokio::spawn(async { utils::log_handler() });
     }
 
-    // Set language to download
-    *resolute::LANGUAGE.lock() = args::ARGS.lock().lang.clone();
-    debug!("language is set to {}", &args::ARGS.lock().lang);
-
     // Handle show or show all arguments
     if args::ARGS_SHOW.is_some() || args::ARGS_SHOW_ALL.is_some() {
         debug!("show || show all");
         return resolute::show().await;
     }
+
+    // Set language to download
+    *resolute::LANGUAGE.lock() = args::ARGS.lock().lang.clone();
+    debug!("language is set to {}", &args::ARGS.lock().lang);
 
     // Perform check or update operations
     if *args::ARGS_CHECK || *args::ARGS_UPDATE {
@@ -446,8 +463,8 @@ async fn start() -> Result<(), error::MdownError> {
     }
 
     // Resolve starting file path and requirements
-    let file_path = match utils::resolve_start() {
-        Ok(file_path) => file_path,
+    let main_lock_file_path = match utils::main_lock_file() {
+        Ok(main_lock_file_path) => main_lock_file_path,
         Err(err) => {
             return Err(err);
         }
@@ -455,7 +472,7 @@ async fn start() -> Result<(), error::MdownError> {
 
     // Setup requirements if not in quiet mode
     if !*args::ARGS_QUIET {
-        utils::setup_requirements(file_path.clone());
+        utils::setup_requirements(main_lock_file_path.clone());
     }
 
     // Initialize manga name and status code
@@ -473,113 +490,59 @@ async fn start() -> Result<(), error::MdownError> {
         }
     };
     let mut err_code_network = 0;
+    let url_from_search;
 
     // Retrieve and debug URL
     let url = args::ARGS.lock().url.clone();
     debug!("\nstarting to search for uuid in '{}'", url);
 
     // Handle UUID retrieval and validation
-    let id = if args::ARGS.lock().search != *"*" {
+    let id = if args::ARGS.lock().search.as_str() != "*" {
         debug!("using search");
-        match utils::search().await {
+        url_from_search = match utils::search().await {
             Ok(id) => id,
             Err(err) => {
                 return Err(err);
             }
-        }
+        };
+        url_from_search.as_str()
     } else if let Some(id_temp) = utils::resolve_regex(&url) {
         debug!("using whole url");
         if utils::is_valid_uuid(id_temp.as_str()) {
-            id_temp.as_str().to_string()
+            id_temp.as_str()
         } else {
             wrong_uuid_format(&url)
         }
-    } else if utils::is_valid_uuid(&args::ARGS.lock().url) {
-        debug!("using uuid");
-        args::ARGS.lock().url.clone()
+    } else if utils::is_valid_uuid(&url) {
+        debug!("using url as uuid");
+        url.as_str()
     } else if url == "UNSPECIFIED" {
         debug!("url is not specified");
-        String::from("*")
+        "*"
     } else {
         wrong_uuid_format(&url)
     };
 
     // Process manga information if valid ID is found
-    if id != *"*" {
-        debug!("id acquired: {}\n", id);
-        *resolute::MANGA_ID.lock() = id.clone();
-        string(0, 0, &format!("Extracted ID: {}", id));
-        match db::check_tutorial() {
-            Ok(_) => {}
-            Err(err) => {
-                error::suspend_error(err);
-            }
-        }
-        string(1, 0, "Getting manga information ...");
-        if *tutorial::TUTORIAL.lock() {
-            tutorial::manga_info();
-        }
-        match getter::get_manga_json(&id).await {
+    if id != "*" {
+        match process_manga_json(&id, &mut err_code_network, &mut status_code).await {
             Ok(manga_name_json) => {
-                string(1, 0, "Getting manga information DONE");
-                #[cfg(feature = "music")]
-                {
-                    *resolute::MUSIC_STAGE.lock() = metadata::MusicStage::Init;
-                }
-                let json_value = match utils::get_json(&manga_name_json) {
-                    Ok(value) => value,
+                let obj = match perform_manga_download(manga_name_json).await {
+                    Ok(obj) => obj,
                     Err(err) => {
                         return Err(err);
                     }
                 };
-                if let Value::Object(obj) = json_value {
-                    debug!("parsed manga information");
-                    manga_name = match resolute::resolve(obj, &id).await {
-                        Ok(value) => value,
-                        Err(err) => {
-                            handle_error!(&err, String::from("program"));
-                            String::from("!")
-                        }
-                    };
-                } else {
-                    return Err(
-                        error::MdownError::JsonError(String::from("Unexpected JSON value"), 10102)
-                    );
-                }
+                manga_name = match resolute::resolve(obj, &id).await {
+                    Ok(value) => value,
+                    Err(err) => {
+                        handle_error!(&err, String::from("program"));
+                        String::from("!")
+                    }
+                };
             }
-            Err(code) => {
-                string(1, 0, "Getting manga information ERROR");
-                match code {
-                    error::MdownError::NetworkError(ref err, err_code) => {
-                        err_code_network = err_code;
-                        if let Some(status_error) = err.status() {
-                            status_code = status_error;
-                        } else {
-                            let code = code.into();
-                            let parts: Vec<&str> = code.split_whitespace().collect();
-                            if let Some(status_code_tmp) = parts.first() {
-                                let number = status_code_tmp.parse::<u16>().unwrap_or_default();
-                                if number != 0 {
-                                    if
-                                        let Ok(status_code_tmp) =
-                                            reqwest::StatusCode::from_u16(number)
-                                    {
-                                        status_code = status_code_tmp;
-                                    }
-                                }
-                            } else {
-                                println!("Invalid status string");
-                            }
-                        }
-                    }
-                    error::MdownError::StatusError(ref err, err_code) => {
-                        err_code_network = err_code;
-                        status_code = *err;
-                    }
-                    _ => {
-                        println!("Unexpected error");
-                    }
-                }
+            Err(err) => {
+                return Err(err);
             }
         }
     } else {
@@ -587,7 +550,7 @@ async fn start() -> Result<(), error::MdownError> {
     }
 
     // Finalize the process and cleanup
-    match utils::resolve_end(&file_path, &manga_name, status_code, err_code_network) {
+    match utils::resolve_end(&main_lock_file_path, &manga_name, status_code, err_code_network) {
         Ok(()) => (),
         Err(err) => eprintln!("Error: {}", err),
     }
@@ -605,6 +568,97 @@ async fn start() -> Result<(), error::MdownError> {
 
     // Final key input is handled in `utils::ctrl_handler`
     Ok(())
+}
+
+async fn process_manga_json(
+    id: &str,
+    err_code_network: &mut u32,
+    status_code: &mut reqwest::StatusCode
+) -> Result<String, error::MdownError> {
+    debug!("id acquired: {}\n", id);
+    *resolute::MANGA_ID.lock() = id.to_string();
+    string(0, 0, &format!("Extracted ID: {}", id));
+    match db::check_tutorial() {
+        Ok(()) => (),
+        Err(err) => {
+            error::suspend_error(err);
+        }
+    }
+    string(1, 0, "Getting manga information ...");
+    if *tutorial::TUTORIAL.lock() {
+        tutorial::manga_info();
+    }
+    match getter::get_manga_json(id).await {
+        Ok(manga_name_json) => {
+            string(1, 0, "Getting manga information DONE");
+            return Ok(manga_name_json);
+        }
+        Err(code) => {
+            string(1, 0, "Getting manga information ERROR");
+            process_manga_error(code, err_code_network, status_code);
+            return Err(error::MdownError::CustomError(String::from(""), String::from(""), 10110));
+        }
+    }
+}
+
+async fn perform_manga_download(
+    manga_name_json: String
+) -> Result<serde_json::Map<String, serde_json::Value>, error::MdownError> {
+    #[cfg(feature = "music")]
+    {
+        *resolute::MUSIC_STAGE.lock() = metadata::MusicStage::Init;
+    }
+    let json_value = match utils::get_json(&manga_name_json) {
+        Ok(value) => value,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    if let Value::Object(obj) = json_value {
+        debug!("parsed manga information");
+        return Ok(obj);
+    } else {
+        Err(error::MdownError::JsonError(String::from("Unexpected JSON value"), 10102))
+    }
+}
+
+fn process_manga_error(
+    code: error::MdownError,
+    err_code_network: &mut u32,
+    status_code: &mut reqwest::StatusCode
+) {
+    match code {
+        error::MdownError::NetworkError(ref err, err_code) => {
+            *err_code_network = err_code;
+            if let Some(status_error) = err.status() {
+                *status_code = status_error;
+            } else {
+                resolve_error_code(code, status_code);
+            }
+        }
+        error::MdownError::StatusError(ref err, err_code) => {
+            *err_code_network = err_code;
+            *status_code = *err;
+        }
+        _ => {
+            println!("Unexpected error");
+        }
+    }
+}
+
+fn resolve_error_code(code: error::MdownError, status_code: &mut reqwest::StatusCode) {
+    let code = code.into();
+    let parts: Vec<&str> = code.split_whitespace().collect();
+    if let Some(status_code_tmp) = parts.first() {
+        let number = status_code_tmp.parse::<u16>().unwrap_or_default();
+        if number != 0 {
+            if let Ok(status_code_tmp) = reqwest::StatusCode::from_u16(number) {
+                *status_code = status_code_tmp;
+            }
+        }
+    } else {
+        println!("Invalid status string");
+    }
 }
 
 /// Downloads manga chapters based on the provided manga JSON data and arguments.

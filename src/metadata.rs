@@ -35,6 +35,7 @@ impl ChapterMetadata {
     /// # Returns
     ///
     /// A `ChapterMetadata` instance with the provided values.
+    #[inline]
     pub(crate) fn new(number: &str, updated_at: &str, id: &str) -> ChapterMetadata {
         ChapterMetadata {
             updated_at: updated_at.to_owned(),
@@ -83,6 +84,7 @@ impl TagMetadata {
     /// # Returns
     ///
     /// A `TagMetadata` instance with the provided values.
+    #[inline]
     pub(crate) fn new(name: &str, id: &str) -> TagMetadata {
         TagMetadata {
             name: name.to_owned(),
@@ -104,6 +106,7 @@ pub(crate) struct LogsMetadata {
 }
 
 impl LogsMetadata {
+    #[inline]
     pub(crate) fn new(
         id: &str,
         logs: BTreeMap<String, Vec<String>>,

@@ -244,13 +244,13 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
                             "Press Enter to print the next line, or space to print the next 100 lines.\r"
                         )
                     {
-                        Ok(_) => {}
+                        Ok(_) => (),
                         Err(err) => {
                             return Err(MdownError::IoError(err, String::from("stdout"), 10209));
                         }
                     }
                     match stdout.flush() {
-                        Ok(_) => {}
+                        Ok(_) => (),
                         Err(err) => {
                             return Err(MdownError::IoError(err, String::from("stdout"), 10210));
                         }
@@ -264,7 +264,7 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
                             KeyCode::Char(' ') => {
                                 lines += 50;
                             }
-                            _ => {}
+                            _ => (),
                         }
                     }
                 }
@@ -558,6 +558,7 @@ pub(crate) fn check_for_metadata_saver(file_path: &str) -> Result<bool, MdownErr
     Ok(false)
 }
 
+#[inline]
 pub(crate) fn check_for_metadata(
     file_path: &str
 ) -> Result<metadata::ChapterMetadataIn, MdownError> {
@@ -1030,10 +1031,18 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     let handle_id = utils::generate_random_id(16);
     *HANDLE_ID.lock() = handle_id.clone();
     debug!("handle id set to {}", handle_id);
+    let data = match obj.get("data") {
+        Some(value) => value,
+        None => {
+            return Err(MdownError::NotFoundError(String::from("data in fn resolve"), 10235));
+        }
+    };
     let title_data = match obj.get("data").and_then(|name_data| name_data.get("attributes")) {
         Some(value) => value,
         None => {
-            return Err(MdownError::NotFoundError(String::from("resolve"), 10235));
+            return Err(
+                MdownError::NotFoundError(String::from("attributes in data in fn resolve"), 10253)
+            );
         }
     };
 
@@ -1048,84 +1057,15 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *MANGA_NAME.lock() = manga_name.clone();
     let folder = get_folder_name();
 
-    {
-        let orig_lang = match title_data.get("originalLanguage").and_then(Value::as_str) {
-            Some(value) => value,
-            None => {
-                return Err(
-                    MdownError::NotFoundError(String::from("Didn't find originalLanguage"), 10236)
-                );
-            }
-        };
-        let languages = match
-            title_data.get("availableTranslatedLanguages").and_then(Value::as_array)
-        {
-            Some(value) => value,
-            None => {
-                return Err(
-                    MdownError::NotFoundError(
-                        String::from("Didn't find availableTranslatedLanguages"),
-                        10237
-                    )
-                );
-            }
-        };
-        let mut final_lang = vec![];
-        for lang in languages {
-            final_lang.push(match lang.as_str() {
-                Some(value) => value,
-                None => {
-                    return Err(
-                        MdownError::ConversionError(
-                            String::from("final_lang could not convert to string slice ?"),
-                            10238
-                        )
-                    );
-                }
-            });
-        }
-        let current_lang = LANGUAGE.lock().to_string();
-        if
-            current_lang != orig_lang &&
-            !final_lang.contains(&current_lang.as_str()) &&
-            current_lang != "*"
-        {
-            debug!("defined language not found in manga information");
-            let mut final_lang = vec![];
-            for lang in languages {
-                final_lang.push(match lang.as_str() {
-                    Some(value) => value,
-                    None => {
-                        return Err(
-                            MdownError::ConversionError(
-                                String::from("final_lang could not convert to string slice ?"),
-                                10239
-                            )
-                        );
-                    }
-                });
-            }
-            let mut langs = String::new();
-            let mut lang_range: usize = 0;
-            for lang in &final_lang {
-                langs.push_str(&format!("{} ", lang.replace("\"", "")));
-                lang_range += 1 + lang.to_string().replace("\"", "").len();
-            }
-            lang_range -= 1;
-            string(
-                1,
-                0,
-                &format!("Language is not available\nSelected language: {}", LANGUAGE.lock())
-            );
-            string(3, 0, &format!("Original language: {}", orig_lang));
-            string(4, 0, &format!("Available languages: {}", langs));
-            string(5, 0, &format!("Choose from these    {}", "^".repeat(lang_range)));
-            debug!("available languages: {:?}", final_lang);
-            return Ok(manga_name);
+    match resolve_language(title_data) {
+        Ok(()) => (),
+        Err(err) => {
+            return Err(err);
         }
     }
     *DOWNLOADING.lock() = true;
 
+    // If folder is already present, assume it will be rewritten
     let was_rewritten = fs::metadata(folder).is_ok();
 
     debug!("is there folder with same name: {}", was_rewritten);
@@ -1151,7 +1091,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
                 None => {
                     return Err(
                         MdownError::ConversionError(
-                            String::from("final_lang could not convert to string slice ?"),
+                            String::from("Value is not a valid unicode"),
                             10240
                         )
                     );
@@ -1161,142 +1101,24 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
             return Err(MdownError::IoError(err, folder.to_string(), 10241));
         }
     };
-    {
-        let desc = title_data
-            .get("description")
-            .and_then(|description| description.get("en"))
-            .and_then(Value::as_str)
-            .unwrap_or_default();
 
-        let mut desc_file = if *args::ARGS_UPDATE {
-            match
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open("_description.txt")
-            {
-                Ok(file) => file,
-                Err(err) => {
-                    return Err(
-                        MdownError::IoError(err, format!("{}\\_description.txt", MWD.lock()), 10242)
-                    );
-                }
-            }
-        } else {
-            match
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(format!("{}\\_description.txt", folder))
-            {
-                Ok(file) => file,
-                Err(err) => {
-                    return Err(
-                        MdownError::IoError(err, format!("{}\\_description.txt", folder), 10243)
-                    );
-                }
-            }
-        };
-
-        match write!(desc_file, "{}", desc) {
-            Ok(()) => (),
-            Err(err) => eprintln!("Error: writing in description file {}", err),
-        }
-        debug!("description file created");
-    }
-
-    {
-        let empty_vec = vec![];
-
-        let tags_attributes = match title_data.get("tags").and_then(Value::as_array) {
-            Some(value) => value,
-            None => &empty_vec,
-        };
-
-        let mut theme: Vec<TagMetadata> = vec![];
-        let mut genre: Vec<TagMetadata> = vec![];
-
-        for tag in tags_attributes.iter() {
-            let id = tag.get("id").and_then(Value::as_str).unwrap_or_default();
-            let attr = tag.get("attributes");
-            if let Some(attr) = attr {
-                let typ = attr.get("group").and_then(Value::as_str).unwrap_or_default();
-                let name = attr
-                    .get("name")
-                    .and_then(|value| value.get("en"))
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                if !name.is_empty() {
-                    match typ {
-                        "theme" => {
-                            debug!("manga theme: {:?}", name);
-                            theme.push(TagMetadata::new(name, id));
-                        }
-                        "genre" => {
-                            debug!("manga genre: {:?}", name);
-                            genre.push(TagMetadata::new(name, id));
-                        }
-                        _ => (),
-                    }
-                }
-            }
-        }
-
-        *GENRES.lock() = genre;
-        *THEMES.lock() = theme;
-    }
-
-    {
-        let cover = obj
-            .get("data")
-            .and_then(|name_data| name_data.get("relationships"))
-            .and_then(Value::as_array)
-            .map(|data| {
-                let mut cover = "";
-                for el in data {
-                    if el.get("type").and_then(Value::as_str).unwrap_or_default() == "cover_art" {
-                        cover = el
-                            .get("attributes")
-                            .and_then(|dat| dat.get("fileName"))
-                            .and_then(Value::as_str)
-                            .unwrap_or_default();
-                    }
-                }
-                cover
-            })
-            .unwrap_or_default();
-        if !cover.is_empty() {
-            debug!("starting downloading cover");
-            *COVER.lock() = match
-                download::download_cover(
-                    Arc::from("https://uploads.mangadex.org/"),
-                    Arc::from(id),
-                    Arc::from(cover),
-                    Arc::from(folder)
-                ).await
-            {
-                Ok(()) => true,
-                Err(err) => {
-                    eprintln!("Error: failed to download cover {}", err);
-                    false
-                }
-            };
-            debug!("cover downloaded successfully");
+    match resolve_description(folder, title_data) {
+        Ok(()) => (),
+        Err(err) => {
+            return Err(err);
         }
     }
+
+    resolve_theme_genre(title_data);
+
+    resolve_cover(&data, id, folder).await;
 
     if ARGS.lock().stat {
         debug!("starting downloading stat");
         match download::download_stat(id, &manga_name).await {
-            Ok(()) => (),
-            Err(err) => {
-                handle_error!(&err, String::from("statistics"));
-            }
+            Ok(()) => debug!("stat downloaded successfully"),
+            Err(err) => handle_error!(&err, String::from("statistics")),
         }
-        debug!("stat downloaded successfully");
     }
 
     *LANGUAGES.lock() = {
@@ -1346,6 +1168,169 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *CURRENT_CHAPTER_PARSED_MAX.lock() = 0;
     debug!("global variables reset");
     Ok(manga_name)
+}
+
+async fn resolve_cover(data: &serde_json::Value, id: &str, folder: &str) {
+    let cover = data
+        .get("relationships")
+        .and_then(Value::as_array)
+        .map(|data| {
+            let mut cover = "";
+            for el in data {
+                if el.get("type").and_then(Value::as_str).unwrap_or_default() == "cover_art" {
+                    cover = el
+                        .get("attributes")
+                        .and_then(|dat| dat.get("fileName"))
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                }
+            }
+            cover
+        })
+        .unwrap_or_default();
+    if !cover.is_empty() {
+        debug!("starting downloading cover");
+        *COVER.lock() = match
+            download::download_cover(
+                Arc::from("https://uploads.mangadex.org/"),
+                Arc::from(id),
+                Arc::from(cover),
+                Arc::from(folder)
+            ).await
+        {
+            Ok(()) => true,
+            Err(err) => {
+                eprintln!("Error: failed to download cover {}", err);
+                false
+            }
+        };
+        debug!("cover downloaded successfully");
+    }
+}
+
+fn resolve_theme_genre(title_data: &Value) {
+    let tags_attributes = match title_data.get("tags").and_then(Value::as_array) {
+        Some(value) => value,
+        None => {
+            return;
+        }
+    };
+
+    let mut theme: Vec<TagMetadata> = vec![];
+    let mut genre: Vec<TagMetadata> = vec![];
+
+    for tag in tags_attributes.iter() {
+        let id = tag.get("id").and_then(Value::as_str).unwrap_or_default();
+        let attr = tag.get("attributes");
+        if let Some(attr) = attr {
+            let typ = attr.get("group").and_then(Value::as_str).unwrap_or_default();
+            let name = attr
+                .get("name")
+                .and_then(|value| value.get("en"))
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if !name.is_empty() {
+                match typ {
+                    "theme" => {
+                        debug!("manga theme: {:?}", name);
+                        theme.push(TagMetadata::new(name, id));
+                    }
+                    "genre" => {
+                        debug!("manga genre: {:?}", name);
+                        genre.push(TagMetadata::new(name, id));
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
+
+    *GENRES.lock() = genre;
+    *THEMES.lock() = theme;
+}
+
+fn resolve_description(folder: &str, title_data: &serde_json::Value) -> Result<(), MdownError> {
+    let desc = title_data
+        .get("description")
+        .and_then(|description| description.get("en"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let manga_folder = if *args::ARGS_UPDATE { MWD.lock().clone() } else { folder.to_string() };
+    let mut desc_file = match
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("_description.txt")
+    {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(
+                MdownError::IoError(err, format!("{}\\_description.txt", manga_folder), 10242)
+            );
+        }
+    };
+    match write!(desc_file, "{}", desc) {
+        Ok(()) => (),
+        Err(err) => eprintln!("Error: writing in description file {}", err),
+    }
+    debug!("description file created");
+    Ok(())
+}
+
+fn resolve_language(title_data: &Value) -> Result<(), MdownError> {
+    let orig_lang = match title_data.get("originalLanguage").and_then(Value::as_str) {
+        Some(value) => value,
+        None => {
+            return Err(
+                MdownError::NotFoundError(String::from("Didn't find originalLanguage"), 10236)
+            );
+        }
+    };
+    let languages = match title_data.get("availableTranslatedLanguages").and_then(Value::as_array) {
+        Some(value) => value,
+        None => {
+            return Err(
+                MdownError::NotFoundError(
+                    String::from("Didn't find availableTranslatedLanguages"),
+                    10237
+                )
+            );
+        }
+    };
+    let mut final_lang = vec![];
+    for lang in languages {
+        final_lang.push(match lang.as_str() {
+            Some(value) => value,
+            None => {
+                return Err(
+                    MdownError::ConversionError(String::from("value for key was not String"), 10238)
+                );
+            }
+        });
+    }
+    let current_lang = LANGUAGE.lock().to_string();
+    if
+        current_lang != orig_lang &&
+        !final_lang.contains(&current_lang.as_str()) &&
+        current_lang != "*"
+    {
+        debug!("defined language not found in manga information");
+        let mut langs = String::new();
+        let mut lang_range: usize = 0;
+        for lang in &final_lang {
+            langs.push_str(&format!("{} ", lang.replace("\"", "")));
+            lang_range += 1 + lang.to_string().replace("\"", "").len();
+        }
+        lang_range -= 1;
+        string(1, 0, &format!("Language is not available\nSelected language: {}", LANGUAGE.lock()));
+        string(3, 0, &format!("Original language: {}", orig_lang));
+        string(4, 0, &format!("Available languages: {}", langs));
+        string(5, 0, &format!("Choose from these    {}", "^".repeat(lang_range)));
+        debug!("available languages: {:?}", final_lang);
+    }
+    Ok(())
 }
 
 pub(crate) async fn resolve_group(
@@ -1407,6 +1392,8 @@ pub(crate) fn parse_scanlation_file() -> Result<(), MdownError> {
 
     Ok(())
 }
+
+#[inline]
 fn parse_line(line: &str) -> Option<(&str, &str)> {
     if let Some((name, website)) = line.split_once(" - ") {
         Some((name, website))

@@ -1,10 +1,11 @@
 [package]
 name = "mdown"
-version = "0.13.2"
+version = "0.14.0"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"
 repository = "https://github.com/GrenManSK/mdown"
+readme = "README.md"
 
 build = "src/build.rs"
 
@@ -13,8 +14,9 @@ build = "src/build.rs"
 [dependencies]
 base64 = "0.22.1"
 bytefmt = "0.1.7"
-chrono = "0.4.38"
-clap = { version = "4.5.21", features = ["derive"] }
+bytes = "1.9.0"
+chrono = "0.4.39"
+clap = { version = "4.5.23", features = ["derive"] }
 crosscurses = { version = "0.1.0", features = ["win32"] }
 crossterm = "0.28.1"
 ctrlc = { version = "3.4.5", optional = true }
@@ -36,15 +38,15 @@ reqwest = { version = "0.12.9", features = ["json"] }
 rodio = { version = "0.20.1", optional = true }
 rusqlite = { version = "0.32.1", features = ["bundled"] }
 ryu = "1.0.18"
-semver = "1.0.23"
-serde = { version = "1.0.215", features = ["derive"] }
+semver = "1.0.24"
+serde = { version = "1.0.216", features = ["derive"] }
 serde_json = "1.0.133"
 sha2 = "0.10.8"
 smallvec = "1.13.2"
-thiserror = "2.0.3"
-tokio = { version = "1.41.1", features = ["full"] }
+thiserror = "2.0.6"
+tokio = { version = "1.42.0", features = ["full"] }
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 url = "2.5.4"
 uuid = "1.11.0"
 walkdir = "2.5.0"

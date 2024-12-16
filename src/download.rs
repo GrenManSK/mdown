@@ -43,6 +43,7 @@ use crate::{
 ///     Ok(())
 /// }
 /// ```
+#[inline]
 pub(crate) fn get_client() -> Result<reqwest::Client, reqwest::Error> {
     reqwest::Client
         ::builder()
@@ -143,6 +144,7 @@ pub(crate) async fn get_response(
 /// let (size_in_bytes, size_formatted) = get_size(&response);
 /// println!("Size: {} bytes, formatted: {}", size_in_bytes, size_formatted);
 /// ```
+#[inline]
 pub(crate) fn get_size(response: &reqwest::Response) -> (u64, String) {
     let total_size: u64 = response.content_length().unwrap_or_default();
     (total_size, bytefmt::format(total_size))
@@ -163,6 +165,7 @@ pub(crate) fn get_size(response: &reqwest::Response) -> (u64, String) {
 /// let perc = get_perc(75.0);
 /// println!("Progress: {}%", perc);
 /// ```
+#[inline]
 pub(crate) fn get_perc(percentage: f32) -> String {
     let mut buffer = ryu::Buffer::new();
     let perc = buffer.format(percentage);
@@ -207,7 +210,17 @@ pub(crate) async fn get_response_client(full_url: &str) -> Result<reqwest::Respo
 
     match client.get(full_url).send().await {
         Ok(response) => Ok(response),
-        Err(err) => { Err(MdownError::NetworkError(err, 10305)) }
+        Err(err) => Err(MdownError::NetworkError(err, 10305)),
+    }
+}
+
+pub(crate) async fn get_response_from_client(
+    full_url: &str,
+    client: &reqwest::Client
+) -> Result<reqwest::Response, MdownError> {
+    match client.get(full_url).send().await {
+        Ok(response) => Ok(response),
+        Err(err) => Err(MdownError::NetworkError(err, 10329)),
     }
 }
 
@@ -541,6 +554,7 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
 /// println!("{}", result); // Output: "5: 25\n\n"
 /// ```
 ///
+#[inline]
 fn get_dist(distribution: &metadata::RatingDistribution, i: usize) -> String {
     let value = match i {
         1 => distribution.one,

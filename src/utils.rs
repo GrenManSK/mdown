@@ -30,7 +30,7 @@ use crate::{
     version_manager::get_current_version,
 };
 
-pub(crate) fn setup_requirements(file_path: String) {
+pub(crate) fn setup_requirements(main_lock_file_path: String) {
     debug!("start crosscurses");
     let _ = initscr();
     *resolute::INITSCR_INIT.lock() = true;
@@ -38,10 +38,10 @@ pub(crate) fn setup_requirements(file_path: String) {
     start_color();
     crosscurses::noecho();
     crosscurses::cbreak();
-    let file_path_temp = file_path.clone();
-    tokio::spawn(async move { print_version(&file_path).await });
+    let main_lock_file_pathtemp = main_lock_file_path.clone();
+    tokio::spawn(async move { print_version(&main_lock_file_path).await });
     debug!("print_version instance started");
-    tokio::spawn(async move { ctrl_handler(&file_path_temp).await });
+    tokio::spawn(async move { ctrl_handler(&main_lock_file_pathtemp).await });
     debug!("ctrl_handler instance started");
 }
 
@@ -259,10 +259,10 @@ pub(crate) fn reset() -> Result<(), MdownError> {
             match err.raw_os_error() {
                 Some(code) => {
                     if code != 2 {
-                        push_suspended(err, "dat.json");
+                        push_suspended(err, "dat.json", 10428);
                     }
                 }
-                None => push_suspended(err, "dat.json"),
+                None => push_suspended(err, "dat.json", 10429),
             }
         }
     }
@@ -272,10 +272,10 @@ pub(crate) fn reset() -> Result<(), MdownError> {
             match err.raw_os_error() {
                 Some(code) => {
                     if code != 2 {
-                        push_suspended(err, "resources.db");
+                        push_suspended(err, "resources.db", 10430);
                     }
                 }
-                None => push_suspended(err, "resources.db"),
+                None => push_suspended(err, "resources.db", 10431),
             }
         }
     }
@@ -285,10 +285,10 @@ pub(crate) fn reset() -> Result<(), MdownError> {
             match err.raw_os_error() {
                 Some(code) => {
                     if code != 2 {
-                        push_suspended(err, "log.json");
+                        push_suspended(err, "log.json", 10432);
                     }
                 }
-                None => push_suspended(err, "log.json"),
+                None => push_suspended(err, "log.json", 10433),
             }
         }
     }
@@ -298,8 +298,9 @@ pub(crate) fn reset() -> Result<(), MdownError> {
     Ok(())
 }
 
-fn push_suspended(err: std::io::Error, name: &str) {
-    suspend_error(MdownError::IoError(err, name.to_string(), 10400));
+#[inline]
+fn push_suspended(err: std::io::Error, name: &str, err_code: u32) {
+    suspend_error(MdownError::IoError(err, name.to_string(), err_code));
 }
 
 pub(crate) fn remove_cache() -> Result<(), MdownError> {
@@ -356,6 +357,7 @@ pub(crate) fn setup_subscriber() -> Result<(), MdownError> {
     }
 }
 
+#[inline]
 pub(crate) fn create_cache_folder() -> Result<(), MdownError> {
     match fs::create_dir(".cache") {
         Ok(()) => Ok(()),
@@ -385,6 +387,7 @@ pub(crate) fn clear_screen(from: u32) {
     }
 }
 
+#[inline]
 pub(crate) fn process_filename(filename: &str) -> String {
     filename.replace(['<', '>', ':', '|', '?', '*', '/', '\\', '"'], "")
 }
@@ -629,7 +632,7 @@ pub(crate) async fn search() -> Result<String, MdownError> {
     }
 }
 
-pub(crate) fn resolve_start() -> Result<String, MdownError> {
+pub(crate) fn main_lock_file() -> Result<String, MdownError> {
     let file_path: String = format!(".cache\\mdown_{}.lock", get_current_version());
     if *args::ARGS_FORCE_DELETE {
         match fs::remove_file(&file_path) {
@@ -698,14 +701,17 @@ pub(crate) async fn ctrl_handler(file: &str) {
 
     delete_dir_if_unfinished(getter::get_folder_name());
     delete_dir();
+    remove_cache_end();
+    exit(0);
+}
 
+fn remove_cache_end() {
     if is_directory_empty(".cache\\") {
         match remove_dir_all(".cache") {
             Ok(()) => (),
             Err(err) => eprintln!("Error removing .cache, {}", err),
         };
     }
-    exit(0);
 }
 
 pub(crate) fn resolve_final_end() -> bool {
@@ -714,12 +720,7 @@ pub(crate) fn resolve_final_end() -> bool {
             Ok(()) => (),
             Err(err) => eprintln!("Error: removing mdown_final_end.lock {}", err),
         }
-        if is_directory_empty(".cache\\") {
-            match remove_dir_all(".cache") {
-                Ok(()) => (),
-                Err(err) => eprintln!("Error: removing .cache, {}", err),
-            };
-        }
+        remove_cache_end();
         return true;
     }
     false
@@ -807,16 +808,18 @@ pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match> {
     re.captures(cap).and_then(|id| id.get(1))
 }
 
+/// This function will resolve final_end.lock and prints if downloading was successful or not
 pub(crate) fn resolve_end(
-    file_path: &str,
+    main_lock_file_path: &str,
     manga_name: &str,
     status_code: reqwest::StatusCode,
     err_code: u32
 ) -> Result<(), String> {
-    match fs::remove_file(file_path) {
+    match fs::remove_file(main_lock_file_path) {
         Ok(()) => (),
-        Err(err) => eprintln!("Error: removing file '{}' {}", file_path, err),
+        Err(err) => eprintln!("Error: removing file '{}' {}", main_lock_file_path, err),
     }
+    // Create a file
     match
         OpenOptions::new()
             .read(true)

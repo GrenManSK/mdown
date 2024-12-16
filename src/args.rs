@@ -112,6 +112,12 @@ lazy_static! {
         Some(_) => false,
         None => false,
     };
+    /// Indicates whether to update app.
+    pub(crate) static ref ARGS_APP_UPDATE: bool = match ARGS.lock().subcommands {
+        Some(Commands::App { update, .. }) => update,
+        Some(_) => false,
+        None => false,
+    };
 }
 
 /// Mangadex Manga downloader
@@ -438,6 +444,10 @@ pub(crate) enum Commands {
         /// Will backup files
         #[arg(long, next_line_help = true, help = "Will backup files")]
         backup: bool,
+
+        /// Will update app
+        #[arg(long, next_line_help = true, help = "Will update app")]
+        update: bool,
     },
     Default,
 }
@@ -504,6 +514,9 @@ impl Args {
     pub(crate) fn change(&mut self, typ: &str, to: Value) {
         match (typ, to) {
             ("folder", Value::Str(value)) => {
+                if self.folder == "." {
+                    return;
+                }
                 self.folder = value;
             }
             ("stat", Value::Bool(value)) => {

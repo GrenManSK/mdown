@@ -19,6 +19,60 @@ pub const DB_TUTORIAL: &str = "2003";
 pub const DB_BACKUP: &str = "2004";
 #[cfg(feature = "music")]
 pub const DB_MUSIC: &str = "2101";
+pub const DB_UPDATE_TIME: &str = "2201";
+
+pub(crate) fn set_update_time(time_str: &str) -> Result<(), MdownError> {
+    let db_path = match getter::get_db_path() {
+        Ok(path) => path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    // Open a connection to the database
+    let conn = match Connection::open(&db_path) {
+        Ok(conn) => conn,
+        Err(err) => {
+            return Err(MdownError::DatabaseError(err, 10630));
+        }
+    };
+    return match write_resource(&conn, DB_UPDATE_TIME, time_str.as_bytes(), false) {
+        Ok(_id) => Ok(()),
+        Err(err) => Err(err),
+    };
+}
+pub(crate) fn get_update_time() -> Result<Option<String>, MdownError> {
+    let db_path = match getter::get_db_path() {
+        Ok(path) => path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    // Open a connection to the database
+    let conn = match Connection::open(&db_path) {
+        Ok(conn) => conn,
+        Err(err) => {
+            return Err(MdownError::DatabaseError(err, 10629));
+        }
+    };
+    return match read_resource(&conn, DB_UPDATE_TIME) {
+        Ok(Some(value)) =>
+            match
+                String::from_utf8(value).map_err(|e|
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10628)
+                )
+            {
+                Ok(update_time) => {
+                    debug!("update_time from database: {:?}", update_time);
+                    Ok(Some(update_time))
+                }
+                Err(err) => Err(err),
+            }
+        Ok(None) => Ok(None),
+        Err(err) => Err(err),
+    };
+}
 
 /// Initializes the database by creating the `resources` table if it does not already exist.
 ///
@@ -1025,11 +1079,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
 
     debug!("{:?}\n", settings);
 
-    if changed {
-        Ok((settings, true))
-    } else {
-        Ok((settings, false))
-    }
+    Ok((settings, changed))
 }
 
 pub(crate) fn check_tutorial() -> Result<(), MdownError> {

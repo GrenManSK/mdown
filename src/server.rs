@@ -244,7 +244,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             }
 
             match fs::remove_file(&dst_file) {
-                Ok(_) => {}
+                Ok(_) => (),
                 Err(err) => {
                     return Err(MdownError::IoError(err, dst_file, 11219));
                 }
