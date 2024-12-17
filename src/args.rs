@@ -514,7 +514,7 @@ impl Args {
     pub(crate) fn change(&mut self, typ: &str, to: Value) {
         match (typ, to) {
             ("folder", Value::Str(value)) => {
-                if self.folder == "." {
+                if self.folder != "." {
                     return;
                 }
                 self.folder = value;
