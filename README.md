@@ -61,7 +61,7 @@ If you want to add more features run `cargo build -r -F [feature1] -F [feature2]
 
 `--offset [Integer]` - changes start offset e.g. 50 starts from chapter 50
 
-`--database-offset [Integer]` - changes start offset e.g. 50 starts from 50 item in database; this occurs before manga is sorted, which result in some weird behavior like missing chapters; For users using `--unsorted`
+`--database-offset [Integer]` - changes start offset e.g. 50 starts from item 50 in database; this occurs before manga is sorted, which result in some weird behavior like missing chapters; For users using `--unsorted`
 
 `--unsorted` - database will not be sorted
 
@@ -73,9 +73,9 @@ If you want to add more features run `cargo build -r -F [feature1] -F [feature2]
 
 `--search` - will search for manga by its title
 
-`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; if ctrl+c mid download, program cache will not be automatically cleared, there is button in web to exit program. If program can not be exited with ctrl+c use it to exit program or type "<http://127.0.0.1:8080/end>" in browser, that can happen when you use program without web flag and then again with web flag in same powershell terminal
+`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; if ctrl+c mid download, program cache will not be automatically cleared, there is button in web to exit program. If program can not be exited with ctrl+c use this button to exit program or type "<http://127.0.0.1:8080/end>" in browser, that can happen when you use program without web flag and then again with web flag in same `powershell` terminal (See [issue](https://github.com/GrenManSK/mdown/issues/5))
 
-`--server` - will start server from which you can download manga through local internet
+`--server` - will start server from which you can download manga through lan
 
 `--music` - will play music during downloading 1. Wushu Dolls, 2. Militech, 3. You Shall Never Have to Forgive Me Again 4. Valentinos 5. Force Projection
 
@@ -113,7 +113,7 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 
 `--show-settings` - will show current settings in database
 
-`--backup-choose` - will choose which backup for retrieve
+`--backup-choose` - will choose which backup app should retrieve
 
 ### settings
 
