@@ -1256,13 +1256,14 @@ fn resolve_description(folder: &str, title_data: &serde_json::Value) -> Result<(
         .and_then(Value::as_str)
         .unwrap_or_default();
     let manga_folder = if *args::ARGS_UPDATE { MWD.lock().clone() } else { folder.to_string() };
+
+    let file_name = if *args::ARGS_UPDATE {
+        String::from("_description.txt")
+    } else {
+        format!("{}\\_description.txt", get_folder_name())
+    };
     let mut desc_file = match
-        OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open("_description.txt")
+        OpenOptions::new().read(true).write(true).create(true).truncate(true).open(file_name)
     {
         Ok(file) => file,
         Err(err) => {
