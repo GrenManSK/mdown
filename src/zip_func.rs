@@ -394,13 +394,13 @@ pub(crate) fn extract_image_from_zip_gui(
     let zip_file = match File::open(zip_file_path) {
         Ok(zip_file) => zip_file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, zip_file_path.to_string(), 10715));
+            return Err(error::MdownError::IoError(err, zip_file_path.to_string(), 10724));
         }
     };
     let mut archive = match ZipArchive::new(zip_file) {
         Ok(archive) => archive,
         Err(err) => {
-            return Err(error::MdownError::ZipError(err, 10716));
+            return Err(error::MdownError::ZipError(err, 10725));
         }
     };
 
@@ -420,7 +420,7 @@ pub(crate) fn extract_image_from_zip_gui(
         let mut file = match archive.by_index(i) {
             Ok(file) => file,
             Err(err) => {
-                return Err(error::MdownError::ZipError(err, 10717));
+                return Err(error::MdownError::ZipError(err, 10726));
             }
         };
 
@@ -437,7 +437,7 @@ pub(crate) fn extract_image_from_zip_gui(
                             let mut content = Vec::new();
                             if let Err(err) = file.read_to_end(&mut content) {
                                 return Err(
-                                    error::MdownError::IoError(err, file.name().to_string(), 10718)
+                                    error::MdownError::IoError(err, file.name().to_string(), 10727)
                                 );
                             }
                             return Ok(content);
@@ -451,7 +451,7 @@ pub(crate) fn extract_image_from_zip_gui(
         }
     }
 
-    Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned(), 10719))
+    Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned(), 10728))
 }
 
 #[cfg(feature = "gui")]
@@ -461,13 +461,13 @@ pub(crate) fn extract_image_len_from_zip_gui(
     let zip_file = match File::open(zip_file_path) {
         Ok(zip_file) => zip_file,
         Err(err) => {
-            return Err(error::MdownError::IoError(err, zip_file_path.to_string(), 10715));
+            return Err(error::MdownError::IoError(err, zip_file_path.to_string(), 10729));
         }
     };
     let mut archive = match ZipArchive::new(zip_file) {
         Ok(archive) => archive,
         Err(err) => {
-            return Err(error::MdownError::ZipError(err, 10716));
+            return Err(error::MdownError::ZipError(err, 10730));
         }
     };
 
@@ -477,7 +477,7 @@ pub(crate) fn extract_image_len_from_zip_gui(
         let file = match archive.by_index(i) {
             Ok(file) => file,
             Err(err) => {
-                return Err(error::MdownError::ZipError(err, 10717));
+                return Err(error::MdownError::ZipError(err, 10731));
             }
         };
         if let Some(file_name) = file.name().to_lowercase().split('.').last() {

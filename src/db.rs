@@ -673,7 +673,12 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
             return Err(MdownError::NetworkError(err, 10611));
         }
     };
-    let url = "https://github.com/yt-dlp/yt-dlp/releases/download/2024.04.09/yt-dlp_min.exe";
+    let url = match get_ytdlp().await {
+        Ok(url) => url,
+        Err(err) => {
+            return Err(err);
+        }
+    };
 
     // Print a message indicating that the download is starting
     print!("Fetching {}\r", url);
@@ -685,7 +690,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     }
 
     // Send an HTTP GET request to download the file
-    let mut response = match client.get(url).send().await {
+    let mut response = match client.get(&url).send().await {
         Ok(response) => response,
         Err(err) => {
             return Err(MdownError::NetworkError(err, 10613));
@@ -760,6 +765,72 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let message = format!("Downloading yt-dlp_min.exe {}% - {} of {}", 100, current_mb, max_mb);
     println!("{}\n", message);
     Ok(())
+}
+
+async fn get_ytdlp() -> Result<String, MdownError> {
+    let url = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest";
+    let client = match download::get_client() {
+        Ok(client) => client,
+        Err(err) => {
+            return Err(MdownError::NetworkError(err, 10631));
+        }
+    };
+
+    let response = match
+        client.get(url).header("User-Agent", "Rust-yt-dlp-downloader").send().await
+    {
+        Ok(response) => response,
+        Err(err) => {
+            return Err(MdownError::NetworkError(err, 10632));
+        }
+    };
+
+    if !response.status().is_success() {
+        return Err(
+            MdownError::CustomError(
+                String::from("ResponseError"),
+                String::from("Response is not success"),
+                10633
+            )
+        );
+    }
+
+    let json: serde_json::Value = match response.json().await {
+        Ok(json) => json,
+        Err(err) => {
+            return Err(MdownError::JsonError(err.to_string(), 10634));
+        }
+    };
+
+    let assets = match json["assets"].as_array() {
+        Some(assets) => assets,
+        None => {
+            return Err(
+                MdownError::NotFoundError(
+                    String::from("No 'assets' array found in the JSON response"),
+                    10635
+                )
+            );
+        }
+    };
+
+    if
+        let Some(asset) = assets
+            .iter()
+            .find(|asset| { asset["name"].as_str().map_or(false, |name| name == "yt-dlp.exe") })
+    {
+        if let Some(download_url) = asset["browser_download_url"].as_str() {
+            return Ok(download_url.to_string());
+        } else {
+            return Err(
+                MdownError::NotFoundError("Download URL for yt-dlp.exe not found".into(), 10635)
+            );
+        }
+    } else {
+        return Err(
+            MdownError::NotFoundError("yt-dlp.exe not found in the release assets".into(), 10636)
+        );
+    }
 }
 
 /// Sets up settings by configuring database access and updating settings based on command-line arguments.
