@@ -23,6 +23,46 @@ pub(crate) struct ChapterMetadata {
     pub(crate) id: String,
 }
 
+#[cfg(feature = "gui")]
+impl ChapterMetadata {
+    pub(crate) fn parse_number(&self) -> Vec<i32> {
+        self.number
+            .split('.')
+            .filter_map(|part| part.parse().ok())
+            .collect()
+    }
+
+    pub(crate) fn get_next_chapter<'a>(
+        &self,
+        chapters: &'a [ChapterMetadata]
+    ) -> Option<&'a ChapterMetadata> {
+        // Find the index of the current chapter
+        let current_index = chapters.iter().position(|x| x.id == self.id)?;
+
+        // Check for the next chapter
+        if current_index + 1 < chapters.len() {
+            Some(&chapters[current_index + 1])
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn get_previous_chapter<'a>(
+        &self,
+        chapters: &'a [ChapterMetadata]
+    ) -> Option<&'a ChapterMetadata> {
+        // Find the index of the current chapter
+        let current_index = chapters.iter().position(|x| x.id == self.id)?;
+
+        // Check for the previous chapter
+        if current_index > 0 {
+            Some(&chapters[current_index - 1])
+        } else {
+            None
+        }
+    }
+}
+
 impl ChapterMetadata {
     /// Creates a new instance of `ChapterMetadata`.
     ///
@@ -46,7 +86,7 @@ impl ChapterMetadata {
 }
 
 /// Contains metadata used for generating chapter information.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub(crate) struct ChapterMetadataIn {
     pub(crate) name: String,
     pub(crate) id: String,
@@ -60,7 +100,7 @@ pub(crate) struct ChapterMetadataIn {
 }
 
 /// Contains metadata about the scanlation group.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub(crate) struct ScanlationMetadata {
     pub(crate) name: String,
     pub(crate) website: String,

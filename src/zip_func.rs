@@ -385,3 +385,112 @@ pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownErro
     images.truncate(10);
     Ok(images)
 }
+
+#[cfg(feature = "gui")]
+pub(crate) fn extract_image_from_zip_gui(
+    zip_file_path: &str,
+    page: usize
+) -> Result<Vec<u8>, error::MdownError> {
+    let zip_file = match File::open(zip_file_path) {
+        Ok(zip_file) => zip_file,
+        Err(err) => {
+            return Err(error::MdownError::IoError(err, zip_file_path.to_string(), 10715));
+        }
+    };
+    let mut archive = match ZipArchive::new(zip_file) {
+        Ok(archive) => archive,
+        Err(err) => {
+            return Err(error::MdownError::ZipError(err, 10716));
+        }
+    };
+
+    // Function to extract the page number from a filename
+    fn extract_page_number(file_name: &str) -> Option<usize> {
+        // Strip the extension
+        let file_stem = file_name.rsplit_once('.').map_or(file_name, |(stem, _)| stem);
+
+        // Split by whitespace and dashes, then find the last numeric part
+        file_stem
+            .split(|c: char| (c.is_whitespace() || c == '-'))
+            .filter_map(|part| part.parse::<usize>().ok())
+            .last()
+    }
+
+    for i in 0..archive.len() {
+        let mut file = match archive.by_index(i) {
+            Ok(file) => file,
+            Err(err) => {
+                return Err(error::MdownError::ZipError(err, 10717));
+            }
+        };
+
+        if
+            let Some(extension) = file
+                .name()
+                .rsplit_once('.')
+                .map(|(_, ext)| ext.to_lowercase())
+        {
+            match extension.as_str() {
+                "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => {
+                    if let Some(file_page) = extract_page_number(file.name()) {
+                        if file_page == page {
+                            let mut content = Vec::new();
+                            if let Err(err) = file.read_to_end(&mut content) {
+                                return Err(
+                                    error::MdownError::IoError(err, file.name().to_string(), 10718)
+                                );
+                            }
+                            return Ok(content);
+                        }
+                    }
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+    }
+
+    Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned(), 10719))
+}
+
+#[cfg(feature = "gui")]
+pub(crate) fn extract_image_len_from_zip_gui(
+    zip_file_path: &str
+) -> Result<usize, error::MdownError> {
+    let zip_file = match File::open(zip_file_path) {
+        Ok(zip_file) => zip_file,
+        Err(err) => {
+            return Err(error::MdownError::IoError(err, zip_file_path.to_string(), 10715));
+        }
+    };
+    let mut archive = match ZipArchive::new(zip_file) {
+        Ok(archive) => archive,
+        Err(err) => {
+            return Err(error::MdownError::ZipError(err, 10716));
+        }
+    };
+
+    let mut lenght = 0;
+
+    for i in 0..archive.len() {
+        let file = match archive.by_index(i) {
+            Ok(file) => file,
+            Err(err) => {
+                return Err(error::MdownError::ZipError(err, 10717));
+            }
+        };
+        if let Some(file_name) = file.name().to_lowercase().split('.').last() {
+            match file_name {
+                "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => {
+                    lenght += 1;
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+    }
+
+    Ok(lenght)
+}

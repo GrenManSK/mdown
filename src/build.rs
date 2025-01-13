@@ -21,6 +21,7 @@ fn main() {
     for directory in [
         "resources/combined",
         "resources/database",
+        "resources/gui",
         "resources/music",
         "resources/server",
         "resources/web",
