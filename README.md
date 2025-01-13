@@ -28,7 +28,7 @@ To add feature run `cargo build -r -F [feature]`
 
 If you want to add more features run `cargo build -r -F [feature1] -F [feature2]`
 
-**IMPORTANT**  If you want to use music feature, you need to download music zip file from [pre-release](https://github.com/GrenManSK/mdown/releases/tag/music) and extract it to `resources/music/`; if you are using outdated version of app, then it could have wrong files since it is not tracking history
+**IMPORTANT**  If you want to use music feature, you need to download music zip file from [pre-release](https://github.com/GrenManSK/mdown/releases/tag/resources) and extract it to `resources/music/`; if you are using outdated version of app, then it could have wrong files since it is not tracking history
 
 ---
 
