@@ -1138,20 +1138,7 @@ impl App {
 
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.centered_and_justified(|ui| {
-                    if path == "loading" {
-                        let app_width = ui.available_width();
-                        let scaled_width = app_width * 0.3;
-                        let aspect_ratio = (texture.size()[1] as f32) / (texture.size()[0] as f32);
-                        let scaled_height = scaled_width * aspect_ratio;
-
-                        ui.add(
-                            egui::Image
-                                ::new(&texture)
-                                .fit_to_exact_size(egui::vec2(scaled_width, scaled_height))
-                        );
-                    } else {
-                        ui.image(&texture);
-                    }
+                    ui.image(&texture);
                 });
             });
 
