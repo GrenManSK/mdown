@@ -290,6 +290,13 @@ async fn start() -> Result<(), error::MdownError> {
         }
     };
 
+    match version_manager::check_app_ver() {
+        Ok(_value) => (),
+        Err(err) => {
+            return Err(err);
+        }
+    }
+
     if *args::ARGS_APP_UPDATE {
         return match version_manager::app_update().await {
             Ok(_) => Ok(()),

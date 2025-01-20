@@ -74,6 +74,62 @@ pub(crate) fn get_update_time() -> Result<Option<String>, MdownError> {
     };
 }
 
+pub(crate) fn read_resource_lone(name: &str) -> Result<Option<String>, MdownError> {
+    let db_path = match getter::get_db_path() {
+        Ok(path) => path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    let conn = match Connection::open(&db_path) {
+        Ok(conn) => conn,
+        Err(err) => {
+            return Err(MdownError::DatabaseError(err, 10638));
+        }
+    };
+    return match read_resource(&conn, name) {
+        Ok(Some(value)) =>
+            match
+                String::from_utf8(value).map_err(|e|
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10639)
+                )
+            {
+                Ok(resource) => {
+                    debug!("{} from database: {:?}", name, resource);
+                    Ok(Some(resource))
+                }
+                Err(err) => Err(err),
+            }
+        Ok(None) => Ok(None),
+        Err(err) => Err(err),
+    };
+}
+
+pub(crate) fn write_resource_lone(
+    name: &str,
+    data: &[u8],
+    is_binary: bool
+) -> Result<u64, MdownError> {
+    let db_path = match getter::get_db_path() {
+        Ok(path) => path,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    let conn = match Connection::open(&db_path) {
+        Ok(conn) => conn,
+        Err(err) => {
+            return Err(MdownError::DatabaseError(err, 10638));
+        }
+    };
+    return match write_resource(&conn, name, data, is_binary) {
+        Ok(value) => Ok(value),
+        Err(err) => Err(err),
+    };
+}
+
 /// Initializes the database by creating the `resources` table if it does not already exist.
 ///
 /// This function executes a SQL statement to create the `resources` table within the provided database connection.
@@ -808,7 +864,7 @@ async fn get_ytdlp() -> Result<String, MdownError> {
             return Err(
                 MdownError::NotFoundError(
                     String::from("No 'assets' array found in the JSON response"),
-                    10635
+                    10637
                 )
             );
         }

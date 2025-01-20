@@ -340,7 +340,7 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                 };
                 if confirmation {
                     println!("NOT iMPLEMENTED");
-                    println!("Run: mdown database --update-database");
+                    //println!("Run: mdown database --update-database");
                 }
             } else {
                 println!("Version: {}", version);

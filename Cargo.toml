@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.15.1-1"
+version = "0.15.1"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"
@@ -37,9 +37,9 @@ reqwest = { version = "0.12.12", features = ["json"] }
 rodio = { version = "0.20.1", optional = true }
 rusqlite = { version = "0.33.0", features = ["bundled"] }
 ryu = "1.0.18"
-semver = "1.0.24"
+semver = "1.0.25"
 serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.136"
+serde_json = "1.0.137"
 sha2 = "0.10.8"
 smallvec = "1.13.2"
 thiserror = "2.0.11"

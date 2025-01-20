@@ -13,6 +13,8 @@ use crate::{
     metadata::Dat,
 };
 
+pub const DB_VERSION: &str = "0000";
+
 /// Checks and updates the version in the provided `Dat` object.
 ///
 /// This function compares the given `version` with the `current_version` of the application
@@ -62,18 +64,6 @@ pub(crate) fn check_ver(
             let version_to_change_to = remove_prerelease(&current_version.to_string());
             println!("Changing to version: {}", version_to_change_to);
             dat.version = version_to_change_to.clone();
-            version = match Version::parse(&get_current_version()) {
-                Ok(version) => version,
-                Err(_err) => {
-                    Version {
-                        major: 0,
-                        minor: 0,
-                        patch: 0,
-                        pre: Prerelease::EMPTY,
-                        build: BuildMetadata::EMPTY,
-                    }
-                }
-            };
 
             let dat_path = match get_dat_path() {
                 Ok(path) => path,
@@ -106,6 +96,72 @@ pub(crate) fn check_ver(
             if let Err(err) = writeln!(file, "{}", json_string) {
                 return Err(MdownError::IoError(err, dat_path, 11603));
             }
+
+            version = match Version::parse(&get_current_version()) {
+                Ok(version) => version,
+                Err(_err) => version_new(),
+            };
+        } else {
+            break;
+        }
+    }
+    Ok(require_confirmation_from_user)
+}
+
+fn version_new() -> Version {
+    Version {
+        major: 0,
+        minor: 0,
+        patch: 0,
+        pre: Prerelease::EMPTY,
+        build: BuildMetadata::EMPTY,
+    }
+}
+
+pub(crate) fn check_app_ver() -> Result<bool, MdownError> {
+    let req_ver_text = format!("<{}", get_current_version());
+    let req1 = VersionReq::parse(&req_ver_text).unwrap();
+
+    let require_confirmation_from_user = false;
+
+    let current_version = match Version::parse(&get_current_version()) {
+        Ok(version) => version,
+        Err(_err) => version_new(),
+    };
+
+    let mut version = match db::read_resource_lone(DB_VERSION) {
+        Ok(Some(version)) => {
+            debug!("Current version from database {}", version);
+            match Version::parse(&version) {
+                Ok(version) => version,
+                Err(_err) => version_new(),
+            }
+        }
+        Ok(None) => {
+            debug!("Writing to database version");
+            return match
+                db::write_resource_lone(DB_VERSION, get_current_version().as_bytes(), false)
+            {
+                Ok(_) => Ok(false),
+                Err(err) => Err(err),
+            };
+        }
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    loop {
+        if req1.matches(&version) {
+            let version_to_change_to = current_version.to_string();
+            println!("Changing to version: {}", version_to_change_to);
+            match db::write_resource_lone(DB_VERSION, get_current_version().as_bytes(), false) {
+                Ok(_) => (),
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+            version = current_version.clone();
         } else {
             break;
         }
@@ -325,15 +381,7 @@ async fn version_preparation() -> Result<
 > {
     let current_version = match Version::parse(&get_current_version()) {
         Ok(version) => version,
-        Err(_err) => {
-            Version {
-                major: 0,
-                minor: 0,
-                patch: 0,
-                pre: Prerelease::EMPTY,
-                build: BuildMetadata::EMPTY,
-            }
-        }
+        Err(_err) => version_new(),
     };
     debug!("Current version: {}", current_version);
     let repo = "GrenManSK/mdown";
