@@ -14,6 +14,11 @@ use crate::{
     utils,
 };
 
+pub const DB_PATH: &str = "resources.db";
+pub const DAT_PATH: &str = "dat.json";
+pub const LOG_PATH: &str = "log.json";
+pub const LOG_LOCK_PATH: &str = "log.lock";
+
 pub(crate) fn get_exe_file_path() -> Result<String, MdownError> {
     let current = match std::env::current_exe() {
         Ok(value) => value,
@@ -59,9 +64,7 @@ pub(crate) fn get_exe_name() -> Result<String, MdownError> {
     let parent = match current.file_name() {
         Some(value) => value,
         None => {
-            return Err(
-                MdownError::NotFoundError(String::from("File name  not found"), 10823)
-            );
+            return Err(MdownError::NotFoundError(String::from("File name  not found"), 10823));
         }
     };
 
@@ -157,7 +160,7 @@ pub(crate) fn get_bac_path() -> Result<String, MdownError> {
     let path = match get_exe_path() {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10826));
         }
     };
     Ok(format!("{}\\backup", path))
@@ -175,10 +178,10 @@ pub(crate) fn get_dat_path() -> Result<String, MdownError> {
     let path = match get_exe_path() {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10827));
         }
     };
-    Ok(format!("{}\\dat.json", path))
+    Ok(format!("{}\\{}", path, DAT_PATH))
 }
 
 /// Retrieves the path to the `resources.db` file used by the application.
@@ -193,10 +196,10 @@ pub(crate) fn get_db_path() -> Result<String, MdownError> {
     let path = match get_exe_path() {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10828));
         }
     };
-    Ok(format!("{}\\resources.db", path))
+    Ok(format!("{}\\{}", path, DB_PATH))
 }
 
 /// Retrieves the path to the `log.json` file used by the application for logging purposes.
@@ -211,10 +214,10 @@ pub(crate) fn get_log_path() -> Result<String, MdownError> {
     let path: String = match get_exe_path() {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10829));
         }
     };
-    Ok(format!("{}\\log.json", path))
+    Ok(format!("{}\\{}", path, LOG_PATH))
 }
 
 /// Retrieves the path to the `log.lock` file used by the application to manage logging locks.
@@ -229,10 +232,10 @@ pub(crate) fn get_log_lock_path() -> Result<String, MdownError> {
     let path: String = match get_exe_path() {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10830));
         }
     };
-    Ok(format!("{}\\log.lock", path))
+    Ok(format!("{}\\{}", path, LOG_LOCK_PATH))
 }
 
 /// Extracts query parameters from a URL path.
@@ -491,7 +494,7 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
     let response = match get_response_client(&full_url).await {
         Ok(res) => res,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10832));
         }
     };
 
@@ -571,7 +574,7 @@ pub(crate) async fn get_statistic_json(id: &str) -> Result<String, MdownError> {
     let response = match get_response_client(&full_url).await {
         Ok(res) => res,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10833));
         }
     };
     debug!("got response (get_statistic_json)");
@@ -646,7 +649,7 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
         let response = match get_response_client(&full_url).await {
             Ok(res) => res,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 10834));
             }
         };
 
@@ -824,7 +827,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
         let response = match get_response_client(&full_url).await {
             Ok(res) => res,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 10835));
             }
         };
         debug!("got response");
@@ -865,7 +868,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
         let json_value = match utils::get_json(&json) {
             Ok(value) => value,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 10836));
             }
         };
         debug!("data parsed");
@@ -904,7 +907,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                         json = match crossfade_data(&json, &json_2) {
                             Ok(value) => value,
                             Err(err) => {
-                                return Err(err);
+                                return Err(MdownError::ChainedError(Box::new(err), 10837));
                             }
                         };
                     }
@@ -961,13 +964,13 @@ fn crossfade_data(json: &str, json_2: &str) -> Result<String, MdownError> {
     let mut data1 = match utils::get_json(json) {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10838));
         }
     };
     let data2 = match utils::get_json(json_2) {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10839));
         }
     };
 

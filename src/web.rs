@@ -98,7 +98,7 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
         let json_value = match utils::get_json(&manga_name_json) {
             Ok(value) => value,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 11312));
             }
         };
         match json_value {
@@ -106,7 +106,7 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
                 manga_name = match resolute::resolve(obj, id).await {
                     Ok(value) => value,
                     Err(err) => {
-                        return Err(err);
+                        return Err(MdownError::ChainedError(Box::new(err), 11313));
                     }
                 };
             }
@@ -246,7 +246,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
             let content: Vec<Vec<u8>> = match zip_func::extract_images_from_zip() {
                 Ok(content) => content,
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 11314));
                 }
             };
 

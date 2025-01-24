@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.15.1"
+version = "0.15.2"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"
@@ -16,7 +16,7 @@ base64 = "0.22.1"
 bytefmt = "0.1.7"
 bytes = "1.9.0"
 chrono = "0.4.39"
-clap = { version = "4.5.26", features = ["derive"] }
+clap = { version = "4.5.27", features = ["derive"] }
 crosscurses = { version = "0.1.0", features = ["win32"] }
 crossterm = "0.28.1"
 ctrlc = { version = "3.4.5", optional = true }
@@ -47,7 +47,7 @@ tokio = { version = "1.43.0", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 url = "2.5.4"
-uuid = "1.12.0"
+uuid = "1.12.1"
 walkdir = "2.5.0"
 webbrowser = { version = "1.0.3", optional = true }
 zip = "0.6.6"

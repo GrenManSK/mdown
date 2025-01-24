@@ -80,7 +80,7 @@ pub(crate) fn args_delete() -> Result<(), MdownError> {
         Ok(path) => path,
         Err(err) => {
             handle_error!(&err, String::from("program"));
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10254));
         }
     };
     match fs::remove_file(&path) {
@@ -93,7 +93,7 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
     let log_path = match getter::get_log_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10255));
         }
     };
     match fs::metadata(&log_path) {
@@ -137,7 +137,7 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
             let vstup = match input("> ") {
                 Ok(vstup) => vstup,
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 101256));
                 }
             };
 
@@ -204,7 +204,7 @@ pub(crate) async fn show_log() -> Result<(), MdownError> {
             let vstup = match input("> ") {
                 Ok(vstup) => vstup,
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10257));
                 }
             };
             let code = match vstup.parse::<usize>() {
@@ -283,7 +283,7 @@ pub(crate) async fn show() -> Result<(), MdownError> {
     let dat_path = match getter::get_dat_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10258));
         }
     };
     if let Err(err) = fs::metadata(&dat_path) {
@@ -488,7 +488,7 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                             let obj = match check_for_metadata(&path) {
                                 Ok(metadata) => metadata,
                                 Err(err) => {
-                                    return Err(err);
+                                    return Err(MdownError::ChainedError(Box::new(err), 10259));
                                 }
                             };
 
@@ -548,7 +548,7 @@ pub(crate) fn check_for_metadata_saver(file_path: &str) -> Result<bool, MdownErr
     let obj = match check_for_metadata(file_path) {
         Ok(metadata) => metadata,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10260));
         }
     };
     let saver = obj.saver;
@@ -571,7 +571,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
     let dat_path = match getter::get_dat_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10261));
         }
     };
     match fs::metadata(&dat_path) {
@@ -744,7 +744,7 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                             }
                         }
                         Err(err) => {
-                            return Err(err);
+                            return Err(MdownError::ChainedError(Box::new(err), 10262));
                         }
                     };
                 }
@@ -861,7 +861,7 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
     let dat_path = match getter::get_dat_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10263));
         }
     };
     if fs::metadata(&dat_path).is_err() {
@@ -885,7 +885,7 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
     let mut json = match get_dat_content(dat_path.as_str()) {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10264));
         }
     };
 
@@ -1060,7 +1060,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     match resolve_language(title_data) {
         Ok(()) => (),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10265));
         }
     }
     *DOWNLOADING.lock() = true;
@@ -1105,7 +1105,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     match resolve_description(folder, title_data) {
         Ok(()) => (),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10266));
         }
     }
 
@@ -1358,7 +1358,7 @@ pub(crate) async fn resolve_group(
     let (name, website) = match resolve_group_metadata(&scanlation_group_id).await {
         Ok((name, website)) => (name, website),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10267));
         }
     };
 
@@ -1450,7 +1450,7 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
     let response = match download::get_response_client(&full_url).await {
         Ok(res) => res,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10268));
         }
     };
     if response.status().is_success() {
@@ -1463,7 +1463,7 @@ pub(crate) async fn resolve_group_metadata(id: &str) -> Result<(String, String),
         let json_value = match utils::get_json(&json) {
             Ok(value) => value,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 10269));
             }
         };
         match json_value {
@@ -1528,7 +1528,7 @@ async fn resolve_manga(id: &str, was_rewritten: bool) -> Result<(), MdownError> 
             let downloaded_temp = match download_manga(json, arg_force).await {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10270));
                 }
             };
             for i in &downloaded_temp {

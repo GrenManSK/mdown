@@ -25,7 +25,7 @@ pub(crate) fn set_update_time(time_str: &str) -> Result<(), MdownError> {
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10641));
         }
     };
 
@@ -38,14 +38,14 @@ pub(crate) fn set_update_time(time_str: &str) -> Result<(), MdownError> {
     };
     return match write_resource(&conn, DB_UPDATE_TIME, time_str.as_bytes(), false) {
         Ok(_id) => Ok(()),
-        Err(err) => Err(err),
+        Err(err) => Err(MdownError::ChainedError(Box::new(err), 10678)),
     };
 }
 pub(crate) fn get_update_time() -> Result<Option<String>, MdownError> {
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10642));
         }
     };
 
@@ -67,10 +67,10 @@ pub(crate) fn get_update_time() -> Result<Option<String>, MdownError> {
                     debug!("update_time from database: {:?}", update_time);
                     Ok(Some(update_time))
                 }
-                Err(err) => Err(err),
+                Err(err) => Err(MdownError::ChainedError(Box::new(err), 10679)),
             }
         Ok(None) => Ok(None),
-        Err(err) => Err(err),
+        Err(err) => Err(MdownError::ChainedError(Box::new(err), 10680)),
     };
 }
 
@@ -78,7 +78,7 @@ pub(crate) fn read_resource_lone(name: &str) -> Result<Option<String>, MdownErro
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 100643));
         }
     };
 
@@ -99,10 +99,10 @@ pub(crate) fn read_resource_lone(name: &str) -> Result<Option<String>, MdownErro
                     debug!("{} from database: {:?}", name, resource);
                     Ok(Some(resource))
                 }
-                Err(err) => Err(err),
+                Err(err) => Err(MdownError::ChainedError(Box::new(err), 10681)),
             }
         Ok(None) => Ok(None),
-        Err(err) => Err(err),
+        Err(err) => Err(MdownError::ChainedError(Box::new(err), 10682)),
     };
 }
 
@@ -114,19 +114,19 @@ pub(crate) fn write_resource_lone(
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10643));
         }
     };
 
     let conn = match Connection::open(&db_path) {
         Ok(conn) => conn,
         Err(err) => {
-            return Err(MdownError::DatabaseError(err, 10638));
+            return Err(MdownError::DatabaseError(err, 10640));
         }
     };
     return match write_resource(&conn, name, data, is_binary) {
         Ok(value) => Ok(value),
-        Err(err) => Err(err),
+        Err(err) => Err(MdownError::ChainedError(Box::new(err), 10683)),
     };
 }
 
@@ -300,7 +300,7 @@ fn write_resource(
             Ok(value) => value,
             Err(err) => {
                 // Return the error if UTF-8 conversion fails
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 10644));
             }
         }
     };
@@ -387,7 +387,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10645));
         }
     };
 
@@ -403,7 +403,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
     match initialize_db(&conn) {
         Ok(_) => (),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10677));
         }
     }
 
@@ -467,7 +467,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
             let db_item = match read_resource(&conn, db_name) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10646));
                 }
             };
             if db_item.is_none() {
@@ -481,7 +481,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                     match download_yt_dlp(&full_path).await {
                         Ok(_) => (),
                         Err(err) => {
-                            return Err(err);
+                            return Err(MdownError::ChainedError(Box::new(err), 10647));
                         }
                     }
                     yt_dlp = true;
@@ -550,7 +550,7 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                 match write_resource(&conn, db_name, initial_data_1, true) {
                     Ok(_id) => (),
                     Err(err) => {
-                        return Err(err);
+                        return Err(MdownError::ChainedError(Box::new(err), 10648));
                     }
                 }
                 println!("Added {} to database\n", db_name);
@@ -732,7 +732,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let url = match get_ytdlp().await {
         Ok(url) => url,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10649));
         }
     };
 
@@ -923,7 +923,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10650));
         }
     };
 
@@ -939,7 +939,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
     match initialize_db(&conn) {
         Ok(_) => (),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10651));
         }
     }
 
@@ -964,7 +964,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     match write_resource(&conn, DB_FOLDER, folder.as_bytes(), false) {
                         Ok(_id) => (),
                         Err(err) => {
-                            return Err(err);
+                            return Err(MdownError::ChainedError(Box::new(err), 10652));
                         }
                     }
                 }
@@ -972,7 +972,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     match delete_resource(&conn, DB_FOLDER) {
                         Ok(_id) => (),
                         Err(err) => {
-                            return Err(err);
+                            return Err(MdownError::ChainedError(Box::new(err), 10653));
                         }
                     }
                 }
@@ -984,7 +984,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                         match write_resource(&conn, DB_STAT, stat.as_bytes(), false) {
                             Ok(_id) => (),
                             Err(err) => {
-                                return Err(err);
+                                return Err(MdownError::ChainedError(Box::new(err), 10654));
                             }
                         }
                     } else {
@@ -1001,7 +1001,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     match delete_resource(&conn, DB_STAT) {
                         Ok(_id) => (),
                         Err(err) => {
-                            return Err(err);
+                            return Err(MdownError::ChainedError(Box::new(err), 10655));
                         }
                     }
                 }
@@ -1012,7 +1012,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     match write_resource(&conn, DB_BACKUP, backup.as_bytes(), false) {
                         Ok(_id) => (),
                         Err(err) => {
-                            return Err(err);
+                            return Err(MdownError::ChainedError(Box::new(err), 10656));
                         }
                     }
                 }
@@ -1020,7 +1020,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     match delete_resource(&conn, DB_BACKUP) {
                         Ok(_id) => (),
                         Err(err) => {
-                            return Err(err);
+                            return Err(MdownError::ChainedError(Box::new(err), 10657));
                         }
                     }
                 }
@@ -1032,7 +1032,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     match write_resource(&conn, DB_MUSIC, music.as_bytes(), false) {
                         Ok(_id) => (),
                         Err(err) => {
-                            return Err(err);
+                            return Err(MdownError::ChainedError(Box::new(err), 10658));
                         }
                     }
                 }
@@ -1040,7 +1040,7 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     match delete_resource(&conn, DB_MUSIC) {
                         Ok(_id) => (),
                         Err(err) => {
-                            return Err(err);
+                            return Err(MdownError::ChainedError(Box::new(err), 10659));
                         }
                     }
                 }
@@ -1050,32 +1050,32 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                 match delete_resource(&conn, DB_FOLDER) {
                     Ok(_id) => (),
                     Err(err) => {
-                        return Err(err);
+                        return Err(MdownError::ChainedError(Box::new(err), 10660));
                     }
                 }
                 match delete_resource(&conn, DB_STAT) {
                     Ok(_id) => (),
                     Err(err) => {
-                        return Err(err);
+                        return Err(MdownError::ChainedError(Box::new(err), 10661));
                     }
                 }
                 match delete_resource(&conn, DB_TUTORIAL) {
                     Ok(_id) => (),
                     Err(err) => {
-                        return Err(err);
+                        return Err(MdownError::ChainedError(Box::new(err), 10662));
                     }
                 }
                 match delete_resource(&conn, DB_BACKUP) {
                     Ok(_id) => (),
                     Err(err) => {
-                        return Err(err);
+                        return Err(MdownError::ChainedError(Box::new(err), 10663));
                     }
                 }
                 #[cfg(feature = "music")]
                 match delete_resource(&conn, DB_MUSIC) {
                     Ok(_id) => (),
                     Err(err) => {
-                        return Err(err);
+                        return Err(MdownError::ChainedError(Box::new(err), 10664));
                     }
                 }
             }
@@ -1098,12 +1098,12 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     folder
                 }
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10665));
                 }
             }
         Ok(None) => args::ARGS.lock().folder.clone(),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10666));
         }
     };
     // Read the stat setting from the database
@@ -1133,12 +1133,12 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     stat
                 }
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10667));
                 }
             }
         Ok(None) => args::ARGS.lock().stat,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10668));
         }
     };
 
@@ -1169,12 +1169,12 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     backup
                 }
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10669));
                 }
             }
         Ok(None) => true,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10670));
         }
     };
 
@@ -1192,12 +1192,12 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                     Some(Some(music))
                 }
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10671));
                 }
             }
         Ok(None) => args::ARGS.lock().music.clone(),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10672));
         }
     };
 
@@ -1216,7 +1216,7 @@ pub(crate) fn check_tutorial() -> Result<(), MdownError> {
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10673));
         }
     };
 
@@ -1242,7 +1242,7 @@ pub(crate) fn check_tutorial() -> Result<(), MdownError> {
                     }
                 }
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10674));
                 }
             }
         Ok(None) => {
@@ -1263,13 +1263,13 @@ pub(crate) fn check_tutorial() -> Result<(), MdownError> {
                 match write_resource(&conn, DB_TUTORIAL, b"0", false) {
                     Ok(_id) => (),
                     Err(err) => {
-                        return Err(err);
+                        return Err(MdownError::ChainedError(Box::new(err), 10675));
                     }
                 };
             }
         }
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10676));
         }
     }
 

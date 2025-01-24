@@ -286,21 +286,21 @@ async fn start() -> Result<(), error::MdownError> {
     let (settings, changed) = match db::setup_settings() {
         Ok((settings, changed)) => (settings, changed),
         Err(err) => {
-            return Err(err);
+            return Err(error::MdownError::ChainedError(Box::new(err), 10111));
         }
     };
 
     match version_manager::check_app_ver() {
         Ok(_value) => (),
         Err(err) => {
-            return Err(err);
+            return Err(error::MdownError::ChainedError(Box::new(err), 10112));
         }
     }
 
     if *args::ARGS_APP_UPDATE {
         return match version_manager::app_update().await {
             Ok(_) => Ok(()),
-            Err(err) => Err(err),
+            Err(err) => Err(error::MdownError::ChainedError(Box::new(err), 10113)),
         };
     }
 
@@ -314,7 +314,7 @@ async fn start() -> Result<(), error::MdownError> {
     if args::ARGS.lock().backup {
         return match utils::backup_handler(true) {
             Ok(()) => Ok(()),
-            Err(err) => Err(err),
+            Err(err) => Err(error::MdownError::ChainedError(Box::new(err), 10114)),
         };
     }
 
@@ -356,7 +356,7 @@ async fn start() -> Result<(), error::MdownError> {
     match db::init().await {
         Ok(()) => (),
         Err(err) => {
-            return Err(err);
+            return Err(error::MdownError::ChainedError(Box::new(err), 10115));
         }
     }
 
@@ -383,7 +383,7 @@ async fn start() -> Result<(), error::MdownError> {
     match utils::create_cache_folder() {
         Ok(()) => debug!("created cache folder"),
         Err(err) => {
-            return Err(err);
+            return Err(error::MdownError::ChainedError(Box::new(err), 10116));
         }
     }
 
@@ -403,7 +403,7 @@ async fn start() -> Result<(), error::MdownError> {
         match utils::setup_subscriber() {
             Ok(()) => debug!("setup subscriber"),
             Err(err) => {
-                return Err(err);
+                return Err(error::MdownError::ChainedError(Box::new(err), 10117));
             }
         }
     }
@@ -473,7 +473,7 @@ async fn start() -> Result<(), error::MdownError> {
     let main_lock_file_path = match utils::main_lock_file() {
         Ok(main_lock_file_path) => main_lock_file_path,
         Err(err) => {
-            return Err(err);
+            return Err(error::MdownError::ChainedError(Box::new(err), 10118));
         }
     };
 
@@ -509,7 +509,7 @@ async fn start() -> Result<(), error::MdownError> {
         url_from_search = match utils::search().await {
             Ok(id) => id,
             Err(err) => {
-                return Err(err);
+                return Err(error::MdownError::ChainedError(Box::new(err), 10119));
             }
         };
         url_from_search.as_str()
@@ -537,7 +537,7 @@ async fn start() -> Result<(), error::MdownError> {
                 let obj = match perform_manga_download(manga_name_json).await {
                     Ok(obj) => obj,
                     Err(err) => {
-                        return Err(err);
+                        return Err(error::MdownError::ChainedError(Box::new(err), 10120));
                     }
                 };
                 manga_name = match resolute::resolve(obj, &id).await {
@@ -549,7 +549,7 @@ async fn start() -> Result<(), error::MdownError> {
                 };
             }
             Err(err) => {
-                return Err(err);
+                return Err(error::MdownError::ChainedError(Box::new(err), 10121));
             }
         }
     } else {
@@ -618,7 +618,7 @@ async fn perform_manga_download(
     let json_value = match utils::get_json(&manga_name_json) {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(error::MdownError::ChainedError(Box::new(err), 10122));
         }
     };
     if let Value::Object(obj) = json_value {
@@ -733,7 +733,7 @@ pub(crate) async fn download_manga(
     let json_value = match utils::get_json(&manga_json) {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(error::MdownError::ChainedError(Box::new(err), 10123));
         }
     };
     // To rate limit the download speed so we would not exceed rate limit
@@ -940,7 +940,7 @@ pub(crate) async fn download_manga(
                     !(match resolute::check_for_metadata_saver(&filename.get_file_w_folder()) {
                         Ok(metadata) => if !*args::ARGS_CHECK { metadata } else { false }
                         Err(err) => {
-                            return Err(err);
+                            return Err(error::MdownError::ChainedError(Box::new(err), 10124));
                         }
                     }) &&
                     ({
@@ -1164,7 +1164,9 @@ pub(crate) async fn download_manga(
                                 let json_value = match utils::get_json(&json) {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(err);
+                                        return Err(
+                                            error::MdownError::ChainedError(Box::new(err), 10125)
+                                        );
                                     }
                                 };
                                 let obj = match
@@ -1206,7 +1208,9 @@ pub(crate) async fn download_manga(
                             match resolute::get_scanlation_group_to_file(&scanlation_group) {
                                 Ok(()) => (),
                                 Err(err) => {
-                                    return Err(err);
+                                    return Err(
+                                        error::MdownError::ChainedError(Box::new(err), 10126)
+                                    );
                                 }
                             }
                         }

@@ -248,7 +248,7 @@ pub(crate) fn extract_file_from_zip(
             let json_value = match utils::get_json(&metadata_content) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(err);
+                    return Err(error::MdownError::ChainedError(Box::new(err), 10732));
                 }
             };
             match serde_json::from_value::<metadata::ChapterMetadataIn>(json_value) {

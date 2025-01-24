@@ -286,7 +286,7 @@ pub(crate) async fn download_cover(
     let mut response = match get_response(image_base_url, c_hash, cover_hash, "covers").await {
         Ok(res) => res,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10330));
         }
     };
     let (total_size, _) = get_size(&response);
@@ -426,7 +426,7 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
     let response = match getter::get_statistic_json(id).await {
         Ok(response) => response,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10331));
         }
     };
 
@@ -665,7 +665,7 @@ pub(crate) async fn download_image(
     let mut response = match get_response(image_base_url, c_hash, f_name, &saver).await {
         Ok(res) => res,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10332));
         }
     };
 

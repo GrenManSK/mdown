@@ -46,7 +46,7 @@ pub(crate) fn start() -> Result<(), MdownError> {
     match utils::remove_cache() {
         Ok(()) => (),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 14002));
         }
     }
     *resolute::FINAL_END.lock() = true;
@@ -1257,7 +1257,7 @@ fn get_manga_data() -> Result<Vec<metadata::MangaMetadata>, MdownError> {
     let dat_path = match getter::get_dat_path() {
         Ok(path) => path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 14003));
         }
     };
     if let Err(err) = std::fs::metadata(&dat_path) {
@@ -1361,7 +1361,7 @@ async fn resolve_download(url: &str, handle_id: Box<str>) -> Result<String, Mdow
                     Err(MdownError::JsonError(String::from("Unexpected JSON value"), 11401))
                 }
             }
-            Err(err) => Err(err),
+            Err(err) => Err(MdownError::ChainedError(Box::new(err), 11404)),
         }
     } else {
         info!("@{} Didn't find any id", handle_id);

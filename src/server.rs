@@ -160,7 +160,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 match zip_func::extract_image_from_zip(&decoded_str) {
                     Ok(contents) => contents,
                     Err(err) => {
-                        return Err(err);
+                        return Err(MdownError::ChainedError(Box::new(err), 11236));
                     }
                 }
             } else {

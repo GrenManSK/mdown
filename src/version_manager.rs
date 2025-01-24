@@ -68,7 +68,7 @@ pub(crate) fn check_ver(
             let dat_path = match get_dat_path() {
                 Ok(path) => path,
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 11621));
                 }
             };
 
@@ -143,11 +143,11 @@ pub(crate) fn check_app_ver() -> Result<bool, MdownError> {
                 db::write_resource_lone(DB_VERSION, get_current_version().as_bytes(), false)
             {
                 Ok(_) => Ok(false),
-                Err(err) => Err(err),
+                Err(err) => Err(MdownError::ChainedError(Box::new(err), 11633)),
             };
         }
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 11622));
         }
     };
 
@@ -158,7 +158,7 @@ pub(crate) fn check_app_ver() -> Result<bool, MdownError> {
             match db::write_resource_lone(DB_VERSION, get_current_version().as_bytes(), false) {
                 Ok(_) => (),
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 11623));
                 }
             }
             version = current_version.clone();
@@ -175,7 +175,7 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
     let (current_version, latest_version, data, client) = match version_preparation().await {
         Ok(t) => t,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 11624));
         }
     };
     if latest_version > current_version {
@@ -184,14 +184,14 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
         let current_name = match get_exe_name() {
             Ok(name) => name,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 11625));
             }
         };
 
         let asset_url = match search_url(&data, &current_name) {
             Ok(value) => value,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 11626));
             }
         };
 
@@ -235,7 +235,7 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
         let mut response = match download::get_response_from_client(&asset_url, &client).await {
             Ok(response) => response,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 11627));
             }
         };
 
@@ -294,7 +294,7 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
         let current_exe = match get_exe_path() {
             Ok(path) => path,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 11628));
             }
         };
 
@@ -395,7 +395,7 @@ async fn version_preparation() -> Result<
     let response = match download::get_response_from_client(&url, &client).await {
         Ok(res) => res,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 11629));
         }
     };
     let data = match response.json::<serde_json::Value>().await {
@@ -451,7 +451,7 @@ pub(crate) async fn check_update() -> Result<bool, MdownError> {
     let (current_version, latest_version, _, _) = match version_preparation().await {
         Ok(t) => t,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 11630));
         }
     };
 
@@ -461,7 +461,7 @@ pub(crate) async fn check_update() -> Result<bool, MdownError> {
     match db::set_update_time(&formatted_time) {
         Ok(()) => (),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 11631));
         }
     }
 
@@ -470,7 +470,7 @@ pub(crate) async fn check_update() -> Result<bool, MdownError> {
         let exe_path = match get_exe_file_path() {
             Ok(exe) => exe,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 11632));
             }
         };
         println!("Update of mdown is available");

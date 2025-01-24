@@ -225,7 +225,7 @@ pub(crate) fn reset() -> Result<(), MdownError> {
     let confirmation = match input("Do you want to factory reset this app? (y/N) > ") {
         Ok(value) => value,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10434));
         }
     };
 
@@ -237,19 +237,19 @@ pub(crate) fn reset() -> Result<(), MdownError> {
     let dat = match getter::get_dat_path() {
         Ok(dat) => dat,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10435));
         }
     };
     let db = match getter::get_db_path() {
         Ok(dat) => dat,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10436));
         }
     };
     let log = match getter::get_log_path() {
         Ok(dat) => dat,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10437));
         }
     };
 
@@ -943,26 +943,26 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
     let backup_dir = match getter::get_bac_path() {
         Ok(exe_path) => exe_path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10438));
         }
     };
     let dat_file = match getter::get_dat_path() {
         Ok(exe_path) => exe_path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10439));
         }
     };
     let exe_dir = match getter::get_exe_path() {
         Ok(exe_path) => exe_path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10440));
         }
     };
 
     let (dats, dats_filename) = match get_backup_dat(&backup_dir) {
         Ok((dats, dats_filename)) => (dats, dats_filename),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10441));
         }
     };
 
@@ -985,7 +985,7 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
             }
         }
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10442));
         }
     };
     if vstup > 0 && vstup <= dats.len() {
@@ -998,7 +998,7 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
         {
             Ok(input) => input.to_ascii_lowercase(),
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 10443));
             }
         };
         if vstup == "y" {
@@ -1033,7 +1033,7 @@ pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
     let backup_dir = match getter::get_bac_path() {
         Ok(exe_path) => exe_path,
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10444));
         }
     };
     match fs::create_dir_all(&backup_dir) {
@@ -1046,7 +1046,7 @@ pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
     let (dats, dats_filename) = match get_backup_dat(&backup_dir) {
         Ok((dats, dats_filename)) => (dats, dats_filename),
         Err(err) => {
-            return Err(err);
+            return Err(MdownError::ChainedError(Box::new(err), 10445));
         }
     };
 
@@ -1067,7 +1067,7 @@ pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
         let source_file = match getter::get_dat_path() {
             Ok(source) => source,
             Err(err) => {
-                return Err(err);
+                return Err(MdownError::ChainedError(Box::new(err), 10446));
             }
         };
 
@@ -1079,14 +1079,14 @@ pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
             let source_sha = match calculate_sha256(&source_file) {
                 Ok(hash) => hash,
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10447));
                 }
             };
 
             let latest_sha = match calculate_sha256(&format!("{}\\{}", backup_dir, current_file)) {
                 Ok(hash) => hash,
                 Err(err) => {
-                    return Err(err);
+                    return Err(MdownError::ChainedError(Box::new(err), 10448));
                 }
             };
             if source_sha == latest_sha && !force {

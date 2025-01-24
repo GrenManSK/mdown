@@ -130,6 +130,8 @@ pub enum MdownError {
     /// Represents a custom error with a message and an associated error name.
     #[error("{1} error: {0} ({2})")]
     CustomError(String, String, u32),
+
+    #[error("{0} ({1})")] ChainedError(Box<MdownError>, u32),
 }
 
 impl MdownError {
@@ -153,6 +155,20 @@ impl MdownError {
                 format!("{} Code: {}", msg.to_string(), err_code),
             MdownError::CustomError(msg, name, err_code) =>
                 format!("Error: {} {} Code {}", name, msg, err_code),
+            MdownError::ChainedError(msg, err_code) => {
+                let mut err_codes = vec![err_code];
+
+                while let MdownError::ChainedError(_, err_code_temp) = *msg {
+                    err_codes.push(err_code_temp);
+                }
+
+                let formatted_codes = err_codes
+                    .iter()
+                    .map(|code| format!("Code: {}", code))
+                    .collect::<Vec<String>>()
+                    .join(" => ");
+                format!("{} Codes: {}", msg.to_string(), formatted_codes)
+            }
         }
     }
 
@@ -169,6 +185,7 @@ impl MdownError {
             MdownError::RegexError(_, err_code) => err_code,
             MdownError::DatabaseError(_, err_code) => err_code,
             MdownError::CustomError(_, _, err_code) => err_code,
+            MdownError::ChainedError(_, err_code) => err_code,
         }) as i32
     }
     /// Creates a new `MdownError` of type `CustomError` with a default message and error name.
@@ -217,12 +234,11 @@ pub(crate) fn handle_error(err: &MdownError, from: Option<String>) {
     match err {
         MdownError::IoError(err, name, err_code) => {
             match name.as_str() {
-                "" => eprintln!("Error: IO Error {} ({}) Code: {}", err, to, err_code),
-                name =>
-                    eprintln!("Error: IO Error {} in file {}{} Code: {}", err, name, to, err_code),
+                "" => eprintln!("IO Error {} ({}) Code: {}", err, to, err_code),
+                name => eprintln!("IO Error {} in file {}{} Code: {}", err, name, to, err_code),
             }
         }
-        error => eprintln!("Error: {}{}", error, to),
+        error => eprintln!("{}{}", error, to),
     }
 }
 
