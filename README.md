@@ -150,6 +150,6 @@ e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
 
 - App stores manga data in `dat.json` which is located in the same directory as the original application same as `resources.db` which contains data for application
 
-- Lowest tier in time in the name of backup is a day so if it is forced it will overwrite existing backup is same day
+- Lowest tier in time in the name of backup is a day so if it is forced it will overwrite existing backup
 
-- GUI: When you set default for music and start gui, music will not be automatically start; due to Mutex issues
+- GUI: When you set default for music and start gui, music will not automatically start; due to Mutex issues
