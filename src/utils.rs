@@ -1,6 +1,6 @@
 use chrono::prelude::*;
 use crosscurses::*;
-use rand::{ distributions::Alphanumeric, Rng };
+use rand::{ distr::Alphanumeric, Rng };
 use remove_dir_all::remove_dir_all;
 use serde_json::{ json, Value };
 use sha2::{ Sha256, Digest };
@@ -567,10 +567,13 @@ pub(crate) async fn search() -> Result<String, MdownError> {
 
     debug!("sending request to: {}", full_url);
 
+    // Limit is set to 1
+
     let response = match
         client
             .get(&full_url)
             .query(&[("title", title)])
+            .query(&[("limit", 1)])
             .send().await
     {
         Ok(response) => response,
@@ -606,12 +609,9 @@ pub(crate) async fn search() -> Result<String, MdownError> {
                 );
             }
         };
-        let manga_ids: Vec<&serde_json::Value> = manga_array
+        let manga_ids: Vec<&str> = manga_array
             .iter()
             .map(|manga| &manga["id"])
-            .collect();
-        let manga_ids: Vec<&str> = manga_ids
-            .iter()
             .filter_map(|id| id.as_str())
             .collect();
 
@@ -1278,7 +1278,7 @@ pub(crate) fn debug_print<T>(item: T, file: &str) -> Result<(), MdownError> wher
 }
 
 pub(crate) fn generate_random_id(length: usize) -> Box<str> {
-    let rng = rand::thread_rng();
+    let rng = rand::rng();
     let id: String = rng.sample_iter(&Alphanumeric).take(length).map(char::from).collect();
     id.into_boxed_str()
 }

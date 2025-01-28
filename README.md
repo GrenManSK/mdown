@@ -36,7 +36,7 @@ If you want to add more features run `cargo build -r -F [feature1] -F [feature2]
 
 `--url [String]` - url of manga
 
-`--lang [String]` - language of manga to download; "*" is for all languages
+`--lang [String]` - language of manga to download; "*" is for all languages, you can find language codes at [ISO 639-1 standard](https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes) with exceptions at [api.mangadex.org](https://api.mangadex.org/docs/3-enumerations/#language-codes--localization)
 
 `--title [String]` - name the manga
 

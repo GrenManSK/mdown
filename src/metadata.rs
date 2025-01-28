@@ -289,6 +289,22 @@ pub(crate) struct MangaMetadata {
     pub(crate) current_language: String,
     pub(crate) theme: Vec<TagMetadata>,
     pub(crate) genre: Vec<TagMetadata>,
+    #[serde(default)]
+    pub(crate) links: LinksMetadata,
+}
+
+/// Contains metadata for links
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub(crate) struct LinksMetadata {
+    pub(crate) al: Option<String>,
+    pub(crate) mal: Option<String>,
+    pub(crate) amz: Option<String>,
+    pub(crate) ebj: Option<String>,
+    pub(crate) cdj: Option<String>,
+    pub(crate) raw: Option<String>,
+    pub(crate) engtl: Option<String>,
+    pub(crate) mu: Option<String>,
+    pub(crate) nu: Option<String>,
 }
 
 /// Defines the maximum coordinates for points.
@@ -363,7 +379,7 @@ pub(crate) struct ChapterDataImages {
 /// Contains statistics for a manga.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct Statistics {
-    pub(crate) comments: Comment,
+    pub(crate) comments: Option<Comment>,
     pub(crate) rating: Rating,
     pub(crate) follows: u64,
 }

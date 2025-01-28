@@ -54,6 +54,7 @@ lazy_static! {
     pub(crate) static ref CURRENT_SIZE_MAX: Mutex<f64> = Mutex::new(0.0);
     pub(crate) static ref CURRENT_CHAPTER_PARSED: Mutex<u64> = Mutex::new(0);
     pub(crate) static ref CURRENT_CHAPTER_PARSED_MAX: Mutex<u64> = Mutex::new(0);
+    pub(crate) static ref CURRENT_LINKS: Mutex<metadata::LinksMetadata> = Mutex::new(metadata::LinksMetadata::default());
     pub(crate) static ref DOWNLOADING: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref COVER: Mutex<bool> = Mutex::new(false);
     pub(crate) static ref ENDED: Mutex<bool> = Mutex::new(false); // end variable for handlers
@@ -467,6 +468,30 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                 println!("Cover: {}", cover);
                 println!("Language: {}", language);
                 println!("Available language: {}", available_languages_str);
+                if let Some(al) = &item.links.al {
+                    println!("Anilist: https://anilist.co/manga/{}", al);
+                }
+                if let Some(mal) = &item.links.mal {
+                    println!("MyAnimeList: https://myanimelist.net/manga/{}", mal);
+                }
+                if let Some(amz) = &item.links.amz {
+                    println!("Amazon: {}", amz);
+                }
+                if let Some(ebj) = &item.links.ebj {
+                    println!("ebookjapan: {}", ebj);
+                }
+                if let Some(cdj) = &item.links.cdj {
+                    println!("CDJapan: {}", cdj);
+                }
+                if let Some(raw) = &item.links.raw {
+                    println!("RAW: {}", raw);
+                }
+                if let Some(engtl) = &item.links.engtl {
+                    println!("official english licenced URL: {}", engtl);
+                }
+                if let Some(mu) = &item.links.mu {
+                    println!("mangaupdates: https://www.mangaupdates.com/series/{}", mu);
+                }
                 println!("Chapters: {}", chapter_str);
                 println!();
 
@@ -805,11 +830,11 @@ pub(crate) async fn resolve_check() -> Result<(), MdownError> {
                     } else {
                         to_dow = false;
                     }
+                    if !to_dow {
+                        println!("Up to-date");
+                    }
                     if !cover {
                         println!("Cover is not downloaded");
-                    }
-                    if !to_dow && cover {
-                        println!("Up to-date");
                     }
                 }
                 CHAPTERS.lock().clear();
@@ -941,6 +966,7 @@ pub(crate) fn resolve_dat() -> Result<(), MdownError> {
                     current_language: LANGUAGE.lock().clone(),
                     theme: themes_data,
                     genre: genres_data,
+                    links: CURRENT_LINKS.lock().clone(),
                 };
 
                 data.push(manga_data);
@@ -1121,6 +1147,65 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
         }
     }
 
+    *CURRENT_LINKS.lock() = {
+        let al = title_data
+            .get("links")
+            .and_then(|x| x.get("al"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let mal = title_data
+            .get("links")
+            .and_then(|x| x.get("mal"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let amz = title_data
+            .get("links")
+            .and_then(|x| x.get("amz"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let ebj = title_data
+            .get("links")
+            .and_then(|x| x.get("ebj"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let cdj = title_data
+            .get("links")
+            .and_then(|x| x.get("cdj"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let raw = title_data
+            .get("links")
+            .and_then(|x| x.get("raw"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let engtl = title_data
+            .get("links")
+            .and_then(|x| x.get("engtl"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let mu = title_data
+            .get("links")
+            .and_then(|x| x.get("mu"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let nu = title_data
+            .get("links")
+            .and_then(|x| x.get("nu"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        metadata::LinksMetadata {
+            al,
+            mal,
+            amz,
+            ebj,
+            cdj,
+            raw,
+            engtl,
+            mu,
+            nu,
+        }
+    };
+
     *LANGUAGES.lock() = {
         let langs = match title_data.get("availableTranslatedLanguages").and_then(Value::as_array) {
             Some(value) => value,
@@ -1166,6 +1251,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *CURRENT_SIZE_MAX.lock() = 0.0;
     *CURRENT_CHAPTER_PARSED.lock() = 0;
     *CURRENT_CHAPTER_PARSED_MAX.lock() = 0;
+    *CURRENT_LINKS.lock() = metadata::LinksMetadata::default();
     debug!("global variables reset");
     Ok(manga_name)
 }

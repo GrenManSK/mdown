@@ -472,9 +472,6 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
             };
             match serde_json::from_value::<metadata::Statistics>(statistics.clone()) {
                 Ok(stat) => {
-                    let comments = stat.comments;
-                    let thread_id = comments.threadId;
-                    let replies_count = comments.repliesCount;
                     let rating = stat.rating;
                     let average = rating.average;
                     let bayesian = rating.bayesian;
@@ -488,11 +485,15 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
                         data += &get_dist(&distribution, i);
                     }
                     data += &format!("## Follows: {}\n\n", follows);
-                    data += &format!(
-                        "## Comments\n\nThread: <https://forums.mangadex.org/threads/{}>\n\nNumber of comments in thread: {}\n",
-                        thread_id,
-                        replies_count
-                    );
+                    if let Some(comments) = stat.comments {
+                        let thread_id = comments.threadId;
+                        let replies_count = comments.repliesCount;
+                        data += &format!(
+                            "## Comments\n\nThread: <https://forums.mangadex.org/threads/{}>\n\nNumber of comments in thread: {}\n",
+                            thread_id,
+                            replies_count
+                        );
+                    }
                 }
                 Err(err) => {
                     suspend_error(MdownError::JsonError(err.to_string(), 10313));

@@ -333,7 +333,7 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
 #[cfg(feature = "web")]
 pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownError> {
     use crate::resolute;
-    use rand::{ seq::SliceRandom, thread_rng };
+    use rand::{ seq::SliceRandom, rng };
     let mut images = Vec::new();
     let mut files = resolute::WEB_DOWNLOADED.lock().clone();
     files.truncate(10);
@@ -380,7 +380,7 @@ pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownErro
         }
     }
 
-    let mut rng = thread_rng();
+    let mut rng = rng();
     images.shuffle(&mut rng);
     images.truncate(10);
     Ok(images)

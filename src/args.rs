@@ -347,11 +347,11 @@ pub(crate) enum Commands {
     /// Subcommands related to database management.
     Database {
         /// Check downloaded files for errors.
-        #[arg(long, next_line_help = true, help = "Check downloaded files for errors")]
+        #[arg(long, next_line_help = true, help = "Check downloaded manga for updates")]
         check: bool,
 
         /// Update downloaded files.
-        #[arg(long, next_line_help = true, help = "Check downloaded files for errors")]
+        #[arg(long, next_line_help = true, help = "Check and downloads files")]
         update: bool,
 
         /// Show current manga in the database. You can specify an ID to show a particular manga.
@@ -374,8 +374,8 @@ pub(crate) enum Commands {
         #[arg(long, next_line_help = true, help = "Shows current logs in database")]
         show_log: bool,
 
-        /// Show current logs in the database.
-        #[arg(long, next_line_help = true, help = "Shows current logs in database")]
+        /// Shows current settings in database.
+        #[arg(long, next_line_help = true, help = "Shows current settings in database")]
         show_settings: bool,
 
         /// You will choose which backup to retrieve.
