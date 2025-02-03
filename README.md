@@ -79,6 +79,8 @@ If you want to add more features run `cargo build -r -F [feature1] -F [feature2]
 
 `--music` - will play music during downloading 1. Wushu Dolls, 2. Militech, 3. You Shall Never Have to Forgive Me Again 4. Valentinos 5. Force Projection
 
+`--gui` - will start gui version of app
+
 `--tutorial` - will start tutorial
 
 `--skip--tutorial` - will skip tutorial
