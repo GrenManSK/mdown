@@ -72,14 +72,68 @@ lazy_static! {
 
 include!(concat!(env!("OUT_DIR"), "/error_404_jpg.rs"));
 
+/// Decodes a percent-encoded URL string.
+///
+/// # Parameters
+/// - `url`: A percent-encoded string.
+///
+/// # Returns
+/// - A decoded `String` where percent-encoded sequences are replaced with their UTF-8 representation.
+///
+/// # Example
+/// ```
+/// let decoded = decode("hello%20world");
+/// assert_eq!(decoded, "hello world");
+/// ```
 fn decode(url: &str) -> String {
     percent_decode_str(url).decode_utf8_lossy().to_string()
 }
 
+/// Encodes a string into a percent-encoded format.
+///
+/// # Parameters
+/// - `url`: A regular string to be percent-encoded.
+///
+/// # Returns
+/// - A `String` where non-alphanumeric characters are percent-encoded.
+///
+/// # Example
+/// ```
+/// let encoded = encode("hello world");
+/// assert_eq!(encoded, "hello%20world");
+/// ```
 pub(crate) fn encode(url: &str) -> String {
     percent_encode(url.as_bytes(), NON_ALPHANUMERIC).to_string()
 }
 
+/// Resolves and downloads manga information based on a given URL.
+///
+/// # Parameters
+/// - `url`: A string slice representing the manga URL or identifier.
+///
+/// # Returns
+/// - `Ok(String)`: A JSON response string containing manga details if successful.
+/// - `Err(MdownError)`: If an error occurs during resolution or data retrieval.
+///
+/// # Behavior
+/// - Extracts the manga ID from the given URL using regex or UUID validation.
+/// - Fetches the manga JSON data from an external source.
+/// - Parses and processes the manga metadata.
+/// - Returns a JSON object with:
+///     - `"status": "ok"`
+///     - `"name"`: Manga title
+///     - `"files"`: List of downloaded files
+///     - `"scanlation_groups"`: List of associated scanlation groups.
+///
+/// # Example JSON Response
+/// ```json
+/// {
+///   "status": "ok",
+///   "name": "Manga Title",
+///   "files": ["chapter1.zip", "chapter2.zip"],
+///   "scanlation_groups": ["Group A", "Group B"]
+/// }
+/// ```
 async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
     let handle_id = resolute::HANDLE_ID.lock().clone();
     let mut manga_name = String::from("!");
@@ -156,6 +210,48 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
     }
 }
 
+/// Handles an incoming TCP client connection for the server.
+///
+/// # Parameters
+/// - `stream`: A `TcpStream` representing the client connection.
+///
+/// # Returns
+/// - `Ok(())` if the request is processed successfully.
+/// - `Err(MdownError)` if an error occurs during request handling.
+///
+/// # Behavior
+/// - Reads the request from the client.
+/// - Parses the request path and handles different endpoints:
+///     - `/manga?url=...` → Handles manga downloads.
+///     - `/__get__?path=...` → Serves static resources.
+///     - `/__confetti__` → Extracts and serves images from a ZIP archive.
+///     - `/manga-result?id=...` → Retrieves download progress.
+///     - `/__version__` → Returns the current application version.
+///     - `/end` → Signals the server to exit.
+///     - `/` → Handles the main request.
+/// - Sends appropriate HTTP responses based on the request type.
+/// - Logs requests and errors.
+/// - Calls `std::process::exit(0)` if the `/end` endpoint is requested.
+///
+/// # Example Usage
+/// ```no_run
+/// use std::net::{TcpListener, TcpStream};
+/// use std::thread;
+///
+/// fn main() {
+///     let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
+///     for stream in listener.incoming() {
+///         match stream {
+///             Ok(stream) => {
+///                 thread::spawn(|| {
+///                     let _ = handle_client(stream);
+///                 });
+///             }
+///             Err(e) => eprintln!("Connection failed: {}", e),
+///         }
+///     }
+/// }
+/// ```
 async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError> {
     let mut buffer = [0; 1024];
     match stream.read(&mut buffer) {
@@ -176,7 +272,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
     let path = match parts.get(1) {
         Some(part) => *part,
         None => {
-            return Err(MdownError::NotFoundError(String::from("Invalid request"), 11303));
+            return Err(MdownError::NotFoundError(String::from("Invalid request"), 11315));
         }
     };
 
@@ -377,6 +473,46 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
     Ok(())
 }
 
+/// Parses an incoming request and generates an appropriate HTTP response.
+///
+/// # Parameters
+/// - `url`: A `String` representing the request type.
+///
+/// # Returns
+/// - `Ok(String)`: A formatted HTTP response string.
+/// - `Err(MdownError)`: If the request type is unrecognized or JSON serialization fails.
+///
+/// # Behavior
+/// - If `url == "main"`:
+///   - Returns an HTML response containing the main page content.
+/// - If `url == "progress"`:
+///   - Constructs a JSON response containing download progress, including:
+///     - `status`: `"ok"`
+///     - `name`: Manga title
+///     - `current`: Current chapter
+///     - `current_page`: Page number progress
+///     - `current_percent`: Download percentage
+///     - `files`: List of downloaded files
+///     - `scanlation_groups`: List of scanlation groups
+/// - If the request type is unrecognized, returns a `NotFoundError`.
+///
+/// # Example JSON Response (progress)
+/// ```json
+/// {
+///   "status": "ok",
+///   "name": "Manga Title",
+///   "current": "Chapter 5",
+///   "current_page": "12",
+///   "current_page_max": "30",
+///   "current_percent": "40.00",
+///   "current_size": "15.23",
+///   "current_size_max": "37.50",
+///   "current_chapter_parsed": "5",
+///   "current_chapter_parsed_max": "10",
+///   "files": ["chapter1.zip", "chapter2.zip"],
+///   "scanlation_groups": ["Group A", "Group B"]
+/// }
+/// ```
 fn parse_request(url: String) -> Result<String, MdownError> {
     if url == *"main" {
         let html = get_html();
@@ -440,6 +576,27 @@ fn parse_request(url: String) -> Result<String, MdownError> {
     }
 }
 
+/// Loads the HTML content for the web interface.
+///
+/// # Returns
+/// - A `String` containing the HTML content.
+/// - If in development mode (`ARGS_DEV` is `true`), attempts to read `web.html`.
+/// - If `web.html` cannot be read, returns the error page from `get_error_html()`.
+/// - If not in development mode, returns a placeholder string.
+///
+/// # Behavior
+/// - When `ARGS_DEV` is `true`:
+///   - Tries to open `web.html`.
+///   - If successful, reads and returns its contents.
+///   - If unsuccessful, returns the error page.
+/// - When `ARGS_DEV` is `false`:
+///   - Returns `"..."` (default production content).
+///
+/// # Example
+/// ```rust
+/// let html = get_html();
+/// println!("{}", html); // Outputs either the web page content or an error page.
+/// ```
 fn get_html() -> String {
     if *args::ARGS_DEV {
         let err_404 = get_error_html();
@@ -465,12 +622,41 @@ fn get_html() -> String {
     }
 }
 
+/// Generates an HTML page for a 404 error.
+///
+/// # Returns
+/// - A `String` containing the HTML content for a "404 Error - Page Not Found" page.
+/// - The page includes basic styling and a message explaining that the requested page is unavailable.
+/// - Provides a link to return to the home page.
+///
+/// # Example
+/// ```rust
+/// let error_page = get_error_html();
+/// println!("{}", error_page); // Outputs the 404 error page HTML.
+/// ```
 fn get_error_html() -> String {
     String::from(
         "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>404 Error - Page Not Found</title><style>body {font-family: Arial, sans-serif;background-color: #f7f7f7;color: #333;margin: 0;padding: 0;text-align: center;}.container {position: absolute;top: 50%;left: 50%;transform: translate(-50%, -50%);}h1 {font-size: 36px;margin-bottom: 20px;}p {font-size: 18px;margin-bottom: 20px;}a {color: #007bff;text-decoration: none;}a:hover {text-decoration: underline;}</style></head><body><div class=\"container\"><h1>404 Error - Page Not Found</h1><p>The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p><p>Go back to <a href=\"/\">home page</a>.</p></div></body></html>"
     )
 }
 
+/// Starts a web server that listens on `127.0.0.1:8080` and handles incoming requests.
+///
+/// # Returns
+/// - `Ok(())` if the server starts successfully and continues running.
+/// - Returns an `MdownError` if the server encounters issues such as a failure to bind the listener.
+///
+/// # Functionality
+/// - The server binds to the local address `127.0.0.1:8080`.
+/// - Attempts to open the URL `http://127.0.0.1:8080/` in the default web browser.
+/// - Listens for incoming TCP connections and handles them asynchronously using the `handle_client` function.
+///
+/// # Example
+/// ```rust
+/// if let Err(err) = web().await {
+///     eprintln!("Error starting the server: {}", err);
+/// }
+/// ```
 async fn web() -> Result<(), MdownError> {
     let listener = match TcpListener::bind("127.0.0.1:8080") {
         Ok(listener) => listener,
@@ -497,6 +683,22 @@ async fn web() -> Result<(), MdownError> {
     }
 }
 
+/// Initializes the server and sets up a Ctrl+C handler to gracefully exit when the user interrupts the process.
+///
+/// # Returns
+/// - `Ok(())` if the server starts successfully and handles a Ctrl+C interruption.
+/// - Returns an `MdownError` if setting up the Ctrl+C handler fails, or if any error occurs while starting the server.
+///
+/// # Functionality
+/// - Sets a handler for the `Ctrl+C` signal to log messages and clean up resources when the process is interrupted.
+/// - Calls the `web` function to start the web server.
+///
+/// # Example
+/// ```rust
+/// if let Err(err) = start().await {
+///     eprintln!("Error starting the server: {}", err);
+/// }
+/// ```
 pub(crate) async fn start() -> Result<(), MdownError> {
     let handler = ctrlc::set_handler(|| {
         log!("[user] Ctrl+C received! Exiting...");

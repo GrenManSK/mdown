@@ -19,6 +19,31 @@ pub const DAT_PATH: &str = "dat.json";
 pub const LOG_PATH: &str = "log.json";
 pub const LOG_LOCK_PATH: &str = "log.lock";
 
+/// Retrieves the absolute path of the current executable.
+///
+/// This function calls `std::env::current_exe()` to determine the full path of the running executable.
+/// If successful, it converts the path to a string and returns it. If an error occurs during retrieval
+/// or conversion, an appropriate `MdownError` is returned.
+///
+/// # Errors
+/// - `MdownError::IoError(10821)`: If retrieving the executable path fails.
+/// - `MdownError::ConversionError(10822)`: If converting the path to a string fails.
+///
+/// # Returns
+/// - `Ok(String)`: The absolute path of the current executable.
+/// - `Err(MdownError)`: If there is an issue retrieving or converting the path.
+///
+/// # Example
+/// ```
+/// match get_exe_file_path() {
+///     Ok(path) => {
+///         println!("Executable path: {}", path);
+///     }
+///     Err(e) => {
+///         eprintln!("Error: {:?}", e);
+///     }
+/// }
+/// ```
 pub(crate) fn get_exe_file_path() -> Result<String, MdownError> {
     let current = match std::env::current_exe() {
         Ok(value) => value,
@@ -45,6 +70,31 @@ pub(crate) fn get_exe_file_path() -> Result<String, MdownError> {
     Ok(path)
 }
 
+/// Retrieves the name of the current executable.
+///
+/// This function determines the filename of the currently running executable
+/// by calling `std::env::current_exe()` and extracting the file name from the path.
+///
+/// # Errors
+/// - `MdownError::IoError(10825)`: If retrieving the executable path fails.
+/// - `MdownError::NotFoundError(10823)`: If the file name could not be determined.
+/// - `MdownError::ConversionError(10824)`: If converting the file name to a string fails.
+///
+/// # Returns
+/// - `Ok(String)`: The name of the executable.
+/// - `Err(MdownError)`: If an error occurs while retrieving or converting the file name.
+///
+/// # Example
+/// ```
+/// match get_exe_name() {
+///     Ok(name) => {
+///         println!("Executable name: {}", name);
+///     }
+///     Err(e) => {
+///         eprintln!("Error: {:?}", e);
+///     }
+/// }
+/// ```
 pub(crate) fn get_exe_name() -> Result<String, MdownError> {
     // Attempt to get the path of the current executable.
     let current = match std::env::current_exe() {

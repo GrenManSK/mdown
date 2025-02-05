@@ -201,6 +201,29 @@ lazy_static! {
     pub(crate) static ref IS_END: Mutex<bool> = Mutex::new(false);
 }
 
+/// Returns a message indicating that the provided UUID is in an incorrect format.
+///
+/// This function is used to handle cases where a UUID provided in the `url` does not conform to the expected format. It logs a message indicating the wrong format and provides guidance on the correct UUID format. The function returns a placeholder string `"*"`, indicating that the UUID format is invalid.
+///
+/// # Parameters:
+/// - `url: &str` - The string representation of the UUID that is being validated.
+///
+/// # Returns:
+/// - `&str` - A placeholder string `"*"` indicating that the UUID format is invalid.
+///
+/// # Example:
+/// ```rust
+/// let url = "123e4567-e89b-12d3-a456-426614174000";
+/// let result = wrong_uuid_format(url);
+/// println!("{}", result);  // Output: "*"
+/// ```
+///
+/// # Notes:
+/// - The function also calls a `string` function (not provided here) to log the invalid UUID format and the expected format.
+/// - The expected UUID format is `"8-4-4-4-12"`, which corresponds to a standard UUID format (e.g., `123e4567-e89b-12d3-a456-426614174000`).
+///
+/// # Error Handling:
+/// - This function does not handle errors directly but provides a warning message about the incorrect UUID format.
 #[inline]
 fn wrong_uuid_format(url: &str) -> &str {
     string(3, 0, &format!("Wrong format of UUID ({})", url));
@@ -577,6 +600,32 @@ async fn start() -> Result<(), error::MdownError> {
     Ok(())
 }
 
+/// Asynchronously processes manga JSON data.
+///
+/// This function retrieves manga data based on the provided `id`, processes it, and handles errors that may occur during the network request. It updates the error codes and status codes passed by reference and logs relevant information during the process. The function returns the manga information in JSON format if successful, or returns a custom error if it encounters any issues.
+///
+/// # Parameters:
+/// - `id: &str` - The ID of the manga to fetch data for. This ID will be used in the network request to retrieve the corresponding manga information.
+/// - `err_code_network: &mut u32` - A mutable reference to a network error code. This will be updated if a network error occurs during the manga data retrieval.
+/// - `status_code: &mut reqwest::StatusCode` - A mutable reference to the HTTP status code. This will be updated with the status code from the request.
+///
+/// # Returns:
+/// - `Result<String, error::MdownError>` - The result of the operation. If successful, it returns the manga data as a `String` (JSON format). If there is an error, it returns a `CustomError`.
+///
+/// # Example:
+/// ```rust
+/// let manga_data = process_manga_json("manga_id", &mut err_code, &mut status_code).await;
+/// match manga_data {
+///     Ok(data) => println!("Manga data: {}", data),
+///     Err(e) => println!("Error: {:?}", e),
+/// }
+/// ```
+///
+/// # Notes:
+/// - This function performs logging at different stages of the process, such as when the manga ID is acquired and when the manga data is successfully retrieved or encounters an error.
+/// - If the tutorial flag is enabled, the tutorial information is displayed.
+/// - In case of a network error, the function processes the error and updates the error code and status code accordingly.
+/// - The `get_manga_json` function is awaited and, if successful, returns the manga data in JSON format. In case of failure, the function calls `process_manga_error` to handle the error.
 async fn process_manga_json(
     id: &str,
     err_code_network: &mut u32,
@@ -608,6 +657,33 @@ async fn process_manga_json(
     }
 }
 
+/// Asynchronously performs a manga download and returns the parsed manga data.
+///
+/// This function downloads manga data based on the provided JSON string. It processes the JSON data and returns the parsed manga information as a `serde_json::Map`. In case of any error, it returns an appropriate error.
+///
+/// # Parameters:
+/// - `manga_name_json: String` - The manga data in JSON format, usually obtained from a previous API call. This JSON string is parsed into a `serde_json::Map` for further processing.
+///
+/// # Returns:
+/// - `Result<serde_json::Map<String, serde_json::Value>, error::MdownError>` - A result indicating the success or failure of the operation. On success, it returns a `serde_json::Map` containing the parsed manga data. If the data is not in the expected format, it returns a `JsonError`.
+///
+/// # Example:
+/// ```rust
+/// let manga_data = perform_manga_download(manga_name_json).await;
+/// match manga_data {
+///     Ok(data) => println!("Manga data: {:?}", data),
+///     Err(e) => println!("Error: {:?}", e),
+/// }
+/// ```
+///
+/// # Notes:
+/// - The function first checks for the "music" feature and, if enabled, sets the music stage to `Init`.
+/// - It then attempts to parse the `manga_name_json` string into a JSON object (`serde_json::Map`).
+/// - If the JSON is valid and correctly formatted, it returns the parsed object. If the format is unexpected, it returns a `JsonError`.
+/// - If an error occurs while fetching or parsing the JSON, a `ChainedError` is returned with additional context.
+///
+/// # Error Handling:
+/// - If the function encounters an error while fetching or parsing the JSON, it returns an appropriate `MdownError`, such as a `ChainedError` or a `JsonError`.
 async fn perform_manga_download(
     manga_name_json: String
 ) -> Result<serde_json::Map<String, serde_json::Value>, error::MdownError> {
@@ -629,6 +705,33 @@ async fn perform_manga_download(
     }
 }
 
+/// Processes errors that occur during manga-related network operations.
+///
+/// This function handles different types of errors during the manga download process, such as network errors or status errors, and updates the network error code and status code accordingly.
+///
+/// # Parameters:
+/// - `code: error::MdownError` - The error that occurred during the operation. It can be a network-related error (`NetworkError`), a status error (`StatusError`), or other types of errors.
+/// - `err_code_network: &mut u32` - A mutable reference to the network error code. This value will be updated based on the error type.
+/// - `status_code: &mut reqwest::StatusCode` - A mutable reference to the status code. This value will be updated with the error's status code, if applicable.
+///
+/// # Returns:
+/// This function does not return a value. It updates the `err_code_network` and `status_code` references passed to it based on the error type.
+///
+/// # Example:
+/// ```rust
+/// let mut err_code_network = 0;
+/// let mut status_code = reqwest::StatusCode::OK;
+/// process_manga_error(MdownError::NetworkError(...), &mut err_code_network, &mut status_code);
+/// ```
+///
+/// # Notes:
+/// - The function matches on the type of error (`MdownError`) and processes it accordingly.
+/// - If the error is a `NetworkError`, the function updates the network error code and attempts to extract the status from the error.
+/// - If the error is a `StatusError`, the function updates both the network error code and the status code with the information from the error.
+/// - For other error types, the function prints a generic "Unexpected error" message.
+///
+/// # Error Handling:
+/// - The function ensures that both the `err_code_network` and `status_code` are updated based on the error's specific type. If an unknown error type is encountered, it prints a message indicating an unexpected error.
 fn process_manga_error(
     code: error::MdownError,
     err_code_network: &mut u32,
@@ -653,6 +756,32 @@ fn process_manga_error(
     }
 }
 
+/// Resolves an error code into an appropriate HTTP status code.
+///
+/// This function takes a custom error (`MdownError`), extracts the relevant status code from it (if available), and updates the provided `status_code` with the corresponding `reqwest::StatusCode`. It helps map custom error codes to valid HTTP status codes for further handling.
+///
+/// # Parameters:
+/// - `code: error::MdownError` - The error that contains an error code as part of its message. The error code should be a numeric value at the start of the error string (e.g., "404 Not Found").
+/// - `status_code: &mut reqwest::StatusCode` - A mutable reference to the `status_code` variable. This will be updated with the resolved HTTP status code if a valid one is found.
+///
+/// # Returns:
+/// This function does not return a value. It modifies the `status_code` reference based on the error code parsed from the `MdownError`.
+///
+/// # Example:
+/// ```rust
+/// let mut status_code = reqwest::StatusCode::OK;
+/// let error = MdownError::NetworkError("404 Not Found".into(), 404);
+/// resolve_error_code(error, &mut status_code);
+/// assert_eq!(status_code, reqwest::StatusCode::NOT_FOUND);
+/// ```
+///
+/// # Notes:
+/// - The function splits the error message by whitespace and tries to parse the first part as a numeric status code.
+/// - If a valid numeric status code is found, it attempts to convert it into a `reqwest::StatusCode` using `StatusCode::from_u16`.
+/// - If parsing or status code conversion fails, it leaves the `status_code` unchanged or defaults to `StatusCode::OK` in some cases.
+///
+/// # Error Handling:
+/// - If the error message does not contain a valid numeric status code or if the conversion fails, the function logs a message saying "Invalid status string."
 fn resolve_error_code(code: error::MdownError, status_code: &mut reqwest::StatusCode) {
     let code = code.into();
     let parts: Vec<&str> = code.split_whitespace().collect();
@@ -1209,7 +1338,7 @@ pub(crate) async fn download_manga(
                                 Ok(()) => (),
                                 Err(err) => {
                                     return Err(
-                                        error::MdownError::ChainedError(Box::new(err), 10126)
+                                        error::MdownError::ChainedError(Box::new(err), 10109)
                                     );
                                 }
                             }
@@ -1495,18 +1624,7 @@ pub(crate) async fn download_chapter(
         MAXPOINTS.max_x / 3 - (images_length as u32) / 2
     };
 
-    let iter = match args::ARGS.lock().max_consecutive.parse() {
-        Ok(x) => x,
-        Err(_err) => {
-            error::suspend_error(
-                error::MdownError::ConversionError(
-                    String::from("Failed to parse max_consecutive"),
-                    10109
-                )
-            );
-            40_usize
-        }
-    };
+    let iter = args::ARGS.lock().max_consecutive.clone();
 
     let loop_for = ((images_length as f32) / (iter as f32)).ceil();
 

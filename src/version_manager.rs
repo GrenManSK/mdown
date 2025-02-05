@@ -451,7 +451,9 @@ pub(crate) async fn check_update() -> Result<bool, MdownError> {
     let (current_version, latest_version, _, _) = match version_preparation().await {
         Ok(t) => t,
         Err(err) => {
-            return Err(MdownError::ChainedError(Box::new(err), 11630));
+            let err = MdownError::ChainedError(Box::new(err), 11630);
+            debug!("{}", err);
+            return Err(err);
         }
     };
 

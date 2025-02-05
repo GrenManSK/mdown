@@ -386,6 +386,35 @@ pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownErro
     Ok(images)
 }
 
+/// Extracts an image file from a ZIP archive for a specific page.
+///
+/// # Parameters
+/// - `zip_file_path`: The path to the ZIP file that contains the images.
+/// - `page`: The page number of the image to extract.
+///
+/// # Returns
+/// - `Ok(Vec<u8>)`: The image content as a byte vector if the image is found for the specified page.
+/// - `Err(MdownError)`: Returns an error if any of the following occurs:
+///     - The ZIP file cannot be opened.
+///     - The ZIP archive is corrupted or unreadable.
+///     - An image for the specified page cannot be found.
+///     - The file format is unsupported.
+///
+/// # Details
+/// - The function attempts to extract an image from the ZIP archive, filtering by file type (JPG, JPEG, PNG, GIF, BMP, or WEBP).
+/// - The function extracts the page number from the filename and matches it with the requested page number.
+///
+/// # Example
+/// ```rust
+/// match extract_image_from_zip_gui("path/to/archive.zip", 1) {
+///     Ok(image_data) => {
+///         // Process the image data
+///     }
+///     Err(err) => {
+///         eprintln!("Error: {}", err);
+///     }
+/// }
+/// ```
 #[cfg(feature = "gui")]
 pub(crate) fn extract_image_from_zip_gui(
     zip_file_path: &str,
@@ -454,6 +483,32 @@ pub(crate) fn extract_image_from_zip_gui(
     Err(error::MdownError::NotFoundError("File not found in the zip archive".to_owned(), 10728))
 }
 
+/// Counts the number of image files (JPG, JPEG, PNG, GIF, BMP, WEBP) in a ZIP archive.
+///
+/// # Parameters
+/// - `zip_file_path`: The path to the ZIP file to scan for image files.
+///
+/// # Returns
+/// - `Ok(usize)`: The number of image files found in the ZIP archive.
+/// - `Err(MdownError)`: Returns an error if any of the following occurs:
+///     - The ZIP file cannot be opened.
+///     - The ZIP archive is corrupted or unreadable.
+///     - Errors reading the ZIP archive or file.
+///
+/// # Details
+/// - The function counts the number of image files in the archive by checking each file's extension. Supported image formats include JPG, JPEG, PNG, GIF, BMP, and WEBP.
+///
+/// # Example
+/// ```rust
+/// match extract_image_len_from_zip_gui("path/to/archive.zip") {
+///     Ok(num_images) => {
+///         println!("The archive contains {} images.", num_images);
+///     }
+///     Err(err) => {
+///         eprintln!("Error: {}", err);
+///     }
+/// }
+/// ```
 #[cfg(feature = "gui")]
 pub(crate) fn extract_image_len_from_zip_gui(
     zip_file_path: &str

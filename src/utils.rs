@@ -374,17 +374,16 @@ pub(crate) fn is_valid_uuid(s: &str) -> bool {
 
 pub(crate) fn clear_screen(from: u32) {
     // if crosscurses is not used DO NOT let this run
-    if
-        !*args::ARGS_WEB &&
-        !*args::ARGS_GUI &&
-        !*args::ARGS_CHECK &&
-        !*args::ARGS_UPDATE &&
-        !*args::ARGS_QUIET
-    {
+    if *resolute::INITSCR_INIT.lock() {
         for i in from..MAXPOINTS.max_y {
-            string(i, 0, &" ".repeat(MAXPOINTS.max_x as usize));
+            clear_line(i);
         }
     }
+}
+
+#[inline]
+fn clear_line(i: u32) {
+    string(i, 0, &" ".repeat(MAXPOINTS.max_x as usize));
 }
 
 #[inline]
@@ -861,7 +860,7 @@ pub(crate) fn resolve_end(
             0,
             "Either --url or --search was not specified or website is not in pattern of UUID | https://mangadex.org/title/[UUID]/ or UUID is not valid"
         );
-        string(1, 0, "See readme.md for more information");
+        string(1, 0, "See README.md for more information");
         string(2, 0, "Or use --help");
         format!("Ending session: {} has NOT been downloaded, because it was not found", manga_name)
     } else {

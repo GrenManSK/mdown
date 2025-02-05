@@ -1,6 +1,5 @@
 use std::{ fs::{ self, File }, io::prelude::*, path::Path };
 
-
 #[cfg(not(target_os = "windows"))]
 compile_error!("This app only supports Windows.");
 

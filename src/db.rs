@@ -21,6 +21,29 @@ pub const DB_BACKUP: &str = "2004";
 pub const DB_MUSIC: &str = "2101";
 pub const DB_UPDATE_TIME: &str = "2201";
 
+/// Updates the database with a new update timestamp.
+///
+/// This function retrieves the database path, opens a connection, and writes the provided
+/// timestamp (`time_str`) to the database under the `DB_UPDATE_TIME` resource.
+///
+/// # Parameters
+/// - `time_str`: A string representing the update timestamp.
+///
+/// # Returns
+/// - `Ok(())` if the update time is successfully written to the database.
+/// - `Err(MdownError)`: An error if the database path retrieval, connection, or write operation fails.
+///
+/// # Error Codes
+/// - `10641`: Failed to retrieve the database path.
+/// - `10630`: Failed to open a database connection.
+/// - `10678`: Failed to write the update time to the database.
+///
+/// # Example
+/// ```
+/// if let Err(e) = set_update_time("2025-02-04T12:00:00Z") {
+///     eprintln!("Failed to update time: {:?}", e);
+/// }
+/// ```
 pub(crate) fn set_update_time(time_str: &str) -> Result<(), MdownError> {
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
@@ -41,6 +64,40 @@ pub(crate) fn set_update_time(time_str: &str) -> Result<(), MdownError> {
         Err(err) => Err(MdownError::ChainedError(Box::new(err), 10678)),
     };
 }
+
+/// Retrieves the update time from the database.
+///
+/// This function attempts to fetch the update time from the database by reading the
+/// resource identified by `DB_UPDATE_TIME`. If successful, it returns the update time
+/// as a `String`. If no value is found, it returns `None`. If any errors occur during
+/// the process, they are wrapped in the appropriate `MdownError` variants for handling.
+///
+/// # Errors
+/// - `MdownError::ChainedError(10642)`: If `getter::get_db_path` returns an error.
+/// - `MdownError::DatabaseError(10629)`: If there is an issue opening the database connection.
+/// - `MdownError::CustomError(10628)`: If there is a failure converting the byte value to a `String` from UTF-8.
+/// - `MdownError::ChainedError(10679)`: If there is an error during UTF-8 conversion of the update time.
+/// - `MdownError::ChainedError(10680)`: If there is an error reading the resource from the database.
+///
+/// # Returns
+/// - `Ok(Some(String))`: If the update time is successfully retrieved from the database.
+/// - `Ok(None)`: If no update time is found in the database.
+/// - `Err(MdownError)`: In case of any errors during the process.
+///
+/// # Example
+/// ```
+/// match get_update_time() {
+///     Ok(Some(update_time)) => {
+///         println!("Update time: {}", update_time);
+///     }
+///     Ok(None) => {
+///         println!("No update time found.");
+///     }
+///     Err(e) => {
+///         eprintln!("Error occurred: {:?}", e);
+///     }
+/// }
+/// ```
 pub(crate) fn get_update_time() -> Result<Option<String>, MdownError> {
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
@@ -74,6 +131,42 @@ pub(crate) fn get_update_time() -> Result<Option<String>, MdownError> {
     };
 }
 
+/// Retrieves a resource from the database by name.
+///
+/// This function attempts to fetch a resource from the database by reading the resource
+/// identified by `name`. If successful, it returns the resource as a `String`. If no value
+/// is found, it returns `None`. If any errors occur during the process, they are wrapped
+/// in the appropriate `MdownError` variants for handling.
+///
+/// # Arguments
+/// - `name`: The name of the resource to retrieve from the database.
+///
+/// # Errors
+/// - `MdownError::ChainedError(100643)`: If `getter::get_db_path` returns an error.
+/// - `MdownError::DatabaseError(10638)`: If there is an issue opening the database connection.
+/// - `MdownError::CustomError(10639)`: If there is a failure converting the byte value to a `String` from UTF-8.
+/// - `MdownError::ChainedError(10681)`: If there is an error during UTF-8 conversion of the resource.
+/// - `MdownError::ChainedError(10682)`: If there is an error reading the resource from the database.
+///
+/// # Returns
+/// - `Ok(Some(String))`: If the resource is successfully retrieved from the database.
+/// - `Ok(None)`: If no resource is found in the database.
+/// - `Err(MdownError)`: In case of any errors during the process.
+///
+/// # Example
+/// ```
+/// match read_resource_lone("example_resource") {
+///     Ok(Some(resource)) => {
+///         println!("Resource: {}", resource);
+///     }
+///     Ok(None) => {
+///         println!("Resource not found.");
+///     }
+///     Err(e) => {
+///         eprintln!("Error occurred: {:?}", e);
+///     }
+/// }
+/// ```
 pub(crate) fn read_resource_lone(name: &str) -> Result<Option<String>, MdownError> {
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
@@ -106,6 +199,38 @@ pub(crate) fn read_resource_lone(name: &str) -> Result<Option<String>, MdownErro
     };
 }
 
+/// Writes a resource to the database.
+///
+/// This function attempts to write a resource to the database with the given `name` and `data`.
+/// The `is_binary` flag indicates whether the data should be treated as binary. If the write
+/// operation is successful, it returns the number of bytes written. If any errors occur during
+/// the process, they are wrapped in the appropriate `MdownError` variants for handling.
+///
+/// # Arguments
+/// - `name`: The name of the resource to be written to the database.
+/// - `data`: A byte slice representing the data to be written.
+/// - `is_binary`: A flag indicating whether the data is binary (`true`) or not (`false`).
+///
+/// # Errors
+/// - `MdownError::ChainedError(10643)`: If `getter::get_db_path` returns an error.
+/// - `MdownError::DatabaseError(10640)`: If there is an issue opening the database connection.
+/// - `MdownError::ChainedError(10683)`: If there is an error during the write operation.
+///
+/// # Returns
+/// - `Ok(u64)`: The number with the ID of the inserted or updated resource on success.
+/// - `Err(MdownError)`: In case of any errors during the process.
+///
+/// # Example
+/// ```
+/// match write_resource_lone("example_resource", &data, true) {
+///     Ok(bytes_written) => {
+///         println!("Successfully wrote {} bytes.", bytes_written);
+///     }
+///     Err(e) => {
+///         eprintln!("Error occurred: {:?}", e);
+///     }
+/// }
+/// ```
 pub(crate) fn write_resource_lone(
     name: &str,
     data: &[u8],
@@ -823,6 +948,37 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     Ok(())
 }
 
+/// Retrieves the download URL for the latest `yt-dlp.exe` release from GitHub.
+///
+/// This function sends an HTTP GET request to the GitHub API to fetch the latest release details
+/// for `yt-dlp`. It checks if the release contains the `yt-dlp.exe` asset and returns its download
+/// URL if found. If any errors occur during the request, parsing, or asset lookup, they are returned
+/// as the appropriate `MdownError` variants.
+///
+/// # Errors
+/// - `MdownError::NetworkError(10631)`: If there is an error while creating the HTTP client.
+/// - `MdownError::NetworkError(10632)`: If there is an error while sending the HTTP request.
+/// - `MdownError::CustomError(10633)`: If the response from the server is not successful.
+/// - `MdownError::JsonError(10634)`: If there is an error parsing the JSON response.
+/// - `MdownError::NotFoundError(10637)`: If the `assets` array is not found in the JSON response.
+/// - `MdownError::NotFoundError(10635)`: If the download URL for `yt-dlp.exe` is not found in the assets.
+/// - `MdownError::NotFoundError(10636)`: If `yt-dlp.exe` is not found in the release assets.
+///
+/// # Returns
+/// - `Ok(String)`: The download URL for `yt-dlp.exe` if found.
+/// - `Err(MdownError)`: In case of any errors during the process.
+///
+/// # Example
+/// ```
+/// match get_ytdlp().await {
+///     Ok(download_url) => {
+///         println!("Download URL: {}", download_url);
+///     }
+///     Err(e) => {
+///         eprintln!("Error occurred: {:?}", e);
+///     }
+/// }
+/// ```
 async fn get_ytdlp() -> Result<String, MdownError> {
     let url = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest";
     let client = match download::get_client() {
@@ -1209,6 +1365,37 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
     Ok((settings, changed))
 }
 
+/// Checks and updates the tutorial status based on database and argument values.
+///
+/// This function checks whether the tutorial should be shown by looking for the relevant entry
+/// in the database. It reads the tutorial flag from the database and updates the global `TUTORIAL`
+/// state accordingly. If no tutorial value is found, it attempts to initialize the tutorial flag
+/// and store it in the database. The function also checks various argument flags (`ARGS_TUTORIAL`,
+/// `ARGS_SKIP_TUTORIAL`) to force specific tutorial behavior.
+///
+/// # Errors
+/// - `MdownError::ChainedError(10673)`: If there is an error retrieving the database path.
+/// - `MdownError::DatabaseError(10626)`: If there is an error opening the database connection.
+/// - `MdownError::CustomError(10627)`: If there is an error converting the byte value of the tutorial flag to a `String`.
+/// - `MdownError::ChainedError(10674)`: If there is an error while handling the tutorial flag from the database.
+/// - `MdownError::ChainedError(10675)`: If there is an error while attempting to write the tutorial flag to the database.
+/// - `MdownError::ChainedError(10676)`: If there is an error while reading the tutorial flag from the database.
+///
+/// # Returns
+/// - `Ok(())`: If the operation is successful.
+/// - `Err(MdownError)`: In case of any errors during the process.
+///
+/// # Example
+/// ```
+/// match check_tutorial() {
+///     Ok(()) => {
+///         println!("Tutorial check completed successfully.");
+///     }
+///     Err(e) => {
+///         eprintln!("Error occurred: {:?}", e);
+///     }
+/// }
+/// ```
 pub(crate) fn check_tutorial() -> Result<(), MdownError> {
     debug!("check_tutorial");
 

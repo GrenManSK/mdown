@@ -20,6 +20,33 @@ use crate::{
     zip_func,
 };
 
+/// Retrieves the content of a directory and returns it as a JSON object.
+///
+/// # Parameters
+///
+/// - `path: &str` - The path of the directory to scan. The path is URL-decoded before being used.
+///
+/// # Returns
+///
+/// - `Ok(Value::Object)` - A JSON object where keys are file/directory names and values are metadata:
+///   - `"size"` (`u64`): The size of the file in bytes.
+///   - `"modified"` (`SystemTime`): The last modified timestamp.
+///   - `"path"` (`String`): The file or directory name.
+///   - `"type"` (`"file"` or `"directory"`): Indicates whether the entry is a file or a directory.
+///   - `"content"` (`Object`): If the entry is a directory, contains its nested contents.
+/// - `Err(MdownError)` - Returns an error in the following cases:
+///   - `ConversionError`: If decoding the input path fails (error code `11200`, `11203`).
+///   - `IoError`: If reading the directory (`11201`), accessing an entry (`11202`),
+///     retrieving metadata (`11204`), or fetching the modification time (`11205`) fails.
+///   - `NotFoundError`: If `file_info` cannot be converted to a mutable object (`11206`).
+///
+/// # Behavior
+///
+/// - Decodes the URL-encoded path before use.
+/// - Iterates over entries in the specified directory.
+/// - Gathers metadata for each entry (size, modification time, type).
+/// - Recursively retrieves content for subdirectories.
+/// - Returns a structured JSON representation of the directory tree.
 fn get_directory_content(path: &str) -> Result<Value, MdownError> {
     let mut result = serde_json::Map::new();
     let decoded_str = match percent_encoding::percent_decode_str(path).decode_utf8() {
@@ -94,6 +121,42 @@ fn get_directory_content(path: &str) -> Result<Value, MdownError> {
     Ok(Value::Object(result))
 }
 
+/// Handles an incoming client request over a TCP stream.
+///
+/// # Parameters
+///
+/// - `stream: TcpStream` - The TCP stream representing the client's connection.
+///
+/// # Returns
+///
+/// - `Ok(())` - If the request was successfully processed.
+/// - `Err(MdownError)` - If an error occurs during request handling, categorized as:
+///   - `IoError`: Errors related to network communication, reading files, or writing responses.
+///   - `JsonError`: Errors in JSON processing.
+///   - `ConversionError`: Errors in decoding URL-encoded paths.
+///   - `CustomError`: When a requested resource is not found.
+///   - `ChainedError`: For errors originating from other functions.
+///
+/// # Supported Endpoints
+///
+/// - `/__search__?path=<dir>`: Returns JSON metadata of directory contents.
+/// - `/__preview__?path=<file>`: Returns the image contents of a `.cbz` file or a regular image.
+/// - `/__download__?path=<dir>`: Creates and sends a `.zip` archive of the specified directory.
+/// - `/__version__`: Returns the current application version as plain text.
+/// - `/__get__?path=<resource>`: Returns predefined resources (e.g., `error_404` image).
+/// - `/` (Root path): Returns the main HTML page.
+/// - Any other path:
+///   - If it's a file, serves it as a downloadable attachment.
+///   - Otherwise, responds with `404 NOT FOUND`.
+///
+/// # Behavior
+///
+/// - Reads the request line and extracts the request path.
+/// - Decodes percent-encoded URLs before processing.
+/// - Handles file system operations securely (reading, writing, compressing).
+/// - Sends appropriate HTTP responses based on the request.
+/// - Uses `BufReader` for efficient input handling.
+/// - Writes responses using `write_all`, ensuring the full message is sent.
 fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
     let mut stream = BufReader::new(stream);
     let mut request_line = String::new();
@@ -361,6 +424,22 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
     Ok(())
 }
 
+/// Retrieves the HTML content for the server's main page.
+///
+/// # Returns
+///
+/// - If `ARGS_DEV` is enabled:
+///   - Attempts to read `server.html` from the local filesystem.
+///   - If the file exists, returns its contents.
+///   - If the file is missing or unreadable, returns a predefined 404 page.
+/// - If `ARGS_DEV` is disabled:
+///   - Returns a predefined HTML string.
+///
+/// # Behavior
+///
+/// - Uses `File::open` to check for `server.html` in development mode.
+/// - Reads the file into a `String`, returning an error page on failure.
+/// - Avoids unnecessary allocations by directly returning predefined HTML in non-dev mode.
 fn get_html() -> String {
     if *args::ARGS_DEV {
         let err_404 = String::from(

@@ -517,26 +517,21 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                                 }
                             };
 
-                            let name = obj.name;
-
                             let pages = obj.pages;
-
                             let id = obj.id;
-
                             let title = obj.title;
-
                             let chapter = obj.chapter;
-
                             let volume = obj.volume;
 
-                            println!("Name: {}", name);
-                            if volume != "null" {
+                            if volume != "" {
                                 println!("Volume: {}", volume);
                             }
                             println!("Chapter: {}", chapter);
                             println!("Pages: {}", pages);
                             println!("ID: {}", id);
-                            println!("Title: {}", title);
+                            if title != "" {
+                                println!("Title: {}", title);
+                            }
                             println!();
                         }
                     } else {

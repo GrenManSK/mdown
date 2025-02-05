@@ -296,7 +296,7 @@ pub(crate) fn start() {
                 }
                 return;
             }
-            MusicStage::None => ()
+            MusicStage::None => (),
         }
     }
 }

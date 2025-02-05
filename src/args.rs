@@ -4,7 +4,7 @@ use parking_lot::Mutex;
 
 use crate::metadata::Settings;
 
-const MAX_CONSECUTIVE: &str = "40";
+const MAX_CONSECUTIVE: usize = 40;
 const DEFAULT_LANG: &str = "en";
 
 lazy_static! {
@@ -35,7 +35,13 @@ lazy_static! {
     pub(crate) static ref ARGS_MUSIC: Option<Option<String>> = ARGS.lock().music.clone();
 
     /// The current working directory as specified by the user.
-    pub(crate) static ref ARGS_CWD: String = ARGS.lock().cwd.clone();
+    pub(crate) static ref ARGS_CWD: String = {
+        let mut cwd = ARGS.lock().cwd.clone();
+        if !cwd.ends_with('/') {
+            cwd.push('/');
+        }
+        cwd
+    };
 
     /// Indicates whether the database sorting is disabled.
     pub(crate) static ref ARGS_UNSORTED: bool = ARGS.lock().unsorted;
@@ -229,11 +235,11 @@ pub(crate) struct ParserArgs {
     #[arg(
         short,
         long,
-        default_value_t = String::from(MAX_CONSECUTIVE),
+        default_value_t = MAX_CONSECUTIVE,
         next_line_help = true,
         help = "download manga images by supplied number at once;\nit is highly recommended to use MAX 50 because of lack of performance and non complete manga downloading,\nmeaning chapter will not download correctly, meaning missing or corrupt pages\n"
     )]
-    pub(crate) max_consecutive: String,
+    pub(crate) max_consecutive: usize,
 
     /// Download manga even if it already exists.
     #[arg(long, next_line_help = true, help = "download manga even if it already exists")]
@@ -476,7 +482,7 @@ pub(crate) struct Args {
     pub(crate) saver: bool,
     pub(crate) stat: bool,
     pub(crate) quiet: bool,
-    pub(crate) max_consecutive: String,
+    pub(crate) max_consecutive: usize,
     pub(crate) force: bool,
     pub(crate) offset: String,
     pub(crate) database_offset: String,
@@ -505,12 +511,27 @@ pub(crate) struct Args {
 }
 
 impl Args {
-    /// Updates the value of a specified field in the `Args` struct.
+    /// Updates the configuration based on the provided type and value.
     ///
-    /// # Arguments
+    /// # Parameters
     ///
-    /// * `typ` - The type of value to update.
-    /// * `to` - The new value to set.
+    /// - `typ: &str` - The type of setting to modify. Supported values:
+    ///   - `"folder"`: Updates the folder path if it is set to `"."`.
+    ///   - `"stat"`: Updates the `stat` boolean flag.
+    ///   - `"backup"`: Updates the `backup` boolean flag.
+    ///   - `"music"` (only when the `"music"` feature is enabled): Updates the `music` optional string setting.
+    /// - `to: Value` - The new value to assign. Expected variants:
+    ///   - `Value::Str(value)`: Used for `"folder"`.
+    ///   - `Value::Bool(value)`: Used for `"stat"` and `"backup"`.
+    ///   - `Value::OptOptStr(value)`: Used for `"music"` when the `"music"` feature is enabled.
+    ///
+    /// # Behavior
+    ///
+    /// - If `typ` is `"folder"` and `self.folder` is `"."`, it updates `self.folder` to `value`.
+    /// - If `typ` is `"stat"`, it updates `self.stat` to the provided boolean value.
+    /// - If `typ` is `"backup"`, it updates `self.backup` to the provided boolean value.
+    /// - If `typ` is `"music"` and the `"music"` feature is enabled, it updates `self.music` to `value.clone()`.
+    /// - If `typ` does not match any of the expected values, the function does nothing.
     pub(crate) fn change(&mut self, typ: &str, to: Value) {
         match (typ, to) {
             ("folder", Value::Str(value)) => {
@@ -533,6 +554,29 @@ impl Args {
         }
     }
 
+    /// Updates the application settings based on the provided `Settings` struct.
+    ///
+    /// This function modifies the internal configuration by changing specific settings:
+    /// - `"folder"`: Updates the folder path where downloaded manga is stored.
+    /// - `"stat"`: Enables or disables statistics tracking.
+    /// - `"backup"`: Enables or disables backup functionality.
+    /// - `"music"` (*only if the `music` feature is enabled*): Sets the optional music setting.
+    ///
+    /// # Parameters
+    /// - `settings`: A `Settings` struct containing the new configuration values.
+    ///
+    /// # Example
+    /// ```
+    /// let mut args = Args::from_args();
+    /// let new_settings = Settings {
+    ///     folder: String::from("new_folder"),
+    ///     stat: true,
+    ///     backup: false,
+    ///     #[cfg(feature = "music")]
+    ///     music: Some(String::from("music_folder")),
+    /// };
+    /// args.change_settings(new_settings);
+    /// ```
     pub(crate) fn change_settings(&mut self, settings: Settings) {
         self.change("folder", Value::Str(settings.folder));
         self.change("stat", Value::Bool(settings.stat));
@@ -541,11 +585,23 @@ impl Args {
         self.change("music", Value::OptOptStr(settings.music));
     }
 
-    /// Creates an `Args` instance from the command-line arguments.
+    /// Parses command-line arguments and constructs an `Args` instance.
+    ///
+    /// This function utilizes `clap` to parse user-provided arguments and initializes the `Args` struct
+    /// accordingly. It extracts values from `ParserArgs` and determines subcommands where applicable.
     ///
     /// # Returns
+    /// - An `Args` struct containing all parsed command-line options.
     ///
-    /// An `Args` instance populated with values from the parsed command-line arguments.
+    /// # Behavior
+    /// - If no subcommand is provided, it defaults to `Commands::Default`.
+    /// - Fields are assigned directly from `ParserArgs`, with specific handling for database and app subcommands.
+    ///
+    /// # Example
+    /// ```
+    /// let args = Args::from_args();
+    /// println!("{:?}", args);
+    /// ```
     pub(crate) fn from_args() -> Args {
         let args = ParserArgs::parse();
         let subcommands = match args.subcommands {
@@ -612,22 +668,52 @@ impl Args {
         }
     }
 
-    /// Creates an `Args` instance with default values for GUI mode.
+    /// Creates an `Args` instance with specified values, primarily for GUI usage.
     ///
-    /// # Arguments
+    /// This function is available only when the `gui` feature is enabled (`#[cfg(feature = "gui")]`).
+    /// It allows the creation of an `Args` instance by providing explicit values instead of parsing
+    /// command-line arguments. Some values are taken from global `ARGS_*` constants or `lazy_static`
+    /// variables to maintain synchronization with application settings.
     ///
-    /// * `url` - The URL of the manga.
-    /// * `lang` - The language of the manga.
-    /// * `title` - The title of the manga.
-    /// * `folder` - The folder to store manga chapters.
-    /// * `volume` - The volume of the manga.
-    /// * `chapter` - The chapter of the manga.
-    /// * `saver` - Whether to use the saver mode.
-    /// * `stat` - Whether to generate a status file.
-    /// * `max_consecutive` - The maximum number of consecutive downloads.
-    /// * `force` - Whether to force download.
-    /// * `offset` - The start offset for chapters.
-    /// * `database_offset` - The start offset for the database.
+    /// # Parameters
+    /// - `url`: The URL of the manga to download.
+    /// - `lang`: The language code for the manga.
+    /// - `title`: The title of the manga.
+    /// - `folder`: The target folder for downloads.
+    /// - `volume`: The volume number (as a string).
+    /// - `chapter`: The chapter number (as a string).
+    /// - `saver`: Whether to enable the saver mode.
+    /// - `stat`: Whether to track statistics.
+    /// - `max_consecutive`: The maximum number of consecutive downloads allowed.
+    /// - `force`: Whether to force downloads.
+    /// - `offset`: The chapter offset for downloads.
+    /// - `database_offset`: The offset used for database queries.
+    ///
+    /// # Behavior
+    /// - Uses globally synchronized `ARGS_*` variables for settings not explicitly provided.
+    /// - Ensures GUI-related options remain consistent with other parts of the application.
+    /// - `ARGS_MUSIC` is not synchronized with the database.
+    ///
+    /// # Returns
+    /// - A fully initialized `Args` struct with GUI-compatible values.
+    ///
+    /// # Example
+    /// ```
+    /// let args = Args::from(
+    ///     "https://mangadex.org/title/123".to_string(),
+    ///     "en".to_string(),
+    ///     "Example Manga".to_string(),
+    ///     "downloads".to_string(),
+    ///     "1".to_string(),
+    ///     "2".to_string(),
+    ///     true,
+    ///     false,
+    ///     5,
+    ///     false,
+    ///     "0".to_string(),
+    ///     "0".to_string(),
+    /// );
+    /// ```
     #[cfg(feature = "gui")]
     pub(crate) fn from(
         url: String,
@@ -638,7 +724,7 @@ impl Args {
         chapter: String,
         saver: bool,
         stat: bool,
-        max_consecutive: String,
+        max_consecutive: usize,
         force: bool,
         offset: String,
         database_offset: String

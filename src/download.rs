@@ -20,6 +20,7 @@ use crate::{
     string,
     tutorial,
     utils,
+    version_manager::get_current_version,
 };
 /// Creates and configures a `reqwest::Client` for making HTTP requests.
 ///
@@ -45,12 +46,7 @@ use crate::{
 /// ```
 #[inline]
 pub(crate) fn get_client() -> Result<reqwest::Client, reqwest::Error> {
-    reqwest::Client
-        ::builder()
-        .user_agent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
-        )
-        .build()
+    reqwest::Client::builder().user_agent(&format!("MDOWN v{}", get_current_version())).build()
 }
 
 /// Sends an HTTP GET request to a constructed URL based on the provided parameters.
@@ -214,6 +210,35 @@ pub(crate) async fn get_response_client(full_url: &str) -> Result<reqwest::Respo
     }
 }
 
+/// Sends an HTTP GET request to the specified URL using the provided client.
+///
+/// This asynchronous function sends a GET request to the `full_url` using the given `reqwest::Client`
+/// and returns the server's response. If there is a network error during the request, it is returned
+/// as a `MdownError::NetworkError` with the appropriate error code.
+///
+/// # Arguments
+/// - `full_url`: The full URL to send the GET request to.
+/// - `client`: A reference to a `reqwest::Client` used to send the request.
+///
+/// # Errors
+/// - `MdownError::NetworkError(10329)`: If there is a network error during the request.
+///
+/// # Returns
+/// - `Ok(reqwest::Response)`: The response from the server if the request is successful.
+/// - `Err(MdownError)`: In case of a network error during the request.
+///
+/// # Example
+/// ```
+/// let client = reqwest::Client::new();
+/// match get_response_from_client("https://example.com", &client).await {
+///     Ok(response) => {
+///         println!("Received response: {:?}", response);
+///     }
+///     Err(e) => {
+///         eprintln!("Error occurred: {:?}", e);
+///     }
+/// }
+/// ```
 pub(crate) async fn get_response_from_client(
     full_url: &str,
     client: &reqwest::Client

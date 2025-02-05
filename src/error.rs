@@ -172,6 +172,25 @@ impl MdownError {
         }
     }
 
+    /// Retrieves the error code associated with the `MdownError`.
+    ///
+    /// This function extracts the error code from different variants of the `MdownError` enum,
+    /// including I/O errors, network errors, custom errors, and more. It is used to retrieve
+    /// a specific error code for further handling or reporting.
+    ///
+    /// # Errors
+    /// This function does not itself generate errors but returns the error code from the associated
+    /// error variant.
+    ///
+    /// # Returns
+    /// - `i32`: The error code associated with the specific variant of the `MdownError`.
+    ///
+    /// # Example
+    /// ```
+    /// let error = MdownError::JsonError("Network failure".to_string(), 10329);
+    /// let error_code = error.code();
+    /// println!("Error code: {}", error_code); // Output: Error code: 10329
+    /// ```
     #[cold]
     pub fn code(&self) -> i32 {
         *(match self {
@@ -188,6 +207,7 @@ impl MdownError {
             MdownError::ChainedError(_, err_code) => err_code,
         }) as i32
     }
+
     /// Creates a new `MdownError` of type `CustomError` with a default message and error name.
     #[allow(dead_code)]
     pub fn new() -> MdownError {
