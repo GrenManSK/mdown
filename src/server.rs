@@ -169,6 +169,25 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
 
     let parts: Vec<&str> = request_line.split_whitespace().collect();
     let path = request_line.split_whitespace().nth(1).unwrap_or("/");
+    let method = parts.get(0).unwrap_or(&"");
+
+    if method.eq_ignore_ascii_case("OPTIONS") {
+        log!("Options");
+        let response =
+            "HTTP/1.1 204 No Content\r\n\
+                    Access-Control-Allow-Origin: *\r\n\
+                    Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\
+                    Access-Control-Allow-Headers: Content-Type\r\n\r\n";
+
+        match stream.get_mut().write_all(response.as_bytes()) {
+            Ok(_) => {
+                return Ok(());
+            }
+            Err(err) => {
+                return Err(MdownError::IoError(err, String::new(), 11208));
+            }
+        }
+    }
     if parts.len() >= 2 {
         let query_params = get_query(parts);
         if path.starts_with("/__search__") {
@@ -394,6 +413,9 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 response.push_str(&filename);
                 response.push_str("\r\n");
                 response.push_str("Content-Type: application/octet-stream\r\n");
+                response.push_str("Access-Control-Allow-Origin: *\r\n");
+                response.push_str("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n");
+                response.push_str("Access-Control-Allow-Headers: Content-Type\r\n");
                 response.push_str("Content-Length: ");
                 response.push_str(&contents.len().to_string());
                 response.push_str("\r\n\r\n");
@@ -541,15 +563,15 @@ pub(crate) fn start() -> Result<(), MdownError> {
         }
     }
 
-    let listener = match TcpListener::bind(format!("{}:3000", ip_address)) {
+    let listener = match TcpListener::bind(format!("{}:80", ip_address)) {
         Ok(listener) => listener,
         Err(err) => {
             return Err(MdownError::IoError(err, String::new(), 11235));
         }
     };
-    println!("Server listening on {}:3000 ...", ip_address);
+    println!("Server listening on {}:80 ...", ip_address);
 
-    let url = format!("http://{}:3000/", ip_address);
+    let url = format!("http://{}:80/", ip_address);
     if let Err(err) = webbrowser::open(&url) {
         eprintln!("Error opening web browser: {}", err);
     }

@@ -1046,7 +1046,7 @@ pub(crate) async fn download_manga(
 
                 let vol = match chapter_attr.volume.unwrap_or_default().as_str() {
                     "" => String::new(),
-                    value => format!("Vol.{} ", value),
+                    value => format!(" Vol.{} ;", value),
                 };
 
                 let con_chap = resolute::resolve_skip(arg_chapter, &chapter_num);
@@ -1230,7 +1230,7 @@ pub(crate) async fn download_manga(
                     let folder_path_tmp = &filename.get_folder_w_end();
                     let folder_path = folder_path_tmp.as_str();
                     let message = format!(
-                        "  Metadata: Language: {}; Pages: {}; {}; Chapter: {}{}",
+                        "  Metadata: Language: {}; Pages: {};{} Chapter: {}{}",
                         lang,
                         pages,
                         vol,
