@@ -5,6 +5,7 @@ use image::load_from_memory;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use serde_json::Value;
+use smallvec::{ smallvec, SmallVec };
 use std::{
     collections::{ HashMap, HashSet },
     io::BufReader,
@@ -473,7 +474,7 @@ impl App {
 
             ui.painter().rect_filled(
                 bar_rect.shrink((expanded_bar_height - default_bar_height) / 2.0),
-                Rounding::same(4.0), // Rounded bar
+                CornerRadius::same(4), // Rounded bar
                 Color32::from_gray(200)
             );
 
@@ -554,7 +555,7 @@ impl App {
 
                 ui.painter().rect_filled(
                     hovered_rect,
-                    Rounding::same(6.0), // Rounded segments
+                    CornerRadius::same(6), // Rounded segments
                     segment_color
                 );
 
@@ -583,7 +584,7 @@ impl App {
                     );
                     ui.painter().rect_filled(
                         tooltip_rect,
-                        Rounding::same(4.0), // Rounded tooltip
+                        CornerRadius::same(4), // Rounded tooltip
                         Color32::WHITE
                     );
                     ui.painter().text(
@@ -599,7 +600,7 @@ impl App {
             if let Some(hovered_rect) = hovered_segment_rect {
                 ui.painter().rect_filled(
                     hovered_rect.expand(10.0),
-                    Rounding::same(6.0), // Rounded hovered rectangle
+                    CornerRadius::same(6), // Rounded hovered rectangle
                     Color32::LIGHT_GRAY
                 );
             }
@@ -716,7 +717,7 @@ impl App {
             let text_position = screen_rect.center_top() + egui::vec2(0.0, y_offset + 50.0);
 
             let max_width = screen_rect.width() - 40.0; // Ensure padding on both sides
-            let mut wrapped_lines = Vec::new();
+            let mut wrapped_lines: SmallVec<[String; 2]> = smallvec![];
             let fonts = ui.fonts(|fonts| fonts.clone());
 
             let mut current_line = String::new();

@@ -55,8 +55,8 @@ enum State {
 }
 
 pub(crate) fn start() {
-    let (_stream, stream_handle) = match OutputStream::try_default() {
-        Ok(stream) => stream,
+    let stream_handle = match OutputStream::try_default() {
+        Ok((_stream, stream_handle)) => stream_handle,
         Err(_) => {
             eprintln!("Couldn't open OutputStream (music)");
             return;

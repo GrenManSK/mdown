@@ -16,16 +16,16 @@ build = "src/build.rs"
 [dependencies]
 base64 = "0.22.1"
 bytefmt = "0.1.7"
-bytes = "1.10.0"
-chrono = "0.4.39"
-clap = { version = "4.5.28", features = ["derive"] }
+bytes = "1.10.1"
+chrono = "0.4.40"
+clap = { version = "4.5.32", features = ["derive"] }
 crosscurses = { version = "0.1.0", features = ["win32"] }
 crossterm = "0.28.1"
 ctrlc = { version = "3.4.5", optional = true }
-eframe = { version = "0.30.0", optional = true }
-egui = { version = "0.30.0", optional = true }
+eframe = { version = "0.31.1", optional = true }
+egui = { version = "0.31.1", optional = true }
 futures = "0.3.31"
-gif = "0.13.1"
+gif = { version = "0.13.1", optional = true }
 glob = "0.3.2"
 if-addrs = { version = "0.13.3", optional = true }
 image = { version = "0.25.5", optional = true }
@@ -35,31 +35,28 @@ percent-encoding = { version = "2.3.1", optional = true }
 rand = "0.9.0"
 regex = "1.11.1"
 remove_dir_all = "1.0.0"
-reqwest = { version = "0.12.12", features = ["json"] }
+reqwest = { version = "0.12.14", features = ["json"] }
 rodio = { version = "0.20.1", optional = true }
-rusqlite = { version = "0.33.0", features = ["bundled"] }
-ryu = "1.0.19"
-semver = "1.0.25"
-serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.138"
+rusqlite = { version = "0.34.0", features = ["bundled"] }
+ryu = "1.0.20"
+semver = "1.0.26"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
 sha2 = "0.10.8"
-smallvec = "1.13.2"
-thiserror = "2.0.11"
-tokio = { version = "1.43.0", features = ["full"] }
+smallvec = "1.14.0"
+thiserror = "2.0.12"
+tokio = { version = "1.44.1", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 url = "2.5.4"
-uuid = "1.12.1"
+uuid = "1.16.0"
 walkdir = "2.5.0"
-webbrowser = { version = "1.0.3", optional = true }
 zip = "0.6.6"
+webbrowser = { version = "1.0.4", optional = true }
 
 
 [build-dependencies]
 winres = "0.1.12"
-
-[dev-dependencies]
-h2 = "0.4.7"
 
 [features]
 default = ["web", "server"]
@@ -68,4 +65,4 @@ full = ["web", "gui", "server", "music"]
 music = ["rodio"]
 web = ["webbrowser", "ctrlc", "percent-encoding"]
 server = ["webbrowser", "if-addrs", "percent-encoding", "ctrlc"]
-gui = ["eframe", "egui", "image"]
+gui = ["eframe", "egui", "gif", "image"]
