@@ -301,7 +301,7 @@ pub(crate) fn handle_suspended() {
             let message = match err {
                 MdownError::IoError(err, name, err_code) => {
                     match name.as_str() {
-                        "" => format!("Error: IO Error {} ({}) Code: {}", err, to, err_code),
+                        "" => format!("Error: IO Error {} {} Code: {}", err, to, err_code),
                         name =>
                             format!(
                                 "Error: IO Error {} in file {}{} Code: {}",

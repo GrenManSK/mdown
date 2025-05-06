@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.15.4"
+version = "0.15.5"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"
@@ -17,11 +17,11 @@ build = "src/build.rs"
 base64 = "0.22.1"
 bytefmt = "0.1.7"
 bytes = "1.10.1"
-chrono = "0.4.40"
-clap = { version = "4.5.35", features = ["derive"] }
+chrono = "0.4.41"
+clap = { version = "4.5.37", features = ["derive"] }
 crosscurses = { version = "0.1.0", features = ["win32"] }
 crossterm = "0.29.0"
-ctrlc = { version = "3.4.5", optional = true }
+ctrlc = { version = "3.4.6", optional = true }
 eframe = { version = "0.31.1", optional = true }
 egui = { version = "0.31.1", optional = true }
 futures = "0.3.31"
@@ -32,20 +32,20 @@ image = { version = "0.25.6", optional = true }
 lazy_static = "1.5.0"
 parking_lot = "0.12.3"
 percent-encoding = { version = "2.3.1", optional = true }
-rand = "0.9.0"
+rand = "0.9.1"
 regex = "1.11.1"
 remove_dir_all = "1.0.0"
 reqwest = { version = "0.12.15", features = ["json"] }
 rodio = { version = "0.20.1", optional = true }
-rusqlite = { version = "0.34.0", features = ["bundled"] }
+rusqlite = { version = "0.35.0", features = ["bundled"] }
 ryu = "1.0.20"
 semver = "1.0.26"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-sha2 = "0.10.8"
+sha2 = "0.10.9"
 smallvec = "1.15.0"
 thiserror = "2.0.12"
-tokio = { version = "1.44.2", features = ["full"] }
+tokio = { version = "1.45.0", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 url = "2.5.4"

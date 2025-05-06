@@ -289,7 +289,7 @@ pub(crate) struct ParserArgs {
     pub(crate) encode: String,
 
     /// Enable logging and write logs to `log.json`.
-    #[arg(long, next_line_help = true, help = "print log and write it in log,json")]
+    #[arg(long, next_line_help = true, help = "print log and write it in log.json")]
     pub(crate) log: bool,
 
     #[arg(long, next_line_help = true, help = "will run tutorial")]
