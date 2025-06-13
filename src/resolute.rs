@@ -1411,6 +1411,7 @@ fn resolve_language(title_data: &Value) -> Result<(), MdownError> {
         string(4, 0, &format!("Available languages: {}", langs));
         string(5, 0, &format!("Choose from these    {}", "^".repeat(lang_range)));
         debug!("available languages: {:?}", final_lang);
+        return Err(MdownError::NotFoundError(String::from("language"), 10271));
     }
     Ok(())
 }

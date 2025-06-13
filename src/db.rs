@@ -1108,10 +1108,9 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                 folder,
                 stat,
                 backup,
+                clear,
                 #[cfg(feature = "music")]
                 music,
-                clear,
-                #[cfg(not(feature = "music"))]
                 ..
             },
         ) => {
