@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.15.6"
+version = "0.15.7"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"
@@ -18,40 +18,42 @@ base64 = "0.22.1"
 bytefmt = "0.1.7"
 bytes = "1.10.1"
 chrono = "0.4.41"
-clap = { version = "4.5.40", features = ["derive"] }
+clap = { version = "4.5.46", features = ["derive"] }
 crosscurses = { version = "0.1.0", features = ["win32"] }
 crossterm = "0.29.0"
 ctrlc = { version = "3.4.7", optional = true }
-eframe = { version = "0.31.1", optional = true }
-egui = { version = "0.31.1", optional = true }
+eframe = { version = "0.32.1", optional = true }
+egui = { version = "0.32.1", optional = true }
 futures = "0.3.31"
-gif = { version = "0.13.1", optional = true }
-glob = "0.3.2"
-if-addrs = { version = "0.13.4", optional = true }
+gif = { version = "0.13.3", optional = true }
+glob = "0.3.3"
+if-addrs = { version = "0.14.0", optional = true }
 image = { version = "0.25.6", optional = true }
 lazy_static = "1.5.0"
 parking_lot = "0.12.4"
-percent-encoding = { version = "2.3.1", optional = true }
-rand = "0.9.1"
-regex = "1.11.1"
+percent-encoding = { version = "2.3.2", optional = true }
+rand = "0.9.2"
+regex = "1.11.2"
 remove_dir_all = "1.0.0"
-reqwest = { version = "0.12.19", features = ["json"] }
+reqwest = { version = "0.12.23", features = ["json"] }
+# rodio will be left on 0.20.1 reason change in api
 rodio = { version = "0.20.1", optional = true }
-rusqlite = { version = "0.36.0", features = ["bundled"] }
+rusqlite = { version = "0.37.0", features = ["bundled"] }
 ryu = "1.0.20"
 semver = "1.0.26"
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
+serde_json = "1.0.143"
 sha2 = "0.10.9"
 smallvec = "1.15.1"
-thiserror = "2.0.12"
-tokio = { version = "1.45.1", features = ["full"] }
+thiserror = "2.0.16"
+tokio = { version = "1.47.1", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
-url = "2.5.4"
-uuid = "1.17.0"
+url = "2.5.7"
+uuid = "1.18.0"
 walkdir = "2.5.0"
-webbrowser = { version = "1.0.4", optional = true }
+webbrowser = { version = "1.0.5", optional = true }
+# zip will be left on 0.6.6 readon see here https://github.com/GrenManSK/mdown/commit/89ab31464d638b9ec2af318bcd0a5356bc94ed2d
 zip = "0.6.6"
 
 

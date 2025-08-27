@@ -193,7 +193,7 @@ impl App {
     /// - Updates the `panel` field based on the user's selection.
     /// - Resets reader-related data when switching to the "Reader" panel.
     fn menu(&mut self, ui: &mut Ui) {
-        menu::bar(ui, |ui| {
+        egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("Menu", |ui| {
                 if ui.button("Main").clicked() {
                     info!("Selected main");

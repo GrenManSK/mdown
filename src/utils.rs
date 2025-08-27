@@ -796,7 +796,7 @@ pub(crate) async fn print_version(file: &str) {
     string(MAXPOINTS.max_y - 1, 0, &" ".repeat(MAXPOINTS.max_x as usize));
 }
 
-pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match> {
+pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match<'_>> {
     let re = match regex::Regex::new(r"https://mangadex.org/title/([\w-]+)/?") {
         Ok(value) => value,
         Err(err) => {
