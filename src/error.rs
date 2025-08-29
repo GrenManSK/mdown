@@ -210,7 +210,7 @@ impl MdownError {
 
     /// Creates a new `MdownError` of type `CustomError` with a default message and error name.
     #[allow(dead_code)]
-    pub fn new() -> MdownError {
+    pub fn test() -> MdownError {
         MdownError::CustomError(
             String::from("Nothing to worry about"),
             String::from("TestError"),
@@ -232,8 +232,8 @@ impl MdownError {
 /// ```rust
 /// use std::io;
 ///
-/// let io_error = MdownError::IoError(io::Error::new(io::ErrorKind::NotFound, "File not found"), "file.txt".to_string());
-/// let other_error = MdownError::OtherError("An unexpected error occurred".to_string());
+/// let io_error = MdownError::IoError(io::Error::new(io::ErrorKind::NotFound, "File not found"), "file.txt".to_string(), 11000);
+/// let other_error = MdownError::OtherError("An unexpected error occurred".to_string(), 11001);
 ///
 /// // Handle and print IO error
 /// handle_error(&io_error, Some("Reading file".to_string()));
