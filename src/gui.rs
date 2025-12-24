@@ -718,7 +718,6 @@ impl App {
 
             let max_width = screen_rect.width() - 40.0; // Ensure padding on both sides
             let mut wrapped_lines: SmallVec<[String; 2]> = smallvec![];
-            let fonts = ui.fonts(|fonts| fonts.clone());
 
             let mut current_line = String::new();
             for word in full_text.split_whitespace() {
@@ -728,11 +727,13 @@ impl App {
                     format!("{} {}", current_line, word)
                 };
 
-                let test_line_size = fonts.layout_no_wrap(
-                    test_line.clone(),
-                    egui::TextStyle::Heading.resolve(&ui.style()),
-                    Color32::BLACK
-                );
+                let test_line_size = ui.fonts_mut(|fonts| {
+                    fonts.layout_no_wrap(
+                        test_line.clone(),
+                        egui::TextStyle::Heading.resolve(&ui.style()),
+                        Color32::BLACK
+                    )
+                });
 
                 if test_line_size.rect.width() > max_width {
                     wrapped_lines.push(current_line.clone());
@@ -749,7 +750,9 @@ impl App {
             let text_size = egui::vec2(
                 max_width,
                 (wrapped_lines.len() as f32) *
-                    fonts.row_height(&egui::TextStyle::Heading.resolve(&ui.style()))
+                    ui.fonts_mut(|fonts| {
+                        fonts.row_height(&egui::TextStyle::Heading.resolve(&ui.style()))
+                    })
             );
 
             let bg_rect = egui::Rect::from_center_size(
@@ -774,7 +777,9 @@ impl App {
                     egui::TextStyle::Heading.resolve(&ui.style()),
                     Color32::WHITE
                 );
-                current_y += fonts.row_height(&egui::TextStyle::Heading.resolve(&ui.style()));
+                current_y += ui.fonts_mut(|fonts| {
+                    fonts.row_height(&egui::TextStyle::Heading.resolve(&ui.style()))
+                });
             }
 
             // Request repaint if animation is ongoing
@@ -818,7 +823,7 @@ impl App {
             let screen_rect = ui.clip_rect();
 
             // Determine the position and size for the text
-            let text_size = ui.fonts(|fonts| {
+            let text_size = ui.fonts_mut(|fonts| {
                 fonts
                     .layout_no_wrap(
                         full_text.clone(),

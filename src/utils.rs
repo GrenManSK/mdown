@@ -787,7 +787,7 @@ pub(crate) async fn print_version(file: &str) {
     }
     let version = get_current_version();
     for _ in 0..50 {
-        string(MAXPOINTS.max_y - 1, 0, &format!("Current version: {}", version));
+        string(MAXPOINTS.max_y - 2, 0, &format!("Current version: {}", version));
         if fs::metadata(file).is_err() {
             break;
         }
@@ -834,6 +834,11 @@ pub(crate) fn resolve_end(
     }
 
     sleep(Duration::from_millis(110));
+
+    if *args::ARGS_INFO != args::ARGS_UNSPECIFIED || *args::ARGS_QUIET {
+        return Ok(());
+    }
+
     let message = if status_code.is_client_error() {
         string(0, 0, "Id was not found, please recheck the id and try again");
         format!(

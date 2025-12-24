@@ -8,15 +8,15 @@
 5 digits - program errors
     first digit - 1
     second and third digits - file order
-        main.rs - 1
-        resolute.rs - 2
-        download.rs - 3
-        utils.rs - 4
-        args.rs - 5
-        db.rs - 6
-        zip_func.rs - 7
-        getter.rs - 8
-        metadata.rs - 9
+        main.rs - 01
+        resolute.rs - 02
+        download.rs - 03
+        utils.rs - 04
+        args.rs - 05
+        db.rs - 06
+        zip_func.rs - 07
+        getter.rs - 08
+        metadata.rs - 09
         error.rs - 10
         macros.rs - 11
         server.rs - 12

@@ -501,7 +501,7 @@ async fn start() -> Result<(), error::MdownError> {
     };
 
     // Setup requirements if not in quiet mode
-    if !*args::ARGS_QUIET {
+    if !*args::ARGS_QUIET && *args::ARGS_INFO == args::ARGS_UNSPECIFIED {
         utils::setup_requirements(main_lock_file_path.clone());
     }
 
@@ -523,7 +523,11 @@ async fn start() -> Result<(), error::MdownError> {
     let url_from_search;
 
     // Retrieve and debug URL
-    let url = args::ARGS.lock().url.clone();
+    let url = if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+        args::ARGS_INFO.clone()
+    } else {
+        args::ARGS.lock().url.clone()
+    };
     debug!("\nstarting to search for uuid in '{}'", url);
 
     // Handle UUID retrieval and validation
@@ -918,7 +922,7 @@ pub(crate) async fn download_manga(
             let data_len = data_array.len();
             *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() = data_len as u64;
 
-            if !*args::ARGS_CHECK {
+            if !*args::ARGS_CHECK && *args::ARGS_INFO == args::ARGS_UNSPECIFIED {
                 let mut index = 0;
                 let mut data_number = 0;
                 while index < data_array.len() {
@@ -1044,7 +1048,9 @@ pub(crate) async fn download_manga(
 
                 title = resolute::title(title);
 
-                let vol = match chapter_attr.volume.unwrap_or_default().as_str() {
+                let vol_bare = chapter_attr.volume.unwrap_or_default();
+
+                let vol = match vol_bare.as_str() {
                     "" => String::new(),
                     value => format!(" Vol.{} ;", value),
                 };
@@ -1192,7 +1198,8 @@ pub(crate) async fn download_manga(
                             .iter()
                             .any(|item| item.number == chapter_num) &&
                         !all_ids.contains(&id_string)) ||
-                    arg_force
+                    arg_force ||
+                    *args::ARGS_INFO != args::ARGS_UNSPECIFIED
                 {
                     if *args::ARGS_CHECK {
                         if all_num.contains(&chapter_num) {
@@ -1254,12 +1261,26 @@ pub(crate) async fn download_manga(
                         tutorial::metadata();
                         tutorial_metadata = false;
                     }
+                    if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+                        println!("ID: {}", id);
+                        if vol != "" {
+                            println!("Volume: {}", vol_bare);
+                        }
+                        println!("Chapter: {}", chapter_num);
+                        println!("Language: {}", lang);
+                        if pages == 0 {
+                            println!("Pages: {} probably because chapter is not supported on mangadex, third party", pages);
+                        }
+                        println!("Pages: {}", pages);
+                        println!("Title: {}", title);
+                    }
                     if
-                        !*args::ARGS_CHECK ||
-                        !resolute::CHAPTERS
-                            .lock()
-                            .iter()
-                            .any(|chapter| chapter.number == chapter_num)
+                        (!*args::ARGS_CHECK ||
+                            !resolute::CHAPTERS
+                                .lock()
+                                .iter()
+                                .any(|chapter| chapter.number == chapter_num)) &&
+                        *args::ARGS_INFO == args::ARGS_UNSPECIFIED
                     {
                         if *args::ARGS_CHECK {
                             debug!("was added to to download list because check flag is set");
@@ -1522,13 +1543,7 @@ pub(crate) async fn download_chapter(
     let vol = &filename.vol;
     let chapter = &filename.chapter_num;
     string(3, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
-    if
-        *args::ARGS_WEB ||
-        *args::ARGS_GUI ||
-        *args::ARGS_CHECK ||
-        *args::ARGS_UPDATE ||
-        *args::ARGS_LOG
-    {
+    if *args::ARGS_WEB || *args::ARGS_GUI || *args::ARGS_UPDATE || *args::ARGS_LOG {
         let mut current_chapter = resolute::CURRENT_CHAPTER.lock();
         current_chapter.clear();
         current_chapter.push_str(&filename.get_folder_name());

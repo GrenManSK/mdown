@@ -439,6 +439,7 @@ pub(crate) fn extract_image_from_zip_gui(
         let file_stem = file_name.rsplit_once('.').map_or(file_name, |(stem, _)| stem);
 
         // Split by whitespace and dashes, then find the last numeric part
+        #[allow(unused_parens)]
         file_stem
             .split(|c: char| (c.is_whitespace() || c == '-'))
             .filter_map(|part| part.parse::<usize>().ok())

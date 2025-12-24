@@ -1078,6 +1078,10 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *MANGA_NAME.lock() = manga_name.clone();
     let folder = get_folder_name();
 
+     if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+        println!("Name: {}\n", manga_name);
+    }
+
     match resolve_language(title_data) {
         Ok(()) => (),
         Err(err) => {
@@ -1313,10 +1317,16 @@ fn resolve_theme_genre(title_data: &Value) {
             if !name.is_empty() {
                 match typ {
                     "theme" => {
+                        if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+                            println!("manga theme: {:?}", name);
+                        }
                         debug!("manga theme: {:?}", name);
                         theme.push(TagMetadata::new(name, id));
                     }
                     "genre" => {
+                        if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+                            println!("manga genre: {:?}", name);
+                        }
                         debug!("manga genre: {:?}", name);
                         genre.push(TagMetadata::new(name, id));
                     }
@@ -1337,6 +1347,10 @@ fn resolve_description(folder: &str, title_data: &serde_json::Value) -> Result<(
         .and_then(Value::as_str)
         .unwrap_or_default();
     let manga_folder = if *args::ARGS_UPDATE { MWD.lock().clone() } else { folder.to_string() };
+
+    if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+        println!("Description: {}\n", desc);
+    }
 
     let file_name = if *args::ARGS_UPDATE {
         String::from("_description.txt")
@@ -1406,10 +1420,10 @@ fn resolve_language(title_data: &Value) -> Result<(), MdownError> {
             lang_range += 1 + lang.to_string().replace("\"", "").len();
         }
         lang_range -= 1;
-        string(1, 0, &format!("Language is not available\nSelected language: {}", LANGUAGE.lock()));
-        string(3, 0, &format!("Original language: {}", orig_lang));
-        string(4, 0, &format!("Available languages: {}", langs));
-        string(5, 0, &format!("Choose from these    {}", "^".repeat(lang_range)));
+        string(3, 0, &format!("Language is not available\nSelected language: {}", LANGUAGE.lock()));
+        string(5, 0, &format!("Original language: {}", orig_lang));
+        string(6, 0, &format!("Available languages: {}", langs));
+        string(7, 0, &format!("Choose from these    {}", "^".repeat(lang_range)));
         debug!("available languages: {:?}", final_lang);
         return Err(MdownError::NotFoundError(String::from("language"), 10271));
     }

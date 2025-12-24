@@ -485,6 +485,11 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
             return Ok(());
         }
     };
+
+    if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+        println!("Statistics\n");
+    }
+
     match json_value {
         Value::Object(obj) => {
             let statistics = match obj.get("statistics").and_then(|stat| stat.get(id)) {
@@ -508,8 +513,31 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
                     data += &format!("Bayesian: {}\n\n---\n\n", bayesian);
                     for i in 1..11 {
                         data += &get_dist(&distribution, i);
+                        if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+                            let value = match i {
+                                1 => distribution.one,
+                                2 => distribution.two,
+                                3 => distribution.three,
+                                4 => distribution.four,
+                                5 => distribution.five,
+                                6 => distribution.six,
+                                7 => distribution.seven,
+                                8 => distribution.eight,
+                                9 => distribution.nine,
+                                10 => distribution.ten,
+                                _ => 0,
+                            };
+                            println!("{}: {}", i, value);
+                        }
                     }
                     data += &format!("## Follows: {}\n\n", follows);
+
+                    if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+                        println!("Rating: {}", average);
+                        println!("Bayesian: {}", bayesian);
+                        println!("Follows: {}", follows);
+                    }
+
                     if let Some(comments) = stat.comments {
                         let thread_id = comments.threadId;
                         let replies_count = comments.repliesCount;
@@ -518,6 +546,11 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
                             thread_id,
                             replies_count
                         );
+
+                        if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+                            println!("Thread: https://forums.mangadex.org/threads/{}", thread_id);
+                            println!("Number of comments in thread: {}", replies_count);
+                        }
                     }
                 }
                 Err(err) => {
@@ -531,6 +564,10 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
                 MdownError::JsonError(String::from("Could not parse statistics json"), 10314)
             );
         }
+    }
+
+    if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+        println!("");
     }
 
     // Write the Markdown content to the file

@@ -6,12 +6,16 @@ use crate::metadata::Settings;
 
 const MAX_CONSECUTIVE: usize = 40;
 const DEFAULT_LANG: &str = "en";
+pub(crate) const ARGS_UNSPECIFIED: &str = "UNSPECIFIED";
 
 lazy_static! {
     /// A globally accessible, thread-safe instance of the parsed command-line arguments.
     ///
     /// This instance is protected by a `Mutex` to allow safe concurrent access from multiple threads.
     pub(crate) static ref ARGS: Mutex<Args> = Mutex::new(Args::from_args());
+
+    /// Indicates whether the `quiet` mode is enabled.
+    pub(crate) static ref ARGS_INFO: String = ARGS.lock().info.clone();
 
     /// Indicates whether the `check` option is enabled.
     pub(crate) static ref ARGS_CHECK: bool = ARGS.lock().check;
@@ -153,11 +157,22 @@ pub(crate) struct ParserArgs {
         short,
         long,
         value_name = "SITE",
-        default_value_t = String::from("UNSPECIFIED"),
+        default_value_t = String::from(ARGS_UNSPECIFIED),
         next_line_help = true,
         help = "url of manga, supply in the format of https:/mangadex.org/title/[id]/\nor UUID\n"
     )]
     pub(crate) url: String,
+
+    /// URL of the manga to be downloaded. Provide in the format `https://mangadex.org/title/[id]/` or UUID.
+    #[arg(
+        short,
+        long,
+        value_name = "SITE",
+        default_value_t = String::from(ARGS_UNSPECIFIED),
+        next_line_help = true,
+        help = "url of manga, supply in the format of https:/mangadex.org/title/[id]/\nor UUID\n"
+    )]
+    pub(crate) info: String,
 
     /// Language of the manga to download; "*" is for all languages.
     #[arg(
@@ -348,7 +363,7 @@ pub(crate) struct ParserArgs {
 }
 
 /// Enum representing the available subcommands for the application.
-#[derive(Subcommand, Clone, Debug)]
+#[derive(Subcommand, Clone, Debug, PartialEq)]
 pub(crate) enum Commands {
     /// Subcommands related to database management.
     Database {
@@ -472,8 +487,10 @@ pub(crate) enum Value {
 }
 
 /// Structure representing the parsed command-line arguments.
+#[derive(PartialEq)]
 pub(crate) struct Args {
     pub(crate) url: String,
+    pub(crate) info: String,
     pub(crate) lang: String,
     pub(crate) title: String,
     pub(crate) folder: String,
@@ -610,6 +627,7 @@ impl Args {
         };
         Args {
             url: args.url,
+            info: args.info,
             lang: args.lang,
             title: args.title,
             folder: args.folder,
@@ -731,6 +749,7 @@ impl Args {
     ) -> Args {
         Args {
             url,
+            info: ARGS_INFO.clone(),
             lang,
             title,
             folder,
