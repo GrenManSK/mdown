@@ -568,13 +568,14 @@ pub(crate) async fn search() -> Result<String, MdownError> {
 
     // Limit is set to 1
 
-    let response = match
-        client
-            .get(&full_url)
-            .query(&[("title", title)])
-            .query(&[("limit", 1)])
-            .send().await
-    {
+    let url = match reqwest::Url::parse_with_params(&full_url, &[("title", title)]) {
+        Ok(url) => url,
+        Err(err) => {
+            return Err(MdownError::ConversionError(err.to_string(), 10409));
+        }
+    };
+
+    let response = match client.get(url).send().await {
         Ok(response) => response,
         Err(err) => {
             return Err(MdownError::NetworkError(err, 10410));
