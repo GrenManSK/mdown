@@ -119,12 +119,23 @@ fn version_new() -> Version {
 }
 
 pub(crate) fn check_app_ver() -> Result<bool, MdownError> {
-    let req_ver_text = format!("<{}", get_current_version());
-    let req1 = VersionReq::parse(&req_ver_text).unwrap();
+    let cur_ver = get_current_version();
+    let req_ver_text = format!("<{}", cur_ver);
+    let req1 = match VersionReq::parse(&req_ver_text) {
+        Ok(req) => req,
+        Err(_err) => {
+            return Err(
+                MdownError::ConversionError(
+                    String::from("Unable to parse version requirement"),
+                    11611
+                )
+            );
+        }
+    };
 
     let require_confirmation_from_user = false;
 
-    let current_version = match Version::parse(&get_current_version()) {
+    let current_version = match Version::parse(&cur_ver) {
         Ok(version) => version,
         Err(_err) => version_new(),
     };
@@ -139,9 +150,7 @@ pub(crate) fn check_app_ver() -> Result<bool, MdownError> {
         }
         Ok(None) => {
             debug!("Writing to database version");
-            return match
-                db::write_resource_lone(DB_VERSION, get_current_version().as_bytes(), false)
-            {
+            return match db::write_resource_lone(DB_VERSION, cur_ver.as_bytes(), false) {
                 Ok(_) => Ok(false),
                 Err(err) => Err(MdownError::ChainedError(Box::new(err), 11633)),
             };
@@ -155,7 +164,7 @@ pub(crate) fn check_app_ver() -> Result<bool, MdownError> {
         if req1.matches(&version) {
             let version_to_change_to = current_version.to_string();
             println!("Changing to version: {}", version_to_change_to);
-            match db::write_resource_lone(DB_VERSION, get_current_version().as_bytes(), false) {
+            match db::write_resource_lone(DB_VERSION, cur_ver.as_bytes(), false) {
                 Ok(_) => (),
                 Err(err) => {
                     return Err(MdownError::ChainedError(Box::new(err), 11623));

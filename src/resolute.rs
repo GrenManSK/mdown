@@ -1078,7 +1078,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
     *MANGA_NAME.lock() = manga_name.clone();
     let folder = get_folder_name();
 
-     if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
+    if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
         println!("Name: {}\n", manga_name);
     }
 
@@ -1478,7 +1478,12 @@ pub(crate) fn parse_scanlation_file() -> Result<(), MdownError> {
     let reader = std::io::BufReader::new(file);
 
     for line in reader.lines() {
-        let line = line.unwrap();
+        let line = match line {
+            Ok(line) => line,
+            Err(err) => {
+                return Err(MdownError::IoError(err, file_name, 10272));
+            }
+        };
         if let Some((name, website)) = parse_line(&line) {
             SCANLATION_GROUPS.lock().push(metadata::ScanlationMetadata {
                 name: name.to_string(),

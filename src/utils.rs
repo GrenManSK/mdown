@@ -1,6 +1,6 @@
 use chrono::prelude::*;
 use crosscurses::*;
-use rand::{ distr::Alphanumeric, Rng };
+use rand::{ distr::Alphanumeric, RngExt };
 use remove_dir_all::remove_dir_all;
 use serde_json::{ json, Value };
 use sha2::{ Sha256, Digest };

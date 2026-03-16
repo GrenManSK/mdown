@@ -202,7 +202,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             let json_response = match get_directory_content(&file_path) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(MdownError::JsonError(err.to_string(), 11208));
+                    return Err(MdownError::JsonError(err.to_string(), 11237));
                 }
             };
             let response_body = match serde_json::to_string(&json_response) {
