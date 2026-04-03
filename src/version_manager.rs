@@ -204,7 +204,8 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
             }
         };
 
-        let target_file = if target_files.contains(&current_name.as_str()) {
+        let current_lower = current_name.to_lowercase();
+        let target_file = if target_files.iter().any(|f| f.to_lowercase() == current_lower) {
             current_name.as_str()
         } else {
             "mdown.exe"
@@ -306,6 +307,7 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
                 return Err(MdownError::ChainedError(Box::new(err), 11628));
             }
         };
+        let current_exe_full = format!("{}/{}", current_exe, current_name);
 
         let temp_dir = std::env::temp_dir();
         let temp_exe = match temp_dir.join("mdown.exe").to_str() {
@@ -331,7 +333,7 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
              move \"{}\" \"{}\" >nul\n\
              >nul 2>nul del \"%~f0\" & exit\n",
             temp_exe,
-            current_exe
+            current_exe_full
         );
 
         let script_path = match temp_dir.join("mdown.update.bat").to_str() {
