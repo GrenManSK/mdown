@@ -59,10 +59,10 @@ pub(crate) fn set_update_time(time_str: &str) -> Result<(), MdownError> {
             return Err(MdownError::DatabaseError(err, 10630));
         }
     };
-    return match write_resource(&conn, DB_UPDATE_TIME, time_str.as_bytes(), false) {
+    match write_resource(&conn, DB_UPDATE_TIME, time_str.as_bytes(), false) {
         Ok(_id) => Ok(()),
         Err(err) => Err(MdownError::ChainedError(Box::new(err), 10678)),
-    };
+    }
 }
 
 /// Retrieves the update time from the database.
@@ -113,7 +113,7 @@ pub(crate) fn get_update_time() -> Result<Option<String>, MdownError> {
             return Err(MdownError::DatabaseError(err, 10629));
         }
     };
-    return match read_resource(&conn, DB_UPDATE_TIME) {
+    match read_resource(&conn, DB_UPDATE_TIME) {
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
@@ -128,7 +128,7 @@ pub(crate) fn get_update_time() -> Result<Option<String>, MdownError> {
             }
         Ok(None) => Ok(None),
         Err(err) => Err(MdownError::ChainedError(Box::new(err), 10680)),
-    };
+    }
 }
 
 /// Retrieves a resource from the database by name.
@@ -181,7 +181,7 @@ pub(crate) fn read_resource_lone(name: &str) -> Result<Option<String>, MdownErro
             return Err(MdownError::DatabaseError(err, 10638));
         }
     };
-    return match read_resource(&conn, name) {
+    match read_resource(&conn, name) {
         Ok(Some(value)) =>
             match
                 String::from_utf8(value).map_err(|e|
@@ -196,7 +196,7 @@ pub(crate) fn read_resource_lone(name: &str) -> Result<Option<String>, MdownErro
             }
         Ok(None) => Ok(None),
         Err(err) => Err(MdownError::ChainedError(Box::new(err), 10682)),
-    };
+    }
 }
 
 /// Writes a resource to the database.
@@ -249,10 +249,10 @@ pub(crate) fn write_resource_lone(
             return Err(MdownError::DatabaseError(err, 10640));
         }
     };
-    return match write_resource(&conn, name, data, is_binary) {
+    match write_resource(&conn, name, data, is_binary) {
         Ok(value) => Ok(value),
         Err(err) => Err(MdownError::ChainedError(Box::new(err), 10683)),
-    };
+    }
 }
 
 /// Initializes the database by creating the `resources` table if it does not already exist.
@@ -1029,19 +1029,15 @@ async fn get_ytdlp() -> Result<String, MdownError> {
     if
         let Some(asset) = assets
             .iter()
-            .find(|asset| { asset["name"].as_str().map_or(false, |name| name == "yt-dlp.exe") })
+            .find(|asset| { asset["name"].as_str() == Some("yt-dlp.exe") })
     {
         if let Some(download_url) = asset["browser_download_url"].as_str() {
-            return Ok(download_url.to_string());
+            Ok(download_url.to_string())
         } else {
-            return Err(
-                MdownError::NotFoundError("Download URL for yt-dlp.exe not found".into(), 10635)
-            );
+            Err(MdownError::NotFoundError("Download URL for yt-dlp.exe not found".into(), 10635))
         }
     } else {
-        return Err(
-            MdownError::NotFoundError("yt-dlp.exe not found in the release assets".into(), 10636)
-        );
+        Err(MdownError::NotFoundError("yt-dlp.exe not found in the release assets".into(), 10636))
     }
 }
 

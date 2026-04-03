@@ -70,12 +70,7 @@ pub(crate) fn start() {
     let music_pack = match ARGS.lock().music.clone() {
         Some(s) => {
             match s.clone() {
-                Some(value) => {
-                    match value.parse::<u32>() {
-                        Ok(value) => value,
-                        Err(_) => 1,
-                    }
-                }
+                Some(value) => { value.parse::<u32>().unwrap_or(1) }
                 None => 1,
             }
         }

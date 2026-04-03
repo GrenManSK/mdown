@@ -1,157 +1,315 @@
 # mdown
 
-> mangadex manga downloader
+> A manga downloader for [MangaDex](https://mangadex.org/)
 
-See [site](https://mangadex.org/) for finding manga
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
 
-## Build
-
-Firstly you have to install [Rust](https://www.rust-lang.org/tools/install)
-
-`cargo build -r` will compile app and put it in this location `target/release/mdown.exe`
-
-`cargo run -r` will compile and run app
-
-`cargo run -r --` after this you can put arguments that will be pushed to the app see [usage](https://github.com/GrenManSK/mdown?tab=readme-ov-file#usage)
-
-If you have EXE file in CWD (current working directory) all you need to do is run `mdown` or with arguments e.g. `mdown --url [UUID]`
-
-### Features
-
-- web (default)
-- server (default)
-- gui
-- music
-- full (contains all features)
-
-To add feature run `cargo build -r -F [feature]`
-
-If you want to add more features run `cargo build -r -F [feature1] -F [feature2]`
-
-**IMPORTANT**  If you want to use music feature, you need to download music zip file from [pre-release](https://github.com/GrenManSK/mdown/releases/tag/resources) and extract it to `resources/music/`; if you are using outdated version of app, then it could have wrong files since it is not tracking history
+**mdown** lets you download manga chapters from MangaDex in multiple formats. It supports batch downloading, a web reader, a desktop GUI, and a LAN server for sharing your library.
 
 ---
 
-## usage
+## Table of Contents
 
-`--url [String]` - url of manga
-
-`--lang [String]` - language of manga to download; "*" is for all languages, you can find language codes at [ISO 639-1 standard](https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes) with exceptions at [api.mangadex.org](https://api.mangadex.org/docs/3-enumerations/#language-codes--localization)
-
-`--title [String]` - name the manga
-
-`--folder [String]` - will put manga in folder specified
-
-- if folder name is "**name**" it will put in folder same as manga name
-- if folder name is "**name**" and title is specified it will make folder same as title
-
-`--volume [Integer]` - will download manga which has supplied volume in it
-
-`--chapter [Integer]` - will download manga which has supplied chapter in it
-
-`--saver` - will download images of lower quality and lower download size; will save network resources and reduce download time
-
-`--stat` - will add txt file which contains status information
-
-`--quiet` - will not use curses window output
-
-`--max-consecutive [Integer]` - will download manga images by supplied number at once; it is highly recommended to use **MAX *50*** (default is *40*) because of lack of performance and non complete manga downloading, meaning chapter will not download correctly, meaning missing pages, **!! USE IT BASED ON YOUR INTERNET SPEED, IF YOU HAVE SLOW INTERNET SPEED USE LOWER NUMBER**
-
-`--force` - will download manga even if it already exists
-
-`--offset [Integer]` - changes start offset e.g. 50 starts from chapter 50
-
-`--database-offset [Integer]` - changes start offset e.g. 50 starts from item 50 in database; this occurs before manga is sorted, which result in some weird behavior like missing chapters; For users using `--unsorted`
-
-`--unsorted` - database will not be sorted
-
-`--cwd` - change current working directory
-
-`--encode` - will print url in program readable format
-
-`--log` - will print log
-
-`--search` - will search for manga by its title
-
-`--web` - will enter web mode and will open browser on port 8080, core lock file will not be initialized; if ctrl+c mid download, program cache will not be automatically cleared, there is button in web to exit program. If program can not be exited with ctrl+c use this button to exit program or type "<http://127.0.0.1:8080/end>" in browser, that can happen when you use program without web flag and then again with web flag in same `powershell` terminal (See [issue](https://github.com/GrenManSK/mdown/issues/5))
-
-`--server` - will start server from which you can download manga through lan
-
-`--music` - will play music during downloading 1. Wushu Dolls, 2. Militech, 3. You Shall Never Have to Forgive Me Again 4. Valentinos 5. Force Projection
-
-`--gui` - will start gui version of app
-
-`--tutorial` - will start tutorial
-
-`--skip--tutorial` - will skip tutorial
-
-## Subcommands
-
-e.g. `cargo run -r -- app --force-setup` or `mdown app --force-setup`
-
-### app
-
-`--force-setup` - will force all setup procedures
-
-`--delete` - will delete database
-
-`--force-delete` - will force to delete *.lock file which is stopping from running another instance of program; NOTE that if you already have one instance running it will fail to delete the original file and thus it will crash
-
-`--reset` - after confirmation will do factory reset
-
-`--backup` - will force backup
-
-### database
-
-`--check` - check for for any manga updates
-
-`--update` - will download manga updates
-
-`--show` - will show current manga in database
-
-`--show-all` - will show current chapters in database
-
-`--show-log` - will show current logs in database
-
-`--show-settings` - will show current settings in database
-
-`--backup-choose` - will choose which backup app should retrieve
-
-### settings
-
-`--folder` - will set default folder name; if its left empty then it will remove the default folder
-
-`--stat` - will set if stat flag should be automatically enabled; 1 for yes 0 for no or nothing to remove the default option
-
-`--backup` - will set if backup should be disabled or enabled; 1 for yes 0 for no or nothing to remove the default option; default is yes
-
-`--music` - will set if the default music choice; have to specify a number; only works if it is compiled with music feature
-
-`--clear` - will remove all settings from database
-
-## Help
-
-- There are some function that will work with or without specifying argument e.g. `--music`. You can see it with `--help` flag and if there is \<ARG\> you need to specify argument else if [\<ARG\>] you don't need to specify argument, it will be defaulted
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Basic Examples](#basic-examples)
+  - [Command Reference](#command-reference)
+  - [Subcommands](#subcommands)
+- [Features](#features)
+- [Building from Source](#building-from-source)
+- [Credits & Legal](#credits--legal)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-- Using [yt-dlp](https://github.com/yt-dlp/yt-dlp);
+## Quick Start
 
-- First time configuration is using yt-dlp for downloading some stuff
+**First time?** Follow these steps:
 
-- If you get message that lock file is present, and you believe you don't have already have program started, use `app --force-delete` option to force it to delete lock file
+1. [Install Rust](https://www.rust-lang.org/tools/install) (if building from source)
+2. Build: `cargo build -r`
+3. Run: `mdown --url https://mangadex.org/title/UUID`
 
-- Will download cover image and description even if it did NOT download any more chapters in currently downloaded files AND if it do NOT find any eligible manga chapters it will delete the original
-  - e.g. whole manga was in Japanese and didn't find any English chapters which results in 0 downloads
+That's it! Your manga will download as `.cbz` files.
 
-- Every non-final downloads and temporary files will be put in .cache folder which if empty will be deleted afterwards
+---
 
-- Manga name will be automatically shortened when it exceeds 70 characters
+## Installation
 
-- Will start tutorial when you run first time, can be reset with `mdown app --reset`
+### Option 1: Build from Source (Recommended)
 
-- App stores manga data in `dat.json` which is located in the same directory as the original application same as `resources.db` which contains data for application
+```bash
+# 1. Install Rust from https://www.rust-lang.org/tools/install
 
-- Lowest tier in time in the name of backup is a day so if it is forced it will overwrite existing backup
+# 2. Clone and build
+git clone https://github.com/GrenManSK/mdown.git
+cd mdown
+cargo build -r
 
-- GUI: When you set default for music and start gui, music will not automatically start; due to Mutex issues
+# 3. Run
+./target/release/mdown --help
+```
+
+### Option 2: Use Cargo Run
+
+```bash
+# Build and run in one step
+cargo run -r -- --url https://mangadex.org/title/UUID
+
+# Pass arguments after --
+cargo run -r -- --url UUID --lang en --saver
+```
+
+> **Note:** First-time configuration uses yt-dlp for downloading some resources.
+
+---
+
+## Usage
+
+> **Note:** Some flags accept optional arguments. In `--help` output:
+> - `<ARG>` — argument is **required**
+> - `[<ARG>]` — argument is **optional**, uses default value if omitted
+
+### Basic Examples
+
+```bash
+# Download a manga (paste the MangaDex URL)
+mdown --url https://mangadex.org/title/a1c7c817-4e59-4a91-8e73-6a6d7b8e9f0a
+
+# Download only English chapters
+mdown --url UUID --lang en
+
+# Download a specific chapter
+mdown --url UUID --chapter 5
+
+# Download with lower quality (faster)
+mdown --url UUID --saver
+
+# Search by title
+mdown --search "One Piece"
+
+# Use the web interface (opens browser at localhost:8080)
+mdown --web
+
+# Use the desktop GUI
+mdown --gui
+```
+
+### Command Reference
+
+#### Main Options
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--url <UUID>` | MangaDex URL or UUID (required) | `--url https://mangadex.org/title/UUID` |
+| `--lang <CODE>` | Language code (`*` for all) | `--lang en` |
+| `--title <NAME>` | Custom manga title | `--title "My Manga"` |
+| `--folder <PATH>` | Output folder (`**name**` = manga name) | `--folder "My Downloads"` |
+| `--volume <NUM>` | Download specific volume | `--volume 1` |
+| `--chapter <NUM>` | Download specific chapter | `--chapter 5` |
+| `--saver` | Use data-saver images (smaller files) | |
+| `--force` | Re-download even if file exists | |
+| `--offset <NUM>` | Skip first N chapters | `--offset 10` |
+| `--quiet` | Suppress terminal output | |
+| `--max-consecutive <N>` | Parallel image downloads (max 50, default 40) | `--max-consecutive 20` |
+| `--stat` | Generate download statistics file | |
+| `--log` | Enable logging to `log.json` | |
+| `--search <TITLE>` | Search manga by title | `--search "Naruto"` |
+
+#### Interface Modes
+
+| Flag | Description |
+|------|-------------|
+| `--web` | Web interface on port 8080 |
+| `--gui` | Desktop GUI (requires `gui` feature) |
+| `--server` | LAN server for sharing downloads |
+| `--music` | Background music during downloads (requires `music` feature) |
+
+#### Utility Flags
+
+| Flag | Description |
+|------|-------------|
+| `--cwd <PATH>` | Change working directory |
+| `--encode <URL>` | Encode URL for processing |
+| `--unsorted` | Don't sort chapters |
+| `--database-offset <N>` | Offset for database queries |
+| `--tutorial` | Run interactive tutorial |
+| `--skip-tutorial` | Skip first-run tutorial |
+
+### Subcommands
+
+#### Application Management
+
+```bash
+mdown app --force-setup    # Re-run initial setup
+mdown app --force-delete   # Remove lock file (if crashed)
+mdown app --delete         # Delete manga database
+mdown app --reset          # Factory reset
+mdown app --backup         # Manual backup
+mdown app --update         # Update mdown to latest version
+```
+
+> **Note:** The lowest time unit in backup filenames is a day. Forced backups will overwrite existing backups with the same day.
+
+#### Database Operations
+
+```bash
+mdown database --check          # Check for manga updates
+mdown database --update         # Download available updates
+mdown database --show           # List downloaded manga
+mdown database --show-all       # List all chapters
+mdown database --show-log       # View download logs
+mdown database --show-settings  # View saved settings
+mdown database --backup-choose  # Choose backup to restore
+```
+
+#### Settings
+
+```bash
+mdown settings --folder <NAME>   # Set default download folder (omitting removes it)
+mdown settings --stat <0|1>      # Auto-enable statistics (omitting removes it)
+mdown settings --backup <0|1>    # Enable/disable auto-backup (omitting removes it)
+mdown settings --music <NUM>     # Default music track (omitting removes it)
+mdown settings --clear           # Clear all settings
+```
+
+---
+
+## Features
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| CLI | ✓ | Command-line interface |
+| Web | ✓ | Browser-based reader on localhost:8080 |
+| Server | ✓ | LAN server for sharing your library |
+| GUI | ✗ | Desktop app with egui |
+| Music | ✗ | Background music during downloads |
+
+### Download Behavior
+
+- Will download cover image and description even if no new chapters were downloaded
+- If no eligible chapters are found (e.g., manga only has Japanese chapters but you requested English), the original file will be deleted
+- Manga titles are automatically shortened to 70 characters maximum
+- All temporary files are stored in `.cache/` folder, which is deleted if empty after completion
+
+### GUI Notes
+
+- Setting a default music track in GUI will not auto-start playback due to Mutex limitations
+
+### Feature Flags
+
+```bash
+# Build with specific features
+cargo build -r -F gui           # GUI only
+cargo build -r -F music         # Music only
+cargo build -r -F full          # All features
+
+# Combine features
+cargo build -r -F gui -F music
+```
+
+**Music Feature**: Download the music pack from [Releases](https://github.com/GrenManSK/mdown/releases/tag/resources) and extract to `resources/music/`.
+
+---
+
+## Building from Source
+
+### Requirements
+
+- [Rust](https://www.rust-lang.org/tools/install) 1.75 or later
+- Git
+
+### Steps
+
+```bash
+git clone https://github.com/GrenManSK/mdown.git
+cd mdown
+
+# Standard build
+cargo build -r
+
+# With all features
+cargo build -r -F full
+
+# The executable is at: target/release/mdown
+```
+
+---
+
+## Credits & Legal
+
+### MangaDex
+
+This application uses the [MangaDex API](https://api.mangadex.org/) to fetch manga data. All manga content is hosted by MangaDex.
+
+- Website: [mangadex.org](https://mangadex.org/)
+- API Docs: [api.mangadex.org/docs](https://api.mangadex.org/docs/)
+
+### Scanlation Groups
+
+Manga chapters are translated and provided by **scanlation groups**. We credit and respect their work:
+
+- Credits for each chapter are stored in the downloaded files
+- **If you are a scanlation group and want your content removed**: Open an [issue](https://github.com/GrenManSK/mdown/issues) or contact us directly — we will honor all legitimate content removal requests
+- We encourage supporting official releases when available
+
+### Terms of Use
+
+- This software is provided **as-is** under the GPL-3.0 license
+- **No ads or paid services**: This application will never run ads, require payment, or monetize downloaded content
+- You are responsible for complying with MangaDex's [Terms of Service](https://mangadex.org/terms)
+- Respect copyright laws in your jurisdiction
+- Support official manga releases when possible
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**"Lock file is present" error**
+```bash
+mdown app --force-delete
+```
+This removes a stuck lock file. Only use if you're sure no other instance is running.
+
+**Missing pages in downloads**
+- Lower `--max-consecutive` (try 20 or lower)
+- Check your internet connection
+
+**Slow downloads**
+- Use `--saver` for smaller images
+- Reduce `--max-consecutive` if on slow internet
+
+**First-time setup**
+The app runs a tutorial on first launch. Reset with:
+```bash
+mdown app --reset
+```
+
+### File Locations
+
+| File | Purpose |
+|------|---------|
+| `dat.json` | Downloaded manga metadata |
+| `resources.db` | Application database |
+| `.cache/` | Temporary download files |
+| `log.json` | Download logs (if `--log` enabled) |
+
+### Language Codes
+
+Use [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes) codes:
+- `en` — English
+- `es` — Spanish
+- `ja` — Japanese
+- `*` — All languages
+
+See [MangaDex API docs](https://api.mangadex.org/docs/3-enumerations/#language-codes--localization) for exceptions.
+
+---
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details.

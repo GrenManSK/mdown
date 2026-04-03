@@ -1,5 +1,6 @@
 use chrono::prelude::*;
 use crosscurses::*;
+use lazy_static::lazy_static;
 use rand::{ distr::Alphanumeric, RngExt };
 use remove_dir_all::remove_dir_all;
 use serde_json::{ json, Value };
@@ -617,7 +618,7 @@ pub(crate) async fn search() -> Result<String, MdownError> {
 
         debug!("manga_ids: {:?}", manga_ids);
 
-        return match manga_ids.first() {
+        match manga_ids.first() {
             Some(id) => Ok(id.to_string()),
             None =>
                 Err(
@@ -626,7 +627,7 @@ pub(crate) async fn search() -> Result<String, MdownError> {
                         10414
                     )
                 ),
-        };
+        }
     } else {
         Err(MdownError::StatusError(response.status(), 10415))
     }
@@ -731,7 +732,7 @@ pub(crate) fn delete_dir() {
         for entry in entries.flatten() {
             let path = entry.path();
 
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "lock") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "lock") {
                 match fs::remove_file(&path) {
                     Ok(()) => (),
                     Err(err) => eprintln!("Error: removing file '{:?}' {}", path, err),
@@ -797,15 +798,14 @@ pub(crate) async fn print_version(file: &str) {
     string(MAXPOINTS.max_y - 1, 0, &" ".repeat(MAXPOINTS.max_x as usize));
 }
 
+lazy_static! {
+    static ref MANGADEX_URL_RE: regex::Regex = regex::Regex
+        ::new(r"https://mangadex.org/title/([\w-]+)/?")
+        .expect("Failed to compile MangaDex URL regex");
+}
+
 pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match<'_>> {
-    let re = match regex::Regex::new(r"https://mangadex.org/title/([\w-]+)/?") {
-        Ok(value) => value,
-        Err(err) => {
-            suspend_error(MdownError::RegexError(err, 10416));
-            return None;
-        }
-    };
-    re.captures(cap).and_then(|id| id.get(1))
+    MANGADEX_URL_RE.captures(cap).and_then(|id| id.get(1))
 }
 
 /// This function will resolve final_end.lock and prints if downloading was successful or not
@@ -904,8 +904,7 @@ fn calculate_sha256(file_path: &str) -> Result<String, MdownError> {
         hasher.update(&buffer[..n]);
     }
 
-    let hash_result = hasher.finalize();
-    Ok(format!("{:x}", hash_result))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 fn get_backup_dat(backup_dir: &str) -> Result<(Vec<NaiveDate>, Vec<String>), MdownError> {
@@ -914,22 +913,20 @@ fn get_backup_dat(backup_dir: &str) -> Result<(Vec<NaiveDate>, Vec<String>), Mdo
 
     match fs::read_dir(backup_dir) {
         Ok(entries) => {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
+            for entry in entries.flatten() {
+                let path = entry.path();
 
-                    if let Some(file_name) = path.file_name().and_then(|f| f.to_str()) {
-                        if file_name.starts_with("dat_") && file_name.ends_with(".json") {
-                            let stripped_name = &file_name[4..file_name.len() - 5];
-                            let date = match NaiveDate::parse_from_str(stripped_name, "%Y_%m_%d") {
-                                Ok(date) => date,
-                                Err(_err) => {
-                                    continue;
-                                }
-                            };
-                            dats.push(date);
-                            dats_filename.push(file_name.to_string());
-                        }
+                if let Some(file_name) = path.file_name().and_then(|f| f.to_str()) {
+                    if file_name.starts_with("dat_") && file_name.ends_with(".json") {
+                        let stripped_name = &file_name[4..file_name.len() - 5];
+                        let date = match NaiveDate::parse_from_str(stripped_name, "%Y_%m_%d") {
+                            Ok(date) => date,
+                            Err(_err) => {
+                                continue;
+                            }
+                        };
+                        dats.push(date);
+                        dats_filename.push(file_name.to_string());
                     }
                 }
             }
@@ -983,12 +980,7 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
     }
 
     let vstup = match input("> ") {
-        Ok(input) => {
-            match input.trim().parse::<usize>() {
-                Ok(index) => index,
-                Err(_err) => 1,
-            }
-        }
+        Ok(input) => { input.trim().parse::<usize>().unwrap_or(1) }
         Err(err) => {
             return Err(MdownError::ChainedError(Box::new(err), 10442));
         }

@@ -523,13 +523,13 @@ pub(crate) async fn show() -> Result<(), MdownError> {
                             let chapter = obj.chapter;
                             let volume = obj.volume;
 
-                            if volume != "" {
+                            if !volume.is_empty() {
                                 println!("Volume: {}", volume);
                             }
                             println!("Chapter: {}", chapter);
                             println!("Pages: {}", pages);
                             println!("ID: {}", id);
-                            if title != "" {
+                            if !title.is_empty() {
                                 println!("Title: {}", title);
                             }
                             println!();
@@ -1136,7 +1136,7 @@ pub(crate) async fn resolve(obj: Map<String, Value>, id: &str) -> Result<String,
 
     resolve_theme_genre(title_data);
 
-    resolve_cover(&data, id, folder).await;
+    resolve_cover(data, id, folder).await;
 
     if ARGS.lock().stat {
         debug!("starting downloading stat");

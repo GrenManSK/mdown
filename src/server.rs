@@ -169,7 +169,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
 
     let parts: Vec<&str> = request_line.split_whitespace().collect();
     let path = request_line.split_whitespace().nth(1).unwrap_or("/");
-    let method = parts.get(0).unwrap_or(&"");
+    let method = parts.first().unwrap_or(&"");
 
     if method.eq_ignore_ascii_case("OPTIONS") {
         log!("Options");
@@ -294,7 +294,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 decoded_str.pop();
             }
 
-            let dst_file = match decoded_str.split('/').last() {
+            let dst_file = match decoded_str.split('/').next_back() {
                 Some(value) => format!("{}.zip", value),
                 None => {
                     return Ok(());

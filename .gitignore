@@ -14,3 +14,5 @@ _*
 release.py
 *.exe
 debug.log
+dat.json
+resources.db

@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.16.1"
+version = "0.17.0"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"
@@ -27,6 +27,7 @@ egui = { version = "0.33.3", optional = true }
 futures = "0.3.32"
 gif = { version = "0.14.1", optional = true }
 glob = "0.3.3"
+hex = "0.4.3"
 if-addrs = { version = "0.15.0", optional = true }
 image = { version = "0.25.10", optional = true }
 lazy_static = "1.5.0"
@@ -43,14 +44,14 @@ ryu = "1.0.23"
 semver = "1.0.27"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 smallvec = "1.15.1"
 thiserror = "2.0.18"
-tokio = { version = "1.50.0", features = ["full"] }
+tokio = { version = "1.51.0", features = ["full"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 url = "2.5.8"
-uuid = "1.22.0"
+uuid = "1.23.0"
 walkdir = "2.5.0"
 webbrowser = { version = "1.2.0", optional = true }
 # zip will be left on 0.6.6 reason see here https://github.com/GrenManSK/mdown/commit/89ab31464d638b9ec2af318bcd0a5356bc94ed2d

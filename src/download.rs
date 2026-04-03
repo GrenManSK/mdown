@@ -1,3 +1,4 @@
+use lazy_static::lazy_static;
 use serde_json::Value;
 use std::{
     fs::{ self, File, OpenOptions },
@@ -22,6 +23,14 @@ use crate::{
     utils,
     version_manager::get_current_version,
 };
+
+lazy_static! {
+    static ref HTTP_CLIENT: reqwest::Client = reqwest::Client
+        ::builder()
+        .user_agent(format!("MDOWN v{}", get_current_version()))
+        .build()
+        .expect("Failed to create HTTP client");
+}
 /// Creates and configures a `reqwest::Client` for making HTTP requests.
 ///
 /// This function sets up a `reqwest::Client` with a custom user-agent string. The client can be used to make
@@ -45,8 +54,8 @@ use crate::{
 /// }
 /// ```
 #[inline]
-pub(crate) fn get_client() -> Result<reqwest::Client, reqwest::Error> {
-    reqwest::Client::builder().user_agent(&format!("MDOWN v{}", get_current_version())).build()
+pub(crate) fn get_client() -> Result<&'static reqwest::Client, reqwest::Error> {
+    Ok(&HTTP_CLIENT)
 }
 
 /// Sends an HTTP GET request to a constructed URL based on the provided parameters.
@@ -567,7 +576,7 @@ pub(crate) async fn download_stat(id: &str, manga_name: &str) -> Result<(), Mdow
     }
 
     if *args::ARGS_INFO != args::ARGS_UNSPECIFIED {
-        println!("");
+        println!();
     }
 
     // Write the Markdown content to the file

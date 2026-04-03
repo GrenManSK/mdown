@@ -304,7 +304,7 @@ pub(crate) fn extract_image_from_zip(zip_file_path: &str) -> Result<Vec<u8>, err
                 return Err(error::MdownError::ZipError(err, 10717));
             }
         };
-        if let Some(file_name) = file.name().to_lowercase().split('.').last() {
+        if let Some(file_name) = file.name().to_lowercase().split('.').next_back() {
             match file_name {
                 "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => {
                     let mut content = Vec::new();
@@ -360,7 +360,7 @@ pub(crate) fn extract_images_from_zip() -> Result<Vec<Vec<u8>>, error::MdownErro
                         return Err(error::MdownError::ZipError(err, 10722));
                     }
                 };
-                if let Some(file_name) = file.name().to_lowercase().split('.').last() {
+                if let Some(file_name) = file.name().to_lowercase().split('.').next_back() {
                     match file_name {
                         "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => {
                             let mut content = Vec::new();
@@ -443,7 +443,7 @@ pub(crate) fn extract_image_from_zip_gui(
         file_stem
             .split(|c: char| (c.is_whitespace() || c == '-'))
             .filter_map(|part| part.parse::<usize>().ok())
-            .last()
+            .next_back()
     }
 
     for i in 0..archive.len() {
@@ -536,7 +536,7 @@ pub(crate) fn extract_image_len_from_zip_gui(
                 return Err(error::MdownError::ZipError(err, 10731));
             }
         };
-        if let Some(file_name) = file.name().to_lowercase().split('.').last() {
+        if let Some(file_name) = file.name().to_lowercase().split('.').next_back() {
             match file_name {
                 "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => {
                     lenght += 1;

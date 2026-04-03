@@ -103,9 +103,9 @@ pub enum MdownError {
     #[error("Network error: {0} ({1})")]
     NetworkError(reqwest::Error, u32),
 
-    /// Represents an error related to regular expressions, capturing the `regex::Error`.
-    #[error("Regex error: {0} ({1})")]
-    RegexError(regex::Error, u32),
+    // /// Represents an error related to regular expressions, capturing the `regex::Error`.
+    // #[error("Regex error: {0} ({1})")]
+    // RegexError(regex::Error, u32),
 
     /// Represents a JSON parsing or serialization error with an associated message.
     #[error("Json error: {0} ({1})")]
@@ -138,21 +138,15 @@ impl MdownError {
     /// Converts the `MdownError` into a `String` representation, based on the type of error.
     pub fn into(self) -> String {
         match self {
-            MdownError::IoError(msg, _name, err_code) =>
-                format!("{} Code: {}", msg.to_string(), err_code),
-            MdownError::StatusError(msg, err_code) =>
-                format!("{} Code: {}", msg.to_string(), err_code),
-            MdownError::NetworkError(msg, err_code) =>
-                format!("{} Code: {}", msg.to_string(), err_code),
+            MdownError::IoError(msg, _name, err_code) => format!("{} Code: {}", msg, err_code),
+            MdownError::StatusError(msg, err_code) => format!("{} Code: {}", msg, err_code),
+            MdownError::NetworkError(msg, err_code) => format!("{} Code: {}", msg, err_code),
             MdownError::JsonError(msg, err_code) => format!("{} Code: {}", msg, err_code),
             MdownError::ConversionError(msg, err_code) => format!("{} Code: {}", msg, err_code),
             MdownError::NotFoundError(msg, err_code) => format!("{} Code: {}", msg, err_code),
-            MdownError::ZipError(msg, err_code) =>
-                format!("{} Code: {}", msg.to_string(), err_code),
-            MdownError::RegexError(msg, err_code) =>
-                format!("{} Code: {}", msg.to_string(), err_code),
-            MdownError::DatabaseError(msg, err_code) =>
-                format!("{} Code: {}", msg.to_string(), err_code),
+            MdownError::ZipError(msg, err_code) => format!("{} Code: {}", msg, err_code),
+            //MdownError::RegexError(msg, err_code) => format!("{} Code: {}", msg, err_code),
+            MdownError::DatabaseError(msg, err_code) => format!("{} Code: {}", msg, err_code),
             MdownError::CustomError(msg, name, err_code) =>
                 format!("Error: {} {} Code {}", name, msg, err_code),
             MdownError::ChainedError(msg, err_code) => {
@@ -167,7 +161,7 @@ impl MdownError {
                     .map(|code| format!("Code: {}", code))
                     .collect::<Vec<String>>()
                     .join(" => ");
-                format!("{} Codes: {}", msg.to_string(), formatted_codes)
+                format!("{} Codes: {}", msg, formatted_codes)
             }
         }
     }
@@ -201,7 +195,7 @@ impl MdownError {
             MdownError::ConversionError(_, err_code) => err_code,
             MdownError::NotFoundError(_, err_code) => err_code,
             MdownError::ZipError(_, err_code) => err_code,
-            MdownError::RegexError(_, err_code) => err_code,
+            //MdownError::RegexError(_, err_code) => err_code,
             MdownError::DatabaseError(_, err_code) => err_code,
             MdownError::CustomError(_, _, err_code) => err_code,
             MdownError::ChainedError(_, err_code) => err_code,

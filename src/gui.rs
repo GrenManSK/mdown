@@ -321,7 +321,7 @@ impl App {
         ui.add_space(5.0);
         ui.horizontal_wrapped(|ui| {
             let mut chapters = manga_data.chapters.clone();
-            chapters.sort_by(|a, b| a.parse_number().cmp(&b.parse_number()));
+            chapters.sort_by_key(|a| a.parse_number());
             self.reader_chapters = chapters.clone();
             for chapter in chapters.iter() {
                 if ui.button(chapter.number.clone()).clicked() {
@@ -570,12 +570,9 @@ impl App {
                     self.download_texture_handle = None;
                     info!("Jumped to page: {}", page_index);
                 }
-                let in_click_animation = match
-                    self.reader_click_page.and_then(|page| Some(page == page_index))
-                {
-                    Some(page) => page,
-                    None => false,
-                };
+                let in_click_animation = self.reader_click_page
+                    .and_then(|page| Some(page == page_index))
+                    .unwrap_or_default();
 
                 if segment_response.hovered() || in_click_animation {
                     let tooltip_rect = Rect::from_min_size(
@@ -730,7 +727,7 @@ impl App {
                 let test_line_size = ui.fonts_mut(|fonts| {
                     fonts.layout_no_wrap(
                         test_line.clone(),
-                        egui::TextStyle::Heading.resolve(&ui.style()),
+                        egui::TextStyle::Heading.resolve(ui.style()),
                         Color32::BLACK
                     )
                 });
@@ -751,7 +748,7 @@ impl App {
                 max_width,
                 (wrapped_lines.len() as f32) *
                     ui.fonts_mut(|fonts| {
-                        fonts.row_height(&egui::TextStyle::Heading.resolve(&ui.style()))
+                        fonts.row_height(&egui::TextStyle::Heading.resolve(ui.style()))
                     })
             );
 
@@ -774,11 +771,11 @@ impl App {
                     egui::pos2(text_position.x, current_y),
                     egui::Align2::CENTER_TOP,
                     line,
-                    egui::TextStyle::Heading.resolve(&ui.style()),
+                    egui::TextStyle::Heading.resolve(ui.style()),
                     Color32::WHITE
                 );
                 current_y += ui.fonts_mut(|fonts| {
-                    fonts.row_height(&egui::TextStyle::Heading.resolve(&ui.style()))
+                    fonts.row_height(&egui::TextStyle::Heading.resolve(ui.style()))
                 });
             }
 
@@ -812,12 +809,9 @@ impl App {
     /// This function is typically called within the UI update cycle to render and update the chapter number as the user navigates through pages in the chapter.
     fn reader_chap_number(&self, ui: &mut Ui) {
         if let Some(chapter) = &self.reader_chapter_path {
-            let chapter_len = match zip_func::extract_image_len_from_zip_gui(&chapter) {
-                Ok(len) => len,
-                Err(_err) => 0,
-            };
+            let chapter_len = zip_func::extract_image_len_from_zip_gui(chapter).unwrap_or_default();
 
-            let full_text = format!("{}/{}", self.reader_page.clone() + 1, chapter_len);
+            let full_text = format!("{}/{}", self.reader_page + 1, chapter_len);
 
             let painter = ui.painter();
             let screen_rect = ui.clip_rect();
@@ -827,7 +821,7 @@ impl App {
                 fonts
                     .layout_no_wrap(
                         full_text.clone(),
-                        egui::TextStyle::Heading.resolve(&ui.style()),
+                        egui::TextStyle::Heading.resolve(ui.style()),
                         Color32::BLACK
                     )
                     .rect.size()
@@ -852,7 +846,7 @@ impl App {
                 text_position,
                 egui::Align2::CENTER_CENTER,
                 full_text,
-                egui::TextStyle::Heading.resolve(&ui.style()),
+                egui::TextStyle::Heading.resolve(ui.style()),
                 Color32::WHITE
             );
         }
@@ -945,10 +939,9 @@ impl App {
     fn request_chapter_len(&mut self) {
         if self.reader_chapter_len.is_none() {
             if let Some(file_path) = self.reader_chapter_path.clone() {
-                let chapter_len = match zip_func::extract_image_len_from_zip_gui(&file_path) {
-                    Ok(len) => len,
-                    Err(_err) => 0,
-                };
+                let chapter_len = zip_func
+                    ::extract_image_len_from_zip_gui(&file_path)
+                    .unwrap_or_default();
                 self.reader_chapter_len = Some(chapter_len);
             }
         }
@@ -975,12 +968,9 @@ impl App {
     fn request_chapter_path(&mut self, chapter_id: &metadata::ChapterMetadata) {
         if self.reader_chapter_path.is_none() {
             if let Some(paths) = READER_CHAPTER_PATHS.lock().clone() {
-                match paths.get(&chapter_id.id) {
-                    Some(path) => {
-                        self.reader_chapter_path = Some(path.to_string());
-                        info!("Chapter path set to: {}", path);
-                    }
-                    None => (),
+                if let Some(path) = paths.get(&chapter_id.id) {
+                    self.reader_chapter_path = Some(path.to_string());
+                    info!("Chapter path set to: {}", path);
                 }
             }
         }
@@ -1107,7 +1097,7 @@ impl App {
     fn reader_handle_input(&mut self, ctx: &Context, ui: &mut Ui) -> ControlFlow<()> {
         let input = ctx.input(|i| i.clone());
         if input.key_pressed(egui::Key::ArrowRight) {
-            if let Some(chap_len) = self.reader_chapter_len.clone() {
+            if let Some(chap_len) = self.reader_chapter_len {
                 if input.modifiers.ctrl {
                     // handle ctrl + right arrow
                     if self.request_next_chapter() {
@@ -1147,7 +1137,7 @@ impl App {
 
                 self.reader_page = 0;
                 return ControlFlow::Continue(());
-            } else if self.reader_page <= 0 {
+            } else if self.reader_page == 0 {
                 // handle if page is 0 (or less)
 
                 // If there is previous chapter change chapter length to its last image
@@ -1166,7 +1156,7 @@ impl App {
                 info!("Previous page: {}", self.reader_page);
             }
         } else if input.key_pressed(egui::Key::ArrowUp) {
-            if let Some(chap_len) = self.reader_chapter_len.clone() {
+            if let Some(chap_len) = self.reader_chapter_len {
                 if self.reader_page + 1 >= chap_len && chap_len != 0 {
                     // Handle if page is already at end
 
@@ -1260,7 +1250,6 @@ impl App {
     /// - Calls `reader_reset` to reset the reader's state (page, chapter, texture cache, etc.).
     /// - Clears the list of chapters (`reader_chapters`).
     /// - Clears the stored chapter paths (`READER_CHAPTER_PATHS`).
-
     /// # Example
     /// ```
     /// self.reader_full_reset();
@@ -1526,11 +1515,12 @@ impl App {
                     match get_manga_data() {
                         Ok(manga_list) => {
                             for manga in manga_list {
-                                if manga.id == downloaded_manga_id {
-                                    if ui.button(format!("{}", manga.name)).clicked() {
-                                        self.panel = String::from("reader");
-                                        self.reader_manga_data = Some(manga);
-                                    }
+                                if
+                                    manga.id == downloaded_manga_id &&
+                                    ui.button(manga.name.clone()).clicked()
+                                {
+                                    self.panel = String::from("reader");
+                                    self.reader_manga_data = Some(manga);
                                 }
                             }
                         }
@@ -1646,7 +1636,7 @@ impl App {
     /// # Additional Information:
     /// - The function uses a `frame_delay` of 100ms for a smooth frame update interval.
     fn show_gif(&mut self, ctx: &Context, path: &str) {
-        let gif_frames = match self.gif_images.get(&path.to_string()) {
+        let gif_frames = match self.gif_images.get(path) {
             Some(frames) => frames,
             None => {
                 warn!("Failed to find gif image {}", path);

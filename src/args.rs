@@ -130,344 +130,343 @@ lazy_static! {
     };
 }
 
-/// Mangadex Manga downloader
+/// MangaDex manga downloader
 #[derive(Parser)]
 #[command(
     author = "GrenManSK",
     version,
-    about,
-    help_template = "{before-help}{name} ({version}) - {author}
-
-{about}
-
-{usage-heading} {usage}
-
-{all-args}
-{after-help}",
+    about = "Download manga from MangaDex",
+    help_template = "\x1b[1m{name}\x1b[0m {version} - {author}\n{about}\n\n\x1b[1mUSAGE:\x1b[0m\n  {usage}\n\n\x1b[1mEXAMPLES:\x1b[0m\n  mdown --url https://mangadex.org/title/UUID\n  mdown --url UUID --lang en --saver\n  mdown --search \"One Piece\"\n  mdown --web\n\n\x1b[1mOPTIONS:\x1b[0m\n{all-args}\n\n{after-help}",
     help_expected = true,
-    long_about = None,
-    after_help = "Thanks for using Mdown"
+    long_about = "A manga downloader for MangaDex. Supports batch downloading, web reader,\ndesktop GUI, and LAN server. Download chapters as .cbz files with metadata.\n\nData from MangaDex (mangadex.org). Chapters by scanlation groups.",
+    after_help = "\x1b[1mSUBCOMMANDS:\x1b[0m\n  app          Application management (setup, reset, backup, update)\n  database     Database operations (check updates, show library)\n  settings     Configure defaults (folder, stat, backup, music)\n\nRun 'mdown <subcommand> --help' for more info on a subcommand.\n\n\x1b[1mNOTES:\x1b[0m\n  - First run shows a tutorial; use --skip-tutorial to disable\n  - Downloads go to current directory; use --folder to change\n  - Use --saver for faster downloads (lower quality images)\n  - Lock file prevents multiple instances; use 'app --force-delete' if stuck"
 )]
 #[clap(group = ArgGroup::new("Search-Options").args(&["url", "search"]))]
 #[clap(group = ArgGroup::new("Mod-Options").args(&["web", "server", "gui", "encode"]))]
 #[clap(group = ArgGroup::new("Tutorial-Options").args(&["tutorial", "skip_tutorial"]))]
 pub(crate) struct ParserArgs {
-    /// URL of the manga to be downloaded. Provide in the format `https://mangadex.org/title/[id]/` or UUID.
+    /// Manga URL or UUID
     #[arg(
         short,
         long,
-        value_name = "SITE",
+        value_name = "URL",
         default_value_t = String::from(ARGS_UNSPECIFIED),
-        next_line_help = true,
-        help = "url of manga, supply in the format of https:/mangadex.org/title/[id]/\nor UUID\n"
+        help = "MangaDex URL or manga UUID\n  Example: https://mangadex.org/title/a1c7c817-... or just the UUID"
     )]
     pub(crate) url: String,
 
-    /// URL of the manga to be downloaded. Provide in the format `https://mangadex.org/title/[id]/` or UUID.
+    /// Show manga info without downloading
     #[arg(
         short,
         long,
-        value_name = "SITE",
+        value_name = "URL",
         default_value_t = String::from(ARGS_UNSPECIFIED),
-        next_line_help = true,
-        help = "url of manga, supply in the format of https:/mangadex.org/title/[id]/\nor UUID\n"
+        help = "Show manga/chapter info without downloading\n  Same format as --url"
     )]
     pub(crate) info: String,
 
-    /// Language of the manga to download; "*" is for all languages.
+    /// Language code (default: en)
     #[arg(
         short,
         long,
-        value_name = "LANGUAGE",
+        value_name = "CODE",
         default_value_t = String::from(DEFAULT_LANG),
-        next_line_help = true,
-        help = "language of manga to download; \"*\" is for all languages\n"
+        help = "Language to download. Use '*' for all languages\n  Common: en, es, ja, zh, ko, fr, de, pt-br, ru\n  See: https://api.mangadex.org/docs/3-enumerations/#language-codes"
     )]
     pub(crate) lang: String,
 
-    /// Name of the manga to download.
+    /// Custom title for the manga
     #[arg(
         short,
         long,
+        value_name = "NAME",
         default_value_t = String::from("*"),
-        next_line_help = true,
-        help = "name of the manga\n"
+        help = "Custom name for downloaded manga (used in filenames)"
     )]
     pub(crate) title: String,
 
-    /// Folder to save all chapters. If folder name is `name`, it will save in a folder named after the manga. If title is specified, it will create a folder named after the title.
+    /// Output folder
     #[arg(
         short,
         long,
+        value_name = "PATH",
         default_value_t = String::from("."),
-        next_line_help = true,
-        help = "put all chapters in folder specified,\n- if folder name is name it will put in folder same as manga name\n- if folder name is name and title is specified it will make folder same as title\n"
+        help = "Folder to save downloads\n  Use 'name' to auto-name folder after manga\n  Example: --folder \"My Manga\" or --folder \"name\""
     )]
     pub(crate) folder: String,
 
-    /// Download only the specified volume.
+    /// Download specific volume
     #[arg(
         short,
         long,
+        value_name = "NUM",
         default_value_t = String::from("*"),
-        next_line_help = true,
-        help = "download only specified volume\n"
+        help = "Only download chapters from this volume\n  Example: --volume 1"
     )]
     pub(crate) volume: String,
 
-    /// Download only the specified chapter.
+    /// Download specific chapter
     #[arg(
         short,
         long,
+        value_name = "NUM",
         default_value_t = String::from("*"),
-        next_line_help = true,
-        help = "download only specified chapter\n"
+        help = "Only download this chapter number\n  Example: --chapter 5 or --chapter 10.5"
     )]
     pub(crate) chapter: String,
 
-    /// Download images of lower quality and reduce download size.
-    #[arg(
-        short,
-        long,
-        next_line_help = true,
-        help = "download images of lower quality and lower download size; will save network resources and reduce download time"
-    )]
+    /// Use data-saver images
+    #[arg(short, long, help = "Download smaller/compressed images (faster, less bandwidth)")]
     pub(crate) saver: bool,
 
-    /// Add a markdown file that contains status information.
-    #[arg(
-        long,
-        next_line_help = true,
-        help = "add markdown file which contains status information"
-    )]
+    /// Generate download statistics
+    #[arg(long, help = "Create a .txt file with download statistics")]
     pub(crate) stat: bool,
 
-    /// Suppress the use of curses window.
-    #[arg(long, next_line_help = true, help = "Won't use curses window")]
+    /// Quiet mode (no terminal UI)
+    #[arg(long, help = "Disable curses terminal output")]
     pub(crate) quiet: bool,
 
-    /// Number of manga images to download concurrently. Recommended to use a maximum of 50 to avoid performance issues and incomplete downloads.
+    /// Max parallel image downloads
     #[arg(
         short,
         long,
+        value_name = "N",
         default_value_t = MAX_CONSECUTIVE,
-        next_line_help = true,
-        help = "download manga images by supplied number at once;\nit is highly recommended to use MAX 50 because of lack of performance and non complete manga downloading,\nmeaning chapter will not download correctly, meaning missing or corrupt pages\n"
+        help = "Images to download simultaneously (default: 40, max recommended: 50)\n  Lower values = slower but more stable\n  Use lower on slow connections"
     )]
     pub(crate) max_consecutive: usize,
 
-    /// Download manga even if it already exists.
-    #[arg(long, next_line_help = true, help = "download manga even if it already exists")]
+    /// Force re-download existing files
+    #[arg(long, help = "Re-download chapters even if they already exist")]
     pub(crate) force: bool,
 
-    /// Start offset for downloading chapters. For example, "50" starts from chapter 50.
+    /// Skip first N chapters
     #[arg(
         short,
         long,
+        value_name = "N",
         default_value_t = String::from("0"),
-        next_line_help = true,
-        help = "changes start offset e.g. 50 starts from chapter 50,\nalthough if manga contains chapter like 3.1, 3.2 starting chapter will be moved by number of these chapters\n"
+        help = "Skip the first N chapters\n  Example: --offset 10 skips chapters 1-10"
     )]
     pub(crate) offset: String,
 
-    /// Offset in the database; starts from the specified item in the database before sorting.
+    /// Database query offset
     #[arg(
         short,
         long,
+        value_name = "N",
         default_value_t = String::from("0"),
-        next_line_help = true,
-        help = "changes start offset e.g. 50 starts from 50 item in database;\nthis occurs before manga is sorted, which result in some weird behavior like missing chapters\n"
+        help = "Start from Nth item in database (before sorting)\n  May cause missing chapters with default sorting"
     )]
     pub(crate) database_offset: String,
 
-    /// Do not sort the database.
-    #[arg(long, next_line_help = true, help = "database will not be sorted")]
+    /// Don't sort chapters
+    #[arg(long, help = "Keep original chapter order (don't sort)")]
     pub(crate) unsorted: bool,
 
-    /// Change the current working directory.
+    /// Working directory
     #[arg(
         long,
+        value_name = "PATH",
         default_value_t = String::from("./"),
-        next_line_help = true,
-        help = "change current working directory\n"
+        help = "Change the working directory"
     )]
     pub(crate) cwd: String,
 
-    /// Print URL in a program-readable format.
+    /// Encode URL for scripts
     #[arg(
         short,
         long,
-        next_line_help = true,
+        value_name = "URL",
         default_value_t = String::new(),
-        help = "print url in program readable format\n"
+        help = "Print URL in encoded format (for scripting)"
     )]
     pub(crate) encode: String,
 
-    /// Enable logging and write logs to `log.json`.
-    #[arg(long, next_line_help = true, help = "print log and write it in log.json")]
+    /// Enable file logging
+    #[arg(long, help = "Write logs to log.json")]
     pub(crate) log: bool,
 
-    #[arg(long, next_line_help = true, help = "will run tutorial")]
+    /// Run interactive tutorial
+    #[arg(long, help = "Show first-run tutorial")]
     pub(crate) tutorial: bool,
 
-    #[arg(long, next_line_help = true, help = "will not run tutorial")]
+    /// Skip tutorial
+    #[arg(long, help = "Skip first-run tutorial")]
     pub(crate) skip_tutorial: bool,
 
-    /// Search for manga by title.
+    /// Search by title
     #[arg(
         long,
+        value_name = "TITLE",
         default_value_t = String::from("*"),
-        next_line_help = true,
-        help = "download manga by manga title\n"
+        help = "Search manga by name instead of URL\n  Example: --search \"One Piece\""
     )]
     pub(crate) search: String,
 
-    /// Play music during downloading. Options include 1. Wushu Dolls, 2. Militech, 3. You Shall Never Have to Forgive Me Again, 4. Valentinos, 5. Force Projection. Default is 1.
+    /// Play background music
     #[arg(
         long,
-        next_line_help = true,
-        help = "Will play music during downloading\n1. Wushu Dolls\n2. Militech\n3. You Shall Never Have to Forgive Me Again\n4. Valentinos\n5. Force Projection\n[default: 1]"
+        value_name = "[NUM]",
+        help = "Play music during downloads (requires 'music' feature)\n  Tracks: 1=Wushu Dolls, 2=Militech, 3=Forgive Me, 4=Valentinos, 5=Force Projection\n  Use --music 2 to pick track 2, or --music for default (1)"
     )]
     pub(crate) music: Option<Option<String>>,
 
-    /// Enter web mode and open browser on port 8080. The core lock file will not be initialized, and results will be printed gradually during the download process.
+    /// Web reader interface
     #[arg(
         short,
         long,
-        next_line_help = true,
-        help = "enter web mode and will open browser on port 8080, core lock file will not be initialized; result will be printed gradually during download process"
+        help = "Open web reader in browser (localhost:8080)\n  Browse and read downloaded manga"
     )]
     pub(crate) web: bool,
 
-    /// Start a server mode.
-    #[arg(long, next_line_help = true, help = "Starts server")]
+    /// LAN server mode
+    #[arg(long, help = "Start a server to share manga on your local network")]
     pub(crate) server: bool,
 
-    /// Start a gui mode
-    #[arg(long, next_line_help = true, help = "Gui version of mdown")]
+    /// Desktop GUI
+    #[arg(long, help = "Launch graphical interface (requires 'gui' feature)")]
     pub(crate) gui: bool,
 
-    /// Development options
-    #[arg(long, next_line_help = true, help = "debug")]
+    /// Debug output
+    #[arg(long, hide = true, help = "Print debug messages")]
     pub(crate) debug: bool,
 
-    #[arg(long, next_line_help = true, help = "debug")]
+    /// Debug to file
+    #[arg(long, hide = true, help = "Write debug messages to debug.log")]
     pub(crate) debug_file: bool,
 
-    #[arg(long, next_line_help = true, help = "dev")]
+    /// Developer mode
+    #[arg(long, hide = true, help = "Enable developer features")]
     pub(crate) dev: bool,
 
-    /// Subcommands for various application-specific tasks.
+    /// Subcommands
     #[command(subcommand)]
     pub(crate) subcommands: Option<Commands>,
 }
 
-/// Enum representing the available subcommands for the application.
+/// Available subcommands
 #[derive(Subcommand, Clone, Debug, PartialEq)]
 pub(crate) enum Commands {
-    /// Subcommands related to database management.
+    /// Manage your manga database
+    ///
+    /// Check for updates, view your library, and manage backups.
+    ///
+    /// Examples:
+    ///   mdown database --check
+    ///   mdown database --show
+    ///   mdown database --update
     Database {
-        /// Check downloaded files for errors.
-        #[arg(long, next_line_help = true, help = "Check downloaded manga for updates")]
+        /// Check for manga updates
+        #[arg(long, help = "Check if downloaded manga has new chapters")]
         check: bool,
 
-        /// Update downloaded files.
-        #[arg(long, next_line_help = true, help = "Check and downloads files")]
+        /// Download available updates
+        #[arg(long, help = "Check for and download manga updates")]
         update: bool,
 
-        /// Show current manga in the database. You can specify an ID to show a particular manga.
+        /// Show downloaded manga
         #[arg(
             long,
-            next_line_help = true,
-            help = "Shows current manga in database; you can put id of manga that you want to show [default: will show all manga in database]"
+            help = "List manga in your library\n  Optionally provide manga UUID to show details"
         )]
         show: Option<Option<String>>,
 
-        /// Show current chapters in the database. You can specify an ID to show a particular chapter.
+        /// Show all chapters
         #[arg(
             long,
-            next_line_help = true,
-            help = "Shows current chapters in database; you can put id of manga that you want to show [default: will show all manga in database]"
+            help = "List all downloaded chapters\n  Optionally provide manga UUID to filter"
         )]
         show_all: Option<Option<String>>,
 
-        /// Show current logs in the database.
-        #[arg(long, next_line_help = true, help = "Shows current logs in database")]
+        /// Show download logs
+        #[arg(long, help = "View download history logs")]
         show_log: bool,
 
-        /// Shows current settings in database.
-        #[arg(long, next_line_help = true, help = "Shows current settings in database")]
+        /// Show current settings
+        #[arg(long, help = "Display saved configuration")]
         show_settings: bool,
 
-        /// You will choose which backup to retrieve.
-        #[arg(long, next_line_help = true, help = "You will choose which backup to retrieve")]
+        /// Restore from backup
+        #[arg(long, help = "Choose a backup file to restore")]
         backup_choose: bool,
     },
 
-    /// Subcommands related to application settings.
+    /// Configure application defaults
+    ///
+    /// Set default folder, enable statistics, configure backup, etc.
+    ///
+    /// Examples:
+    ///   mdown settings --folder "My Manga"
+    ///   mdown settings --stat 1
+    ///   mdown settings --backup 1
+    ///   mdown settings --clear
     Settings {
-        /// Set the default folder name.
-        #[arg(
-            long,
-            next_line_help = true,
-            help = "set default name of folder\n[default: Will remove current folder setting]"
-        )]
+        /// Set default download folder
+        #[arg(long, help = "Set default folder for downloads\n  No value = remove setting")]
         folder: Option<Option<String>>,
-        /// Set if --stat flag should be default.
+
+        /// Auto-enable statistics
         #[arg(
             long,
-            next_line_help = true,
-            help = "set if --stat should be default\n[default: Will remove current folder setting; 1 is for yes, 0 for no]"
+            help = "Enable/disable --stat by default\n  Use: 1 (yes), 0 (no), empty (remove)"
         )]
         stat: Option<Option<String>>,
-        /// Will backup files
+
+        /// Auto-backup
         #[arg(
             long,
-            next_line_help = true,
-            help = "Will set default of backup files n[default: Will remove current backup setting; 1 is for yes, 0 for no][default for backup is 1]"
+            help = "Enable/disable automatic backups\n  Use: 1 (yes), 0 (no), empty (remove)\n  Default: enabled"
         )]
         backup: Option<Option<String>>,
-        /// Will start music
+
+        /// Set default music
         #[arg(
             long,
-            next_line_help = true,
-            help = "Will play music during downloading\n1. Wushu Dolls\n2. Militech\n3. You Shall Never Have to Forgive Me Again\n4. Valentinos\n5. Force Projection\n[default: Will remove current setting]"
+            help = "Set default music track (requires 'music' feature)\n  Use: 1-5 (track number), empty (remove)"
         )]
         music: Option<Option<String>>,
 
-        /// Will remove all settings
-        #[arg(long, next_line_help = true, help = "Will remove all settings")]
+        /// Clear all settings
+        #[arg(long, help = "Remove all saved settings")]
         clear: bool,
     },
 
-    /// Subcommands related to application management.
+    /// Application management
+    ///
+    /// Setup, reset, backup, and update the application.
+    ///
+    /// Examples:
+    ///   mdown app --force-setup
+    ///   mdown app --reset
+    ///   mdown app --update
     App {
-        /// Force the first-time setup.
-        #[arg(long, next_line_help = true, help = "Force first time setup")]
+        /// Re-run first-time setup
+        #[arg(long, help = "Force the initial setup wizard to run again")]
         force_setup: bool,
 
-        /// Force delete the `.lock` file, which prevents running another instance.
+        /// Remove stuck lock file
         #[arg(
             long,
-            next_line_help = true,
-            help = "force to delete *.lock file which is stopping from running another instance of program;\nNOTE that if you already have one instance running it will fail to delete the original file and thus it will crash"
+            help = "Delete the .lock file (for when app crashed)\n  WARNING: Don't use if another instance is running"
         )]
         force_delete: bool,
 
-        /// Delete `dat.json`.
-        #[arg(long, next_line_help = true, help = "Delete dat.json")]
+        /// Delete manga database
+        #[arg(long, help = "Delete dat.json (manga metadata)")]
         delete: bool,
 
-        /// Delete all files created by the program.
-        #[arg(long, next_line_help = true, help = "Delete all files created by program")]
+        /// Factory reset
+        #[arg(long, help = "Delete all files and reset to defaults (asks for confirmation)")]
         reset: bool,
 
-        /// Will backup files
-        #[arg(long, next_line_help = true, help = "Will backup files")]
+        /// Create backup
+        #[arg(long, help = "Manually trigger a backup")]
         backup: bool,
 
-        /// Will update app
-        #[arg(long, next_line_help = true, help = "Will update app")]
+        /// Update mdown
+        #[arg(long, help = "Update to the latest version")]
         update: bool,
     },
     Default,
@@ -779,7 +778,7 @@ impl Args {
             debug: *ARGS_DEBUG,
             debug_file: *ARGS_DEBUG_FILE,
             dev: *ARGS_DEV,
-            backup: ARGS_BACKUP.clone(),
+            backup: *ARGS_BACKUP,
             // ARGS_MUSIC is not synchronized with database
             music: ARGS_MUSIC.clone(),
             tutorial: *ARGS_TUTORIAL,

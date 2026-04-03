@@ -241,7 +241,7 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
 
         let mut binary_data = BytesMut::new();
 
-        let mut response = match download::get_response_from_client(&asset_url, &client).await {
+        let mut response = match download::get_response_from_client(asset_url, &client).await {
             Ok(response) => response,
             Err(err) => {
                 return Err(MdownError::ChainedError(Box::new(err), 11627));
@@ -287,7 +287,7 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
         let mut hasher = Sha256::new();
         debug!("Calculating checksum");
         hasher.update(&binary_data);
-        let calculated_hash = format!("{:x}", hasher.finalize());
+        let calculated_hash = hex::encode(hasher.finalize());
 
         debug!("Checksum for downloaded file: {}", calculated_hash);
         if calculated_hash != checksum {
@@ -401,7 +401,7 @@ async fn version_preparation() -> Result<
             return Err(MdownError::NetworkError(err, 11604));
         }
     };
-    let response = match download::get_response_from_client(&url, &client).await {
+    let response = match download::get_response_from_client(&url, client).await {
         Ok(res) => res,
         Err(err) => {
             return Err(MdownError::ChainedError(Box::new(err), 11629));
@@ -438,23 +438,20 @@ async fn version_preparation() -> Result<
             );
         }
     };
-    Ok((current_version, latest_version, data, client))
+    Ok((current_version, latest_version, data, client.clone()))
 }
 pub(crate) async fn check_update() -> Result<bool, MdownError> {
     debug!("check_update");
 
-    match db::get_update_time() {
-        Ok(Some(time)) => {
-            if let Ok(parsed_time) = NaiveDateTime::parse_from_str(&time, "%Y-%m-%d %H:%M:%S") {
-                let current_time = Local::now().naive_local();
-                let difference = current_time.signed_duration_since(parsed_time);
-                if difference < chrono::Duration::days(1) {
-                    debug!("No update needed (last check: {})\n", time);
-                    return Ok(false);
-                }
+    if let Ok(Some(time)) = db::get_update_time() {
+        if let Ok(parsed_time) = NaiveDateTime::parse_from_str(&time, "%Y-%m-%d %H:%M:%S") {
+            let current_time = Local::now().naive_local();
+            let difference = current_time.signed_duration_since(parsed_time);
+            if difference < chrono::Duration::days(1) {
+                debug!("No update needed (last check: {})\n", time);
+                return Ok(false);
             }
         }
-        _ => (),
     }
 
     let (current_version, latest_version, _, _) = match version_preparation().await {
