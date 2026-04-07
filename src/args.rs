@@ -473,7 +473,7 @@ pub(crate) enum Commands {
 }
 
 /// Enum for different types of values used in the application.
-pub(crate) enum Value {
+pub(crate) enum ArgValue {
     /// A boolean value.
     Bool(bool),
 
@@ -536,10 +536,10 @@ impl Args {
     ///   - `"stat"`: Updates the `stat` boolean flag.
     ///   - `"backup"`: Updates the `backup` boolean flag.
     ///   - `"music"` (only when the `"music"` feature is enabled): Updates the `music` optional string setting.
-    /// - `to: Value` - The new value to assign. Expected variants:
-    ///   - `Value::Str(value)`: Used for `"folder"`.
-    ///   - `Value::Bool(value)`: Used for `"stat"` and `"backup"`.
-    ///   - `Value::OptOptStr(value)`: Used for `"music"` when the `"music"` feature is enabled.
+    /// - `to: ArgValue` - The new value to assign. Expected variants:
+    ///   - `ArgValue::Str(value)`: Used for `"folder"`.
+    ///   - `ArgValue::Bool(value)`: Used for `"stat"` and `"backup"`.
+    ///   - `ArgValue::OptOptStr(value)`: Used for `"music"` when the `"music"` feature is enabled.
     ///
     /// # Behavior
     ///
@@ -548,22 +548,22 @@ impl Args {
     /// - If `typ` is `"backup"`, it updates `self.backup` to the provided boolean value.
     /// - If `typ` is `"music"` and the `"music"` feature is enabled, it updates `self.music` to `value.clone()`.
     /// - If `typ` does not match any of the expected values, the function does nothing.
-    pub(crate) fn change(&mut self, typ: &str, to: Value) {
+    pub(crate) fn change(&mut self, typ: &str, to: ArgValue) {
         match (typ, to) {
-            ("folder", Value::Str(value)) => {
+            ("folder", ArgValue::Str(value)) => {
                 if self.folder != "." {
                     return;
                 }
                 self.folder = value;
             }
-            ("stat", Value::Bool(value)) => {
+            ("stat", ArgValue::Bool(value)) => {
                 self.stat = value;
             }
-            ("backup", Value::Bool(value)) => {
+            ("backup", ArgValue::Bool(value)) => {
                 self.backup = value;
             }
             #[cfg(feature = "music")]
-            ("music", Value::OptOptStr(value)) => {
+            ("music", ArgValue::OptOptStr(value)) => {
                 self.music = value.clone();
             }
             (_, _) => (),
@@ -594,11 +594,11 @@ impl Args {
     /// args.change_settings(new_settings);
     /// ```
     pub(crate) fn change_settings(&mut self, settings: Settings) {
-        self.change("folder", Value::Str(settings.folder));
-        self.change("stat", Value::Bool(settings.stat));
-        self.change("backup", Value::Bool(settings.backup));
+        self.change("folder", ArgValue::Str(settings.folder));
+        self.change("stat", ArgValue::Bool(settings.stat));
+        self.change("backup", ArgValue::Bool(settings.backup));
         #[cfg(feature = "music")]
-        self.change("music", Value::OptOptStr(settings.music));
+        self.change("music", ArgValue::OptOptStr(settings.music));
     }
 
     /// Parses command-line arguments and constructs an `Args` instance.
