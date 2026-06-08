@@ -28,9 +28,8 @@
 
 **First time?** Follow these steps:
 
-1. [Install Rust](https://www.rust-lang.org/tools/install) (if building from source)
-2. Build: `cargo build -r`
-3. Run: `mdown --url https://mangadex.org/title/UUID`
+1. Download the latest binary from the [Releases page](https://github.com/GrenManSK/mdown/releases) (or [build from source](#building-from-source))
+2. Run: `mdown --url https://mangadex.org/title/UUID`
 
 That's it! Your manga will download as `.cbz` files.
 
@@ -52,15 +51,10 @@ cargo build -r
 ./target/release/mdown --help
 ```
 
-### Option 2: Use Cargo Run
-
-```bash
-# Build and run in one step
-cargo run -r -- --url https://mangadex.org/title/UUID
-
-# Pass arguments after --
-cargo run -r -- --url UUID --lang en --saver
-```
+### Option 2: Download from GitHub Releases
+1. Go to the [Releases page](https://github.com/GrenManSK/mdown/releases)
+2. Download the latest binary for your platform
+3. Extract and run
 
 > **Note:** First-time configuration uses yt-dlp for downloading some resources.
 
@@ -104,7 +98,7 @@ mdown --gui
 | Flag | Description | Example |
 |------|-------------|---------|
 | `--url <UUID>` | MangaDex URL or UUID (required) | `--url https://mangadex.org/title/UUID` |
-| `--lang <CODE>` | Language code (`*` for all) | `--lang en` |
+| `--lang <CODE>` | Language code (`*` for all) (default: en) | `--lang en` |
 | `--title <NAME>` | Custom manga title | `--title "My Manga"` |
 | `--folder <PATH>` | Output folder (`**name**` = manga name) | `--folder "My Downloads"` |
 | `--volume <NUM>` | Download specific volume | `--volume 1` |
@@ -120,60 +114,60 @@ mdown --gui
 
 #### Interface Modes
 
-| Flag | Description |
-|------|-------------|
-| `--web` | Web interface on port 8080 |
-| `--gui` | Desktop GUI (requires `gui` feature) |
-| `--server` | LAN server for sharing downloads |
-| `--music` | Background music during downloads (requires `music` feature) |
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--web` | Web interface on port 8080 | `--web` |
+| `--gui` | Desktop GUI (requires `gui` feature) | `--gui` |
+| `--server` | LAN server for sharing downloads | `--server` |
+| `--music [<NUM>]` | Background music during downloads (requires `music` feature) | `--music 2` |
 
 #### Utility Flags
 
-| Flag | Description |
-|------|-------------|
-| `--cwd <PATH>` | Change working directory |
-| `--encode <URL>` | Encode URL for processing |
-| `--unsorted` | Don't sort chapters |
-| `--database-offset <N>` | Offset for database queries |
-| `--tutorial` | Run interactive tutorial |
-| `--skip-tutorial` | Skip first-run tutorial |
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--cwd <PATH>` | Change working directory | `--cwd ./downloads` |
+| `--encode <URL>` | Encode URL for processing | `--encode "https://..."` |
+| `--unsorted` | Don't sort chapters | |
+| `--database-offset <N>` | Offset for database queries (default: 0) | `--database-offset 10` |
+| `--tutorial` | Run interactive tutorial | |
+| `--skip-tutorial` | Skip first-run tutorial | |
 
 ### Subcommands
 
 #### Application Management
 
-```bash
-mdown app --force-setup    # Re-run initial setup
-mdown app --force-delete   # Remove lock file (if crashed)
-mdown app --delete         # Delete manga database
-mdown app --reset          # Factory reset
-mdown app --backup         # Manual backup
-mdown app --update         # Update mdown to latest version
-```
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--force-setup` | Re-run initial setup | `mdown app --force-setup` |
+| `--force-delete` | Remove lock file (if crashed) | `mdown app --force-delete` |
+| `--delete` | Delete manga database | `mdown app --delete` |
+| `--reset` | Factory reset | `mdown app --reset` |
+| `--backup` | Manual backup | `mdown app --backup` |
+| `--update` | Update mdown to latest version | `mdown app --update` |
 
 > **Note:** The lowest time unit in backup filenames is a day. Forced backups will overwrite existing backups with the same day.
 
 #### Database Operations
 
-```bash
-mdown database --check          # Check for manga updates
-mdown database --update         # Download available updates
-mdown database --show           # List downloaded manga
-mdown database --show-all       # List all chapters
-mdown database --show-log       # View download logs
-mdown database --show-settings  # View saved settings
-mdown database --backup-choose  # Choose backup to restore
-```
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--check` | Check for manga updates | `mdown database --check` |
+| `--update` | Download available updates | `mdown database --update` |
+| `--show [<UUID>]` | List downloaded manga (optionally show by UUID) | `mdown database --show` |
+| `--show-all [<UUID>]` | List downloaded manga + all chapters (optionally show by UUID) | `mdown database --show-all` |
+| `--show-log` | View download logs | `mdown database --show-log` |
+| `--show-settings` | View saved settings | `mdown database --show-settings` |
+| `--backup-choose` | Choose backup to restore | `mdown database --backup-choose` |
 
 #### Settings
 
-```bash
-mdown settings --folder <NAME>   # Set default download folder (omitting removes it)
-mdown settings --stat <0|1>      # Auto-enable statistics (omitting removes it)
-mdown settings --backup <0|1>    # Enable/disable auto-backup (omitting removes it)
-mdown settings --music <NUM>     # Default music track (omitting removes it)
-mdown settings --clear           # Clear all settings
-```
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--folder <NAME>` | Set default download folder (omitting removes it) | `mdown settings --folder "My Manga"` |
+| `--stat <0\|1>` | Auto-enable statistics (omitting removes it) | `mdown settings --stat 1` |
+| `--backup <0\|1>` | Enable/disable auto-backup (omitting removes it) | `mdown settings --backup 1` |
+| `--music <NUM>` | Default music track (omitting removes it) | `mdown settings --music 3` |
+| `--clear` | Clear all settings | `mdown settings --clear` |
 
 ---
 
@@ -291,12 +285,12 @@ mdown app --reset
 
 ### File Locations
 
-| File | Purpose |
-|------|---------|
-| `dat.json` | Downloaded manga metadata |
-| `resources.db` | Application database |
-| `.cache/` | Temporary download files |
-| `log.json` | Download logs (if `--log` enabled) |
+| File | Purpose | Location |
+|------|---------|----------|
+| `dat.json` | Downloaded manga metadata | Executable directory |
+| `resources.db` | Application database | Executable directory |
+| `log.json` | Download logs (if `--log` enabled) | Executable directory |
+| `.cache/` | Temporary download files | Current working directory |
 
 ### Language Codes
 
