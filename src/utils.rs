@@ -1118,20 +1118,21 @@ pub(crate) fn show_settings(settings: metadata::Settings) {
 }
 
 pub(crate) fn is_directory_empty(path: &str) -> bool {
-    if let Ok(entries) = std::fs::read_dir(path) {
-        let mut count = 0;
+    match std::fs::read_dir(path) {
+        Ok(entries) => {
+            let mut count = 0;
 
-        for entry in entries.flatten() {
-            count += 1;
-            if let Some(entry_name) = entry.file_name().to_str() {
-                if entry_name.ends_with("mdown_final_end.lock") {
-                    return true;
+            for entry in entries.flatten() {
+                count += 1;
+                if let Some(entry_name) = entry.file_name().to_str() {
+                    if entry_name.ends_with("mdown_final_end.lock") {
+                        return true;
+                    }
                 }
             }
+            count <= 1
         }
-        count <= 1
-    } else {
-        false
+        _ => { false }
     }
 }
 

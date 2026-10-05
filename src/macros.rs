@@ -17,13 +17,13 @@
 /// log!("This is a log message", "MyName");
 /// ```
 macro_rules! log {
-    ($message:expr) => {
+    ($message:expr_2021) => {
         {
             tracing::info!("@{}  {}", $crate::resolute::HANDLE_ID.lock(), $message);
             $crate::resolute::LOGS.lock().push($crate::metadata::Log::new($message));
         }
     };
-    ($message:expr, $name:expr, $to_write:expr) => {
+    ($message:expr_2021, $name:expr_2021, $to_write:expr_2021) => {
         {
             if $to_write {
                 tracing::info!("@{}  {}", $crate::resolute::HANDLE_ID.lock().clone().into_string(), $message);
@@ -31,7 +31,7 @@ macro_rules! log {
             $crate::resolute::LOGS.lock().push($crate::metadata::Log::new_with_name($message, $name));
         }
     };
-    ($message:expr, $name:expr) => {
+    ($message:expr_2021, $name:expr_2021) => {
         {
             tracing::info!("@{}  {}", $name, $message);
             if *$crate::args::ARGS_LOG {
@@ -95,7 +95,7 @@ macro_rules! get_saver {
             false => $crate::metadata::Saver::data,
         }
     };
-    ($invert:expr) => {
+    ($invert:expr_2021) => {
         if $invert {
             match *$crate::resolute::SAVER.lock() {
                 true => $crate::metadata::Saver::data,

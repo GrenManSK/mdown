@@ -1390,7 +1390,10 @@ impl App {
             } else {
                 match image::open(".cache\\preview\\preview.png") {
                     Ok(img) => {
-                        let img_rgba8 = img.to_rgba8();
+                        let img_rgba8: image::ImageBuffer<
+                            image::Rgba<u8>,
+                            Vec<u8>
+                        > = img.to_rgba8();
                         let size = [img_rgba8.width() as usize, img_rgba8.height() as usize];
                         let color_image = ColorImage::from_rgba_unmultiplied(size, &img_rgba8);
                         let download_texture_handle = ctx.load_texture(
@@ -1831,7 +1834,7 @@ fn load_and_resize_image(
 ) -> Option<TextureHandle> {
     match load_from_memory(image_data) {
         Ok(img) => {
-            let img_rgba8 = img.to_rgba8();
+            let img_rgba8: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = img.to_rgba8();
             let img_width = img_rgba8.width() as f32;
             let img_height = img_rgba8.height() as f32;
 

@@ -266,13 +266,13 @@ pub(crate) fn handle_error(err: &MdownError, from: Option<String>) {
 /// ```
 #[macro_export]
 macro_rules! handle_error {
-    ($err:expr) => {
+    ($err:expr_2021) => {
         {
             let err_code = $crate::error::handle_error($err, None);
             err_code
         }
     };
-    ($err:expr, $from:expr) => {
+    ($err:expr_2021, $from:expr_2021) => {
         {
             let err_code = $crate::error::handle_error($err, Some($from));
             err_code

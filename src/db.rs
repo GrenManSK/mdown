@@ -630,16 +630,22 @@ pub(crate) async fn init() -> Result<(), MdownError> {
                             .spawn()
                     {
                         Ok(mut child) => {
-                            if let Some(stdout) = child.stdout.take() {
-                                print_output(stdout, "stdout".to_string());
-                            } else {
-                                eprintln!("\nFailed to capture stdout\n");
+                            match child.stdout.take() {
+                                Some(stdout) => {
+                                    print_output(stdout, "stdout".to_string());
+                                }
+                                _ => {
+                                    eprintln!("\nFailed to capture stdout\n");
+                                }
                             }
 
-                            if let Some(stderr) = child.stderr.take() {
-                                print_output(stderr, "stderr".to_string());
-                            } else {
-                                eprintln!("\nFailed to capture stderr\n");
+                            match child.stderr.take() {
+                                Some(stderr) => {
+                                    print_output(stderr, "stderr".to_string());
+                                }
+                                _ => {
+                                    eprintln!("\nFailed to capture stderr\n");
+                                }
                             }
 
                             let status = match child.wait() {
