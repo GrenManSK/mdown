@@ -1,6 +1,6 @@
 [package]
 name = "mdown"
-version = "0.17.0"
+version = "0.18.0"
 edition = "2021"
 authors = ["GrenManSK <melnicek.richard@gmail.com>"]
 license = "GPL-3.0"
@@ -22,8 +22,6 @@ clap = { version = "4.6.7", features = ["derive"] }
 crosscurses = { version = "0.1.0", features = ["win32"] }
 crossterm = "0.29.0"
 ctrlc = { version = "3.5.2", optional = true }
-eframe = { version = "0.33.3", optional = true }
-egui = { version = "0.33.3", optional = true }
 futures = "0.3.34"
 gif = { version = "0.14.2", optional = true }
 glob = "0.3.4"
@@ -31,6 +29,7 @@ hex = "0.4.3"
 if-addrs = { version = "0.15.0", optional = true }
 image = { version = "0.25.10", optional = true }
 lazy_static = "1.5.1"
+macroquad = { version = "0.4.16", optional = true }
 parking_lot = "0.12.5"
 percent-encoding = { version = "2.3.2", optional = true }
 rand = "0.10.3"
@@ -68,4 +67,4 @@ full = ["web", "gui", "server", "music"]
 music = ["rodio"]
 web = ["webbrowser", "ctrlc", "percent-encoding"]
 server = ["webbrowser", "if-addrs", "percent-encoding", "ctrlc"]
-gui = ["eframe", "egui", "gif", "image"]
+gui = ["macroquad", "gif", "image"]

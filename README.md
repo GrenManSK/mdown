@@ -178,7 +178,7 @@ mdown --gui
 | CLI | ✓ | Command-line interface |
 | Web | ✓ | Browser-based reader on localhost:8080 |
 | Server | ✓ | LAN server for sharing your library |
-| GUI | ✗ | Desktop app with egui |
+| GUI | ✗ | Desktop app with macroquad |
 | Music | ✗ | Background music during downloads |
 
 ### Download Behavior
