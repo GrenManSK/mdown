@@ -1,15 +1,17 @@
 use bytes::BytesMut;
-use chrono::{ NaiveDateTime, Local };
-use semver::{ BuildMetadata, Prerelease, Version, VersionReq };
-use std::{ fs::{ File, write }, io::Write, process::Command };
-use sha2::{ Digest, Sha256 };
+use chrono::{Local, NaiveDateTime};
+use semver::{BuildMetadata, Prerelease, Version, VersionReq};
+use sha2::{Digest, Sha256};
+use std::{
+    fs::{write, File},
+    io::Write,
+    process::Command,
+};
 
 use crate::{
-    db,
-    download,
-    debug,
+    db, debug, download,
     error::MdownError,
-    getter::{ get_dat_path, get_exe_path, get_exe_file_path, get_exe_name },
+    getter::{get_dat_path, get_exe_file_path, get_exe_name, get_exe_path},
     metadata::Dat,
 };
 
@@ -52,7 +54,7 @@ pub const DB_VERSION: &str = "0000";
 pub(crate) fn check_ver(
     dat: &mut Dat,
     mut version: Version,
-    current_version: Version
+    current_version: Version,
 ) -> Result<bool, MdownError> {
     let req_ver_text = format!("<{}", get_current_version());
     let req1 = VersionReq::parse(&req_ver_text).unwrap();
@@ -124,12 +126,10 @@ pub(crate) fn check_app_ver() -> Result<bool, MdownError> {
     let req1 = match VersionReq::parse(&req_ver_text) {
         Ok(req) => req,
         Err(_err) => {
-            return Err(
-                MdownError::ConversionError(
-                    String::from("Unable to parse version requirement"),
-                    11611
-                )
-            );
+            return Err(MdownError::ConversionError(
+                String::from("Unable to parse version requirement"),
+                11611,
+            ));
         }
     };
 
@@ -205,7 +205,10 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
         };
 
         let current_lower = current_name.to_lowercase();
-        let target_file = if target_files.iter().any(|f| f.to_lowercase() == current_lower) {
+        let target_file = if target_files
+            .iter()
+            .any(|f| f.to_lowercase() == current_lower)
+        {
             current_name.as_str()
         } else {
             "mdown.exe"
@@ -213,22 +216,19 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
         let body = match data["body"].as_str() {
             Some(s) => s,
             None => {
-                return Err(
-                    MdownError::ConversionError(
-                        String::from("Body could not be converted to string"),
-                        11609
-                    )
-                );
+                return Err(MdownError::ConversionError(
+                    String::from("Body could not be converted to string"),
+                    11609,
+                ));
             }
         };
-        let checksum = match
-            body
-                .lines()
-                .skip_while(|line| !line.contains("## SHA256"))
-                .skip_while(|line| !line.contains(target_file))
-                .nth(2)
-                .map(str::trim)
-                .ok_or("Checksum not found")
+        let checksum = match body
+            .lines()
+            .skip_while(|line| !line.contains("## SHA256"))
+            .skip_while(|line| !line.contains(target_file))
+            .nth(2)
+            .map(str::trim)
+            .ok_or("Checksum not found")
         {
             Ok(checksum) => checksum,
             Err(err) => {
@@ -255,15 +255,14 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
         let mut last_check_time = std::time::Instant::now();
 
         while
-            //prettier-ignore
-            let Some(chunk) = match response.chunk().await {
-                Ok(Some(chunk)) => Some(chunk),
-                Ok(None) => None,
-                Err(err) => {
-                    return Err(MdownError::NetworkError(err, 11619));
-                }
+        //prettier-ignore
+        let Some(chunk) = match response.chunk().await {
+            Ok(Some(chunk)) => Some(chunk),
+            Ok(None) => None,
+            Err(err) => {
+                return Err(MdownError::NetworkError(err, 11619));
             }
-        {
+        } {
             binary_data.extend_from_slice(&chunk);
             downloaded += chunk.len() as u64;
             let current_time = std::time::Instant::now();
@@ -275,11 +274,7 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
                 let current_mb = bytefmt::format(downloaded);
                 println!(
                     "Downloading {} {}% - {} of {} [{}/s]",
-                    target_file,
-                    perc_string,
-                    current_mb,
-                    final_size_string,
-                    current_mbs
+                    target_file, perc_string, current_mb, final_size_string, current_mbs
                 );
                 last_size = downloaded;
             }
@@ -292,13 +287,11 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
 
         debug!("Checksum for downloaded file: {}", calculated_hash);
         if calculated_hash != checksum {
-            return Err(
-                MdownError::CustomError(
-                    String::from("Checksum verification failed"),
-                    String::from(""),
-                    11614
-                )
-            );
+            return Err(MdownError::CustomError(
+                String::from("Checksum verification failed"),
+                String::from(""),
+                11614,
+            ));
         }
 
         let current_exe = match get_exe_path() {
@@ -313,12 +306,10 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
         let temp_exe = match temp_dir.join("mdown.exe").to_str() {
             Some(s) => s.to_string(),
             None => {
-                return Err(
-                    MdownError::ConversionError(
-                        String::from("Temp directory path could not be converted to string"),
-                        11613
-                    )
-                );
+                return Err(MdownError::ConversionError(
+                    String::from("Temp directory path could not be converted to string"),
+                    11613,
+                ));
             }
         };
         match write(&temp_exe, binary_data) {
@@ -332,19 +323,16 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
              timeout /t 1 /nobreak >nul\n\
              move \"{}\" \"{}\" >nul\n\
              >nul 2>nul del \"%~f0\" & exit\n",
-            temp_exe,
-            current_exe_full
+            temp_exe, current_exe_full
         );
 
         let script_path = match temp_dir.join("mdown.update.bat").to_str() {
             Some(s) => s.to_string(),
             None => {
-                return Err(
-                    MdownError::ConversionError(
-                        String::from("Temp directory path could not be converted to string"),
-                        11618
-                    )
-                );
+                return Err(MdownError::ConversionError(
+                    String::from("Temp directory path could not be converted to string"),
+                    11618,
+                ));
             }
         };
         match write(&script_path, batch_script) {
@@ -369,11 +357,9 @@ pub(crate) async fn app_update() -> Result<bool, MdownError> {
 }
 
 fn search_url<'a>(data: &'a serde_json::Value, target_file: &str) -> Result<&'a str, MdownError> {
-    let items = data["assets"]
-        .as_array()
-        .ok_or_else(|| {
-            MdownError::ConversionError(String::from("Expected 'assets' to be an array"), 11615)
-        })?;
+    let items = data["assets"].as_array().ok_or_else(|| {
+        MdownError::ConversionError(String::from("Expected 'assets' to be an array"), 11615)
+    })?;
 
     for item in items {
         if let Some(url) = item["browser_download_url"].as_str() {
@@ -383,13 +369,14 @@ fn search_url<'a>(data: &'a serde_json::Value, target_file: &str) -> Result<&'a 
         }
     }
 
-    Err(MdownError::NotFoundError(String::from("No matching URL found"), 11620))
+    Err(MdownError::NotFoundError(
+        String::from("No matching URL found"),
+        11620,
+    ))
 }
 
-async fn version_preparation() -> Result<
-    (Version, Version, serde_json::Value, reqwest::Client),
-    MdownError
-> {
+async fn version_preparation(
+) -> Result<(Version, Version, serde_json::Value, reqwest::Client), MdownError> {
     let current_version = match Version::parse(&get_current_version()) {
         Ok(version) => version,
         Err(_err) => version_new(),
@@ -416,28 +403,23 @@ async fn version_preparation() -> Result<
         }
     };
 
-    let latest_version = match
-        Version::parse(
-            &(
-                match data["tag_name"].as_str() {
-                    Some(s) => s,
-                    None => {
-                        return Err(
-                            MdownError::ConversionError(
-                                String::from("Tag name could not be converted to string"),
-                                11606
-                            )
-                        );
-                    }
-                }
-            )[1..]
-        )
-    {
+    let latest_version = match Version::parse(
+        &(match data["tag_name"].as_str() {
+            Some(s) => s,
+            None => {
+                return Err(MdownError::ConversionError(
+                    String::from("Tag name could not be converted to string"),
+                    11606,
+                ));
+            }
+        })[1..],
+    ) {
         Ok(version) => version,
         Err(_err) => {
-            return Err(
-                MdownError::ConversionError(String::from("Unable to parse latest version"), 11607)
-            );
+            return Err(MdownError::ConversionError(
+                String::from("Unable to parse latest version"),
+                11607,
+            ));
         }
     };
     Ok((current_version, latest_version, data, client.clone()))

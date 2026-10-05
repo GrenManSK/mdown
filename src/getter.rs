@@ -2,16 +2,11 @@ use serde_json::Value;
 use std::process::exit;
 
 use crate::{
-    args::{ self, ARGS },
-    download::get_response_client,
+    args::{self, ARGS},
     debug,
+    download::get_response_client,
     error::MdownError,
-    log,
-    metadata,
-    resolute,
-    string,
-    tutorial,
-    utils,
+    log, metadata, resolute, string, tutorial, utils,
 };
 
 pub const DB_PATH: &str = "resources.db";
@@ -48,21 +43,20 @@ pub(crate) fn get_exe_file_path() -> Result<String, MdownError> {
     let current = match std::env::current_exe() {
         Ok(value) => value,
         Err(err) => {
-            return Err(
-                MdownError::IoError(
-                    err,
-                    String::from("The path to your executable file is invalid"),
-                    10821
-                )
-            );
+            return Err(MdownError::IoError(
+                err,
+                String::from("The path to your executable file is invalid"),
+                10821,
+            ));
         }
     };
     let path = match current.to_str() {
         Some(value) => value.to_string(),
         None => {
-            return Err(
-                MdownError::ConversionError(String::from("Failed to convert path to string"), 10822)
-            );
+            return Err(MdownError::ConversionError(
+                String::from("Failed to convert path to string"),
+                10822,
+            ));
         }
     };
 
@@ -100,13 +94,11 @@ pub(crate) fn get_exe_name() -> Result<String, MdownError> {
     let current = match std::env::current_exe() {
         Ok(value) => value,
         Err(err) => {
-            return Err(
-                MdownError::IoError(
-                    err,
-                    String::from("The path to your executable file is invalid"),
-                    10825
-                )
-            );
+            return Err(MdownError::IoError(
+                err,
+                String::from("The path to your executable file is invalid"),
+                10825,
+            ));
         }
     };
 
@@ -114,7 +106,10 @@ pub(crate) fn get_exe_name() -> Result<String, MdownError> {
     let parent = match current.file_name() {
         Some(value) => value,
         None => {
-            return Err(MdownError::NotFoundError(String::from("File name  not found"), 10823));
+            return Err(MdownError::NotFoundError(
+                String::from("File name  not found"),
+                10823,
+            ));
         }
     };
 
@@ -122,9 +117,10 @@ pub(crate) fn get_exe_name() -> Result<String, MdownError> {
     let path = match parent.to_str() {
         Some(value) => value.to_string(),
         None => {
-            return Err(
-                MdownError::ConversionError(String::from("Failed to convert path to string"), 10824)
-            );
+            return Err(MdownError::ConversionError(
+                String::from("Failed to convert path to string"),
+                10824,
+            ));
         }
     };
 
@@ -164,13 +160,11 @@ pub(crate) fn get_exe_path() -> Result<String, MdownError> {
     let current = match std::env::current_exe() {
         Ok(value) => value,
         Err(err) => {
-            return Err(
-                MdownError::IoError(
-                    err,
-                    String::from("The path to your executable file is invalid"),
-                    10800
-                )
-            );
+            return Err(MdownError::IoError(
+                err,
+                String::from("The path to your executable file is invalid"),
+                10800,
+            ));
         }
     };
 
@@ -178,9 +172,10 @@ pub(crate) fn get_exe_path() -> Result<String, MdownError> {
     let parent = match current.parent() {
         Some(value) => value,
         None => {
-            return Err(
-                MdownError::NotFoundError(String::from("Parent directory not found"), 10801)
-            );
+            return Err(MdownError::NotFoundError(
+                String::from("Parent directory not found"),
+                10801,
+            ));
         }
     };
 
@@ -188,9 +183,10 @@ pub(crate) fn get_exe_path() -> Result<String, MdownError> {
     let path = match parent.to_str() {
         Some(value) => value.to_string(),
         None => {
-            return Err(
-                MdownError::ConversionError(String::from("Failed to convert path to string"), 10802)
-            );
+            return Err(MdownError::ConversionError(
+                String::from("Failed to convert path to string"),
+                10802,
+            ));
         }
     };
 
@@ -417,88 +413,82 @@ pub(crate) fn get_folder_name() -> &'static str {
 /// relies on this global setting to determine the preferred language for the title.
 pub(crate) fn get_manga_name(title_data: &Value) -> String {
     let lang = resolute::LANGUAGE.lock().clone();
-    let name = (
-        match
-            title_data
-                .get("title")
-                .and_then(|attr_data| attr_data.get(lang.clone()))
-                .and_then(Value::as_str)
-        {
-            // If there is manga name with language from args
-            Some(manga_name) => manga_name.to_string(),
-            None => {
-                // Check altTitles for language that corresponds to args language
-                let mut return_title = String::from("Unrecognized title");
-                if
-                    let Some(alt_titles) = title_data
-                        .get("altTitles")
-                        .and_then(|val| val.as_array())
-                {
-                    if let Some(title_object) = alt_titles.iter().next() {
-                        if let Some(lang_object) = title_object.as_object() {
-                            for (lang, title) in lang_object.iter() {
-                                if lang == "en" {
-                                    return_title = match title.as_str() {
-                                        Some(s) => s.to_string(),
-                                        None => String::new(),
-                                    };
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if return_title == "Unrecognized title" {
-                        // If not found check for japanese and english language
-                        for i in [String::from("ja-ro"), String::from("en")] {
-                            match
-                                title_data
-                                    .get("title")
-                                    .and_then(|attr_data| attr_data.get(i))
-                                    .and_then(Value::as_str)
-                            {
-                                Some(value) => {
-                                    return_title = value.to_string();
-                                    break;
-                                }
-                                None => {
-                                    return_title = String::from("Unrecognized title");
-                                }
-                            };
-                        }
-                    }
-
-                    // If still not found checks for english and japanese title in title data
-
-                    if return_title == "Unrecognized title" {
-                        let mut alt_titles_final: serde_json::Map<
-                            String,
-                            Value
-                        > = serde_json::Map::new();
-
-                        for obj in alt_titles {
-                            if let Value::Object(inner_map) = obj {
-                                for (key, value) in inner_map {
-                                    alt_titles_final.insert(key.to_string(), value.clone());
-                                }
-                            }
-                        }
-                        for (lang, title) in alt_titles_final {
-                            if lang == "en" || lang == "ja-ro" {
-                                return_title = title.to_string();
+    let name = (match title_data
+        .get("title")
+        .and_then(|attr_data| attr_data.get(lang.clone()))
+        .and_then(Value::as_str)
+    {
+        // If there is manga name with language from args
+        Some(manga_name) => manga_name.to_string(),
+        None => {
+            // Check altTitles for language that corresponds to args language
+            let mut return_title = String::from("Unrecognized title");
+            if let Some(alt_titles) = title_data.get("altTitles").and_then(|val| val.as_array()) {
+                if let Some(title_object) = alt_titles.iter().next() {
+                    if let Some(lang_object) = title_object.as_object() {
+                        for (lang, title) in lang_object.iter() {
+                            if lang == "en" {
+                                return_title = match title.as_str() {
+                                    Some(s) => s.to_string(),
+                                    None => String::new(),
+                                };
                                 break;
                             }
                         }
                     }
                 }
-                return_title
+                if return_title == "Unrecognized title" {
+                    // If not found check for japanese and english language
+                    for i in [String::from("ja-ro"), String::from("en")] {
+                        match title_data
+                            .get("title")
+                            .and_then(|attr_data| attr_data.get(i))
+                            .and_then(Value::as_str)
+                        {
+                            Some(value) => {
+                                return_title = value.to_string();
+                                break;
+                            }
+                            None => {
+                                return_title = String::from("Unrecognized title");
+                            }
+                        };
+                    }
+                }
+
+                // If still not found checks for english and japanese title in title data
+
+                if return_title == "Unrecognized title" {
+                    let mut alt_titles_final: serde_json::Map<String, Value> =
+                        serde_json::Map::new();
+
+                    for obj in alt_titles {
+                        if let Value::Object(inner_map) = obj {
+                            for (key, value) in inner_map {
+                                alt_titles_final.insert(key.to_string(), value.clone());
+                            }
+                        }
+                    }
+                    for (lang, title) in alt_titles_final {
+                        if lang == "en" || lang == "ja-ro" {
+                            return_title = title.to_string();
+                            break;
+                        }
+                    }
+                }
             }
+            return_title
         }
-    )
-        .replace("\"", "")
-        .replace("?", "")
-        .trim()
-        .to_string();
-    let name = if name.len() > 70 { format!("{}__", &name[0..70]) } else { name };
+    })
+    .replace("\"", "")
+    .replace("?", "")
+    .trim()
+    .to_string();
+    let name = if name.len() > 70 {
+        format!("{}__", &name[0..70])
+    } else {
+        name
+    };
     utils::process_filename(&name)
 }
 
@@ -554,23 +544,18 @@ pub(crate) async fn get_manga_json(id: &str) -> Result<String, MdownError> {
         debug!("response is success (get_manga_response)\n");
         match response.text().await {
             Ok(text) => Ok(text),
-            Err(err) =>
-                Err(
-                    MdownError::StatusError(
-                        match err.status() {
-                            Some(status) => status,
-                            None => {
-                                return Err(
-                                    MdownError::NotFoundError(
-                                        String::from("StatusCode (get_manga_json)"),
-                                        10803
-                                    )
-                                );
-                            }
-                        },
-                        10804
-                    )
-                ),
+            Err(err) => Err(MdownError::StatusError(
+                match err.status() {
+                    Some(status) => status,
+                    None => {
+                        return Err(MdownError::NotFoundError(
+                            String::from("StatusCode (get_manga_json)"),
+                            10803,
+                        ));
+                    }
+                },
+                10804,
+            )),
         }
     } else {
         debug!("response is error (get_manga_response)");
@@ -710,22 +695,18 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
             let json = match response.text().await {
                 Ok(text) => text,
                 Err(err) => {
-                    return Err(
-                        MdownError::StatusError(
-                            match err.status() {
-                                Some(status) => status,
-                                None => {
-                                    return Err(
-                                        MdownError::NotFoundError(
-                                            String::from("StatusCode (get_chapter)"),
-                                            10807
-                                        )
-                                    );
-                                }
-                            },
-                            10808
-                        )
-                    );
+                    return Err(MdownError::StatusError(
+                        match err.status() {
+                            Some(status) => status,
+                            None => {
+                                return Err(MdownError::NotFoundError(
+                                    String::from("StatusCode (get_chapter)"),
+                                    10807,
+                                ));
+                            }
+                        },
+                        10808,
+                    ));
                 }
             };
 
@@ -742,25 +723,21 @@ pub(crate) async fn get_chapter(id: &str) -> Result<String, MdownError> {
                     match response.text().await {
                         Ok(text) => text,
                         Err(err) => {
-                            return Err(
-                                MdownError::StatusError(
-                                    match err.status() {
-                                        Some(status) => status,
-                                        None => {
-                                            return Err(
-                                                MdownError::NotFoundError(
-                                                    String::from("StatusCode (get_chapter)"),
-                                                    10809
-                                                )
-                                            );
-                                        }
-                                    },
-                                    10810
-                                )
-                            );
+                            return Err(MdownError::StatusError(
+                                match err.status() {
+                                    Some(status) => status,
+                                    None => {
+                                        return Err(MdownError::NotFoundError(
+                                            String::from("StatusCode (get_chapter)"),
+                                            10809,
+                                        ));
+                                    }
+                                },
+                                10810,
+                            ));
                         }
                     }
-                )
+                ),
             );
         }
     }
@@ -859,14 +836,15 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
         string(
             3 + times + stat,
             0,
-            &format!("{} {} {}   ", times, "Fetching data with offset", times_offset)
+            &format!(
+                "{} {} {}   ",
+                times, "Fetching data with offset", times_offset
+            ),
         );
         debug!("fetching data with offset {}", times_offset);
         let full_url = format!(
             "https://api.mangadex.org/manga/{}/feed?limit={}&offset={}",
-            id,
-            max_per_session,
-            times_offset
+            id, max_per_session, times_offset
         );
         if *tutorial::TUTORIAL.lock() && times == 0 {
             tutorial::feed(stat);
@@ -893,22 +871,18 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
         json = match response.text().await {
             Ok(text) => text,
             Err(err) => {
-                return Err(
-                    MdownError::StatusError(
-                        match err.status() {
-                            Some(status) => status,
-                            None => {
-                                return Err(
-                                    MdownError::NotFoundError(
-                                        String::from("StatusCode (get_manga)"),
-                                        10812
-                                    )
-                                );
-                            }
-                        },
-                        10813
-                    )
-                );
+                return Err(MdownError::StatusError(
+                    match err.status() {
+                        Some(status) => status,
+                        None => {
+                            return Err(MdownError::NotFoundError(
+                                String::from("StatusCode (get_manga)"),
+                                10812,
+                            ));
+                        }
+                    },
+                    10813,
+                ));
             }
         };
         if times == 0 {
@@ -925,8 +899,7 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
         match json_value {
             Value::Object(obj) => {
                 if let Some(data_array) = obj.get("data").and_then(Value::as_array) {
-                    let naive_time_str = chrono::Utc
-                        ::now()
+                    let naive_time_str = chrono::Utc::now()
                         .naive_utc()
                         .format("%Y-%m-%d %H:%M:%S")
                         .to_string();
@@ -934,12 +907,11 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                     resolute::DATE_FETCHED.lock().push(naive_time_str);
                     let message = format!("{} Data fetched with offset {}   ", times, offset);
                     string(3 + times + stat, 0, &message);
-                    if
-                        *args::ARGS_WEB ||
-                        *args::ARGS_GUI ||
-                        *args::ARGS_CHECK ||
-                        *args::ARGS_UPDATE ||
-                        *args::ARGS_LOG
+                    if *args::ARGS_WEB
+                        || *args::ARGS_GUI
+                        || *args::ARGS_CHECK
+                        || *args::ARGS_UPDATE
+                        || *args::ARGS_LOG
                     {
                         log!(&message);
                     }
@@ -964,9 +936,10 @@ pub(crate) async fn get_manga(id: &str, offset: u32) -> Result<(String, usize), 
                 }
             }
             _ => {
-                return Err(
-                    MdownError::JsonError(String::from("Could not parse manga json"), 10814)
-                );
+                return Err(MdownError::JsonError(
+                    String::from("Could not parse manga json"),
+                    10814,
+                ));
             }
         }
 
@@ -1027,31 +1000,36 @@ fn crossfade_data(json: &str, json_2: &str) -> Result<String, MdownError> {
     let data1_array = match data1.get_mut("data") {
         Some(value) => value,
         None => {
-            return Err(MdownError::JsonError(String::from("Didn't found data"), 10815));
+            return Err(MdownError::JsonError(
+                String::from("Didn't found data"),
+                10815,
+            ));
         }
     };
     let data2_array = match data2.get("data") {
         Some(value) => value,
         None => {
-            return Err(MdownError::JsonError(String::from("Didn't found data"), 10816));
+            return Err(MdownError::JsonError(
+                String::from("Didn't found data"),
+                10816,
+            ));
         }
     };
     let empty_array = vec![];
 
     if let Some(data1_array) = data1_array.as_array_mut() {
         data1_array.extend(
-            (
-                match data2_array.as_array() {
-                    Some(array) => array,
-                    None => &empty_array,
-                }
-            ).clone()
+            (match data2_array.as_array() {
+                Some(array) => array,
+                None => &empty_array,
+            })
+            .clone(),
         );
     }
 
     match serde_json::to_string(&data1) {
         Ok(value) => Ok(value),
-        Err(err) => { Err(MdownError::JsonError(err.to_string(), 10817)) }
+        Err(err) => Err(MdownError::JsonError(err.to_string(), 10817)),
     }
 }
 
@@ -1124,7 +1102,7 @@ pub(crate) fn get_attr_as_same_as_index(data_array: &[String], item: usize) -> &
 #[inline]
 pub(crate) fn get_attr_as_same_from_vec(
     data_array: &[metadata::ChapterResponse],
-    item: usize
+    item: usize,
 ) -> &metadata::ChapterResponse {
     match data_array.get(item) {
         Some(value) => value,
@@ -1164,7 +1142,7 @@ pub(crate) fn get_attr_as_same_from_vec(
 /// println!("Chapter Title: {}", title); // Prints: Chapter Title
 /// ```
 pub(crate) fn get_metadata(
-    array_item: &metadata::ChapterResponse
+    array_item: &metadata::ChapterResponse,
 ) -> (metadata::ChapterAttrResponse, String, u64, String, String) {
     let chapter_attr = array_item.attributes.clone();
     let lang = chapter_attr.translatedLanguage.clone().unwrap_or_default();
@@ -1208,8 +1186,7 @@ pub(crate) fn get_arg(arg: &str) -> &str {
 // returns english title if exists in title_data
 #[test]
 fn test_get_manga_name_returns_english_title_if_exists() {
-    let title_data =
-        serde_json::json!({
+    let title_data = serde_json::json!({
         "title": {
             "en": "English Title"
         }
@@ -1225,8 +1202,7 @@ fn test_get_manga_name_returns_english_title_if_exists() {
 // returns english title if exists in alt_titles with english language
 #[test]
 fn test_get_manga_name_returns_english_title_if_exists_in_alt_titles() {
-    let title_data =
-        serde_json::json!({
+    let title_data = serde_json::json!({
         "altTitles": [
             {
                 "en": "English Title"
@@ -1242,8 +1218,7 @@ fn test_get_manga_name_returns_english_title_if_exists_in_alt_titles() {
 // returns first english title found in alt_titles with multiple languages
 #[test]
 fn test_get_manga_name_returns_first_english_title_found_in_alt_titles() {
-    let title_data =
-        serde_json::json!({
+    let title_data = serde_json::json!({
         "altTitles": [
             {
                 "en": "English Title"
@@ -1261,9 +1236,9 @@ fn test_get_manga_name_returns_first_english_title_found_in_alt_titles() {
 
 // returns empty string if title in alt_titles but no english language available
 #[test]
-fn test_get_manga_name_returns_empty_string_if_title_in_alt_titles_but_no_english_language_available() {
-    let title_data =
-        serde_json::json!({
+fn test_get_manga_name_returns_empty_string_if_title_in_alt_titles_but_no_english_language_available(
+) {
+    let title_data = serde_json::json!({
         "altTitles": [
             {
                 "fr": "French Title"
@@ -1294,19 +1269,18 @@ fn test_get_manga_name_returns_empty_string_if_title_in_alt_titles_but_no_langua
 
 #[test]
 fn retrieves_manga_name_based_on_language() {
-    let title_data =
-        serde_json::json!({
-            "title": {
+    let title_data = serde_json::json!({
+        "title": {
+            "en": "One Piece",
+            "ja-ro": "Wan Pīsu"
+        },
+        "altTitles": [
+            {
                 "en": "One Piece",
                 "ja-ro": "Wan Pīsu"
-            },
-            "altTitles": [
-                {
-                    "en": "One Piece",
-                    "ja-ro": "Wan Pīsu"
-                }
-            ]
-        });
+            }
+        ]
+    });
 
     let result = get_manga_name(&title_data);
     assert_eq!(result, "One Piece");

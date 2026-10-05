@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use std::{ thread::sleep, time::Duration };
+use std::{thread::sleep, time::Duration};
 
 use crate::string;
 

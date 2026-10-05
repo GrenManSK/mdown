@@ -1,34 +1,29 @@
 use chrono::prelude::*;
 use crosscurses::*;
 use lazy_static::lazy_static;
-use rand::{ distr::Alphanumeric, RngExt };
+use rand::{distr::Alphanumeric, RngExt};
 use remove_dir_all::remove_dir_all;
-use serde_json::{ json, Value };
-use sha2::{ Sha256, Digest };
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::{
     cmp::Ordering,
     collections::BTreeMap,
-    fs::{ self, File, OpenOptions },
-    io::{ Read, Write },
+    fs::{self, File, OpenOptions},
+    io::{Read, Write},
     process::exit,
     thread::sleep,
-    time::{ Duration, Instant },
+    time::{Duration, Instant},
 };
 use uuid::Uuid;
 
 use crate::{
-    args,
-    debug,
-    download,
-    error::{ MdownError, suspend_error },
-    getter,
-    IS_END,
-    log,
-    MAXPOINTS,
-    metadata,
-    resolute::{ self, resolve_move, CURRENT_PERCENT, CURRENT_SIZE, CURRENT_SIZE_MAX },
+    args, debug, download,
+    error::{suspend_error, MdownError},
+    getter, log, metadata,
+    resolute::{self, resolve_move, CURRENT_PERCENT, CURRENT_SIZE, CURRENT_SIZE_MAX},
     string,
     version_manager::get_current_version,
+    IS_END, MAXPOINTS,
 };
 
 pub(crate) fn setup_requirements(main_lock_file_path: String) {
@@ -154,7 +149,7 @@ pub(crate) fn log_handler() {
                 10 => {
                     data.logs.insert(
                         handle_id.to_string(),
-                        metadata::LogsMetadata::new("", map, "", "", "", &start_time, "web")
+                        metadata::LogsMetadata::new("", map, "", "", "", &start_time, "web"),
                     );
                 }
                 16 => {
@@ -175,15 +170,15 @@ pub(crate) fn log_handler() {
                             &manga_name,
                             "",
                             &start_time,
-                            "downloader"
-                        )
+                            "downloader",
+                        ),
                     );
                     current_id = manga_id;
                 }
                 _ => {
                     data.logs.insert(
                         handle_id.to_string(),
-                        metadata::LogsMetadata::new("", map, "", "", "", &start_time, "unknown")
+                        metadata::LogsMetadata::new("", map, "", "", "", &start_time, "unknown"),
                     );
                 }
             }
@@ -256,42 +251,36 @@ pub(crate) fn reset() -> Result<(), MdownError> {
 
     match std::fs::remove_file(&dat) {
         Ok(_) => println!("dat.json was successfully removed"),
-        Err(err) => {
-            match err.raw_os_error() {
-                Some(code) => {
-                    if code != 2 {
-                        push_suspended(err, "dat.json", 10428);
-                    }
+        Err(err) => match err.raw_os_error() {
+            Some(code) => {
+                if code != 2 {
+                    push_suspended(err, "dat.json", 10428);
                 }
-                None => push_suspended(err, "dat.json", 10429),
             }
-        }
+            None => push_suspended(err, "dat.json", 10429),
+        },
     }
     match std::fs::remove_file(&db) {
         Ok(_) => println!("resources.db was successfully removed"),
-        Err(err) => {
-            match err.raw_os_error() {
-                Some(code) => {
-                    if code != 2 {
-                        push_suspended(err, "resources.db", 10430);
-                    }
+        Err(err) => match err.raw_os_error() {
+            Some(code) => {
+                if code != 2 {
+                    push_suspended(err, "resources.db", 10430);
                 }
-                None => push_suspended(err, "resources.db", 10431),
             }
-        }
+            None => push_suspended(err, "resources.db", 10431),
+        },
     }
     match std::fs::remove_file(&log) {
         Ok(_) => println!("log.json was successfully removed"),
-        Err(err) => {
-            match err.raw_os_error() {
-                Some(code) => {
-                    if code != 2 {
-                        push_suspended(err, "log.json", 10432);
-                    }
+        Err(err) => match err.raw_os_error() {
+            Some(code) => {
+                if code != 2 {
+                    push_suspended(err, "log.json", 10432);
                 }
-                None => push_suspended(err, "log.json", 10433),
             }
-        }
+            None => push_suspended(err, "log.json", 10433),
+        },
     }
 
     debug!("operations were successfully executed");
@@ -336,8 +325,7 @@ pub(crate) fn input(text: &str) -> Result<String, MdownError> {
 }
 
 pub(crate) fn setup_subscriber() -> Result<(), MdownError> {
-    let subscriber = tracing_subscriber
-        ::fmt()
+    let subscriber = tracing_subscriber::fmt()
         .compact()
         .with_file(true)
         .with_line_number(true)
@@ -346,13 +334,11 @@ pub(crate) fn setup_subscriber() -> Result<(), MdownError> {
         Ok(()) => Ok(()),
         Err(err) => {
             eprintln!("Error: tracing_subscriber {:?}", err);
-            suspend_error(
-                MdownError::CustomError(
-                    String::from("Failed to set up tracing_subscriber (basically info)"),
-                    String::from("Subscriber"),
-                    10404
-                )
-            );
+            suspend_error(MdownError::CustomError(
+                String::from("Failed to set up tracing_subscriber (basically info)"),
+                String::from("Subscriber"),
+                10404,
+            ));
             Ok(())
         }
     }
@@ -452,7 +438,11 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
                 }
             }
         }
-        let percent = if full_size == 0.0 { 0.0 } else { (100.0 / full_size) * size };
+        let percent = if full_size == 0.0 {
+            0.0
+        } else {
+            (100.0 / full_size) * size
+        };
         *CURRENT_PERCENT.lock() = percent;
         *CURRENT_SIZE.lock() = size;
         *CURRENT_SIZE_MAX.lock() = full_size;
@@ -466,7 +456,7 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
                 full_size,
                 (full_size - size).abs(),
                 (Instant::now() - start).as_secs_f64().abs()
-            )
+            ),
         );
     }
 
@@ -483,12 +473,11 @@ pub(crate) async fn wait_for_end(file_path: &str, images_length: usize) -> Resul
 }
 
 pub(crate) fn progress_bar_preparation(start: u32, images_length: usize, line: u32) {
-    if
-        !*args::ARGS_WEB &&
-        !*args::ARGS_GUI &&
-        !*args::ARGS_CHECK &&
-        !*args::ARGS_UPDATE &&
-        !*args::ARGS_SERVER
+    if !*args::ARGS_WEB
+        && !*args::ARGS_GUI
+        && !*args::ARGS_CHECK
+        && !*args::ARGS_UPDATE
+        && !*args::ARGS_SERVER
     {
         string(line, 0, &format!("{}|", &"-".repeat((start as usize) - 1)));
         string(
@@ -499,7 +488,7 @@ pub(crate) fn progress_bar_preparation(start: u32, images_length: usize, line: u
                 &"-".repeat(
                     (MAXPOINTS.max_x as usize) - ((start + (images_length as u32) + 1) as usize)
                 )
-            )
+            ),
         );
     }
 }
@@ -511,32 +500,25 @@ pub(crate) fn sort(data: &Vec<metadata::ChapterResponse>) -> Vec<metadata::Chapt
     }
 
     data_array.sort_unstable_by(|v, b| {
-        match
-            (
-                match v.attributes.chapter.clone() {
-                    Some(v_chapter) => v_chapter,
-                    None => String::from("0"),
-                }
-            )
-                .parse::<f32>()
-                .ok()
-                .map(|v_parsed| {
-                    match
-                        (
-                            match b.attributes.chapter.clone() {
-                                Some(b_chapter) => b_chapter,
-                                None => String::from("0"),
-                            }
-                        )
-                            .parse::<f32>()
-                            .ok()
-                            .map(|b_parsed| v_parsed.total_cmp(&b_parsed))
-                    {
-                        Some(value) => value,
-                        None => Ordering::Equal,
-                    }
-                })
-        {
+        match (match v.attributes.chapter.clone() {
+            Some(v_chapter) => v_chapter,
+            None => String::from("0"),
+        })
+        .parse::<f32>()
+        .ok()
+        .map(|v_parsed| {
+            match (match b.attributes.chapter.clone() {
+                Some(b_chapter) => b_chapter,
+                None => String::from("0"),
+            })
+            .parse::<f32>()
+            .ok()
+            .map(|b_parsed| v_parsed.total_cmp(&b_parsed))
+            {
+                Some(value) => value,
+                None => Ordering::Equal,
+            }
+        }) {
             Some(value) => value,
             None => Ordering::Equal,
         }
@@ -594,20 +576,19 @@ pub(crate) async fn search() -> Result<String, MdownError> {
         let data = match manga_data.get("data") {
             Some(data) => data,
             None => {
-                return Err(
-                    MdownError::NotFoundError(String::from("data in manga_data in main.rs"), 10412)
-                );
+                return Err(MdownError::NotFoundError(
+                    String::from("data in manga_data in main.rs"),
+                    10412,
+                ));
             }
         };
         let manga_array = match data.as_array() {
             Some(data) => data,
             None => {
-                return Err(
-                    MdownError::ConversionError(
-                        String::from("manga_data to array in main.rs"),
-                        10413
-                    )
-                );
+                return Err(MdownError::ConversionError(
+                    String::from("manga_data to array in main.rs"),
+                    10413,
+                ));
             }
         };
         let manga_ids: Vec<&str> = manga_array
@@ -620,13 +601,10 @@ pub(crate) async fn search() -> Result<String, MdownError> {
 
         match manga_ids.first() {
             Some(id) => Ok(id.to_string()),
-            None =>
-                Err(
-                    MdownError::NotFoundError(
-                        String::from("manga_id in manga_ids in main.rs"),
-                        10414
-                    )
-                ),
+            None => Err(MdownError::NotFoundError(
+                String::from("manga_id in manga_ids in main.rs"),
+                10414,
+            )),
         }
     } else {
         Err(MdownError::StatusError(response.status(), 10415))
@@ -754,11 +732,10 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
                     None => "",
                 };
 
-                if
-                    !file_name.ends_with("_cover.png") &&
-                    !file_name.ends_with("_description.txt") &&
-                    !file_name.ends_with("_scanlation_groups.txt") &&
-                    !file_name.ends_with("_statistics.md")
+                if !file_name.ends_with("_cover.png")
+                    && !file_name.ends_with("_description.txt")
+                    && !file_name.ends_with("_scanlation_groups.txt")
+                    && !file_name.ends_with("_statistics.md")
                 {
                     debug!("file is not service file");
                     should_delete += 1;
@@ -778,30 +755,37 @@ pub(crate) fn delete_dir_if_unfinished(path: &str) {
 }
 
 pub(crate) async fn print_version(file: &str) {
-    if
-        !*args::ARGS_WEB &&
-        !*args::ARGS_GUI &&
-        !*args::ARGS_CHECK &&
-        !*args::ARGS_UPDATE &&
-        !*args::ARGS_SERVER
+    if !*args::ARGS_WEB
+        && !*args::ARGS_GUI
+        && !*args::ARGS_CHECK
+        && !*args::ARGS_UPDATE
+        && !*args::ARGS_SERVER
     {
         return;
     }
     let version = get_current_version();
     for _ in 0..50 {
-        string(MAXPOINTS.max_y - 2, 0, &format!("Current version: {}", version));
+        string(
+            MAXPOINTS.max_y - 2,
+            0,
+            &format!("Current version: {}", version),
+        );
         if fs::metadata(file).is_err() {
             break;
         }
         sleep(Duration::from_millis(100));
     }
-    string(MAXPOINTS.max_y - 1, 0, &" ".repeat(MAXPOINTS.max_x as usize));
+    string(
+        MAXPOINTS.max_y - 1,
+        0,
+        &" ".repeat(MAXPOINTS.max_x as usize),
+    );
 }
 
 lazy_static! {
-    static ref MANGADEX_URL_RE: regex::Regex = regex::Regex
-        ::new(r"https://mangadex.org/title/([\w-]+)/?")
-        .expect("Failed to compile MangaDex URL regex");
+    static ref MANGADEX_URL_RE: regex::Regex =
+        regex::Regex::new(r"https://mangadex.org/title/([\w-]+)/?")
+            .expect("Failed to compile MangaDex URL regex");
 }
 
 pub(crate) fn resolve_regex(cap: &str) -> Option<regex::Match<'_>> {
@@ -813,20 +797,19 @@ pub(crate) fn resolve_end(
     main_lock_file_path: &str,
     manga_name: &str,
     status_code: reqwest::StatusCode,
-    err_code: u32
+    err_code: u32,
 ) -> Result<(), String> {
     match fs::remove_file(main_lock_file_path) {
         Ok(()) => (),
         Err(err) => eprintln!("Error: removing file '{}' {}", main_lock_file_path, err),
     }
     // Create a file
-    match
-        OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(".cache\\mdown_final_end.lock")
+    match OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(".cache\\mdown_final_end.lock")
     {
         Ok(_file) => (),
         Err(err) => {
@@ -841,11 +824,17 @@ pub(crate) fn resolve_end(
     }
 
     let message = if status_code.is_client_error() {
-        string(0, 0, "Id was not found, please recheck the id and try again");
+        string(
+            0,
+            0,
+            "Id was not found, please recheck the id and try again",
+        );
         format!(
             "Ending session: {} has NOT been downloaded, because: {:?} ({})",
             manga_name,
-            status_code.canonical_reason().unwrap_or("Didn't find error :/"),
+            status_code
+                .canonical_reason()
+                .unwrap_or("Didn't find error :/"),
             err_code
         )
     } else if status_code.is_server_error() {
@@ -855,9 +844,11 @@ pub(crate) fn resolve_end(
             &format!(
                 "Server error: {}: {:?} ({})",
                 status_code,
-                status_code.canonical_reason().unwrap_or("Didn't find error :/"),
+                status_code
+                    .canonical_reason()
+                    .unwrap_or("Didn't find error :/"),
                 err_code
-            )
+            ),
         );
         format!("Ending session: {} has NOT been downloaded", manga_name)
     } else if manga_name.eq("!") {
@@ -868,7 +859,10 @@ pub(crate) fn resolve_end(
         );
         string(1, 0, "See README.md for more information");
         string(2, 0, "Or use --help");
-        format!("Ending session: {} has NOT been downloaded, because it was not found", manga_name)
+        format!(
+            "Ending session: {} has NOT been downloaded, because it was not found",
+            manga_name
+        )
     } else {
         format!("Ending session: {} has been downloaded", manga_name)
     };
@@ -876,7 +870,7 @@ pub(crate) fn resolve_end(
     string(
         MAXPOINTS.max_y - 1,
         0,
-        &(message.clone() + &" ".repeat((MAXPOINTS.max_x as usize) - message.len()))
+        &(message.clone() + &" ".repeat((MAXPOINTS.max_x as usize) - message.len())),
     );
     Ok(())
 }
@@ -980,7 +974,7 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
     }
 
     let vstup = match input("> ") {
-        Ok(input) => { input.trim().parse::<usize>().unwrap_or(1) }
+        Ok(input) => input.trim().parse::<usize>().unwrap_or(1),
         Err(err) => {
             return Err(MdownError::ChainedError(Box::new(err), 10442));
         }
@@ -990,9 +984,10 @@ pub(crate) fn backup_choose() -> Result<(), MdownError> {
         let file_path = format!("{}\\{}", backup_dir, filename);
         let backup_file_path = format!("{}\\{}", exe_dir, "dat.json.tmp");
 
-        let vstup = match
-            input(&format!("Are you sure you want to choose \"{}\"? (y/N) > ", filename))
-        {
+        let vstup = match input(&format!(
+            "Are you sure you want to choose \"{}\"? (y/N) > ",
+            filename
+        )) {
             Ok(input) => input.to_ascii_lowercase(),
             Err(err) => {
                 return Err(MdownError::ChainedError(Box::new(err), 10443));
@@ -1092,7 +1087,11 @@ pub(crate) fn backup_handler(force: bool) -> Result<(), MdownError> {
             }
         }
 
-        let date_name = chrono::Local::now().naive_local().date().format("%Y_%m_%d").to_string();
+        let date_name = chrono::Local::now()
+            .naive_local()
+            .date()
+            .format("%Y_%m_%d")
+            .to_string();
 
         let destination_file = format!("{}\\dat_{}.json", backup_dir, date_name);
 
@@ -1132,7 +1131,7 @@ pub(crate) fn is_directory_empty(path: &str) -> bool {
             }
             count <= 1
         }
-        _ => { false }
+        _ => false,
     }
 }
 
@@ -1148,24 +1147,26 @@ pub(crate) struct FileName {
 impl FileName {
     pub(crate) fn get_folder_name(&self) -> String {
         if !self.title.is_empty() {
-            process_filename(
-                &format!(
-                    "{} - {}Ch.{} - {}",
-                    self.manga_name,
-                    self.vol,
-                    self.chapter_num,
-                    self.title
-                )
-            )
+            process_filename(&format!(
+                "{} - {}Ch.{} - {}",
+                self.manga_name, self.vol, self.chapter_num, self.title
+            ))
         } else {
-            process_filename(&format!("{} - {}Ch.{}", self.manga_name, self.vol, self.chapter_num))
+            process_filename(&format!(
+                "{} - {}Ch.{}",
+                self.manga_name, self.vol, self.chapter_num
+            ))
         }
     }
     pub(crate) fn get_file_w_folder(&self) -> String {
         if *args::ARGS_UPDATE {
             format!("{}.cbz", process_filename(&self.get_folder_name()))
         } else {
-            format!("{}\\{}.cbz", self.folder, process_filename(&self.get_folder_name()))
+            format!(
+                "{}\\{}.cbz",
+                self.folder,
+                process_filename(&self.get_folder_name())
+            )
         }
     }
     pub(crate) fn get_file_w_folder_w_cwd(&self) -> String {
@@ -1191,15 +1192,17 @@ pub(crate) fn skip_didnt_match<'a>(
     attr: &'a str,
     item: usize,
     moves: &mut u32,
-    hist: &'a mut Vec<String>
+    hist: &'a mut Vec<String>,
 ) {
-    let message = format!("({}) Skipping because supplied {} doesn't match", item as u32, attr);
-    if
-        *args::ARGS_WEB ||
-        *args::ARGS_GUI ||
-        *args::ARGS_CHECK ||
-        *args::ARGS_UPDATE ||
-        *args::ARGS_LOG
+    let message = format!(
+        "({}) Skipping because supplied {} doesn't match",
+        item as u32, attr
+    );
+    if *args::ARGS_WEB
+        || *args::ARGS_GUI
+        || *args::ARGS_CHECK
+        || *args::ARGS_UPDATE
+        || *args::ARGS_LOG
     {
         log!(&message);
     }
@@ -1211,15 +1214,14 @@ pub(crate) fn skip_custom<'a>(
     attr: &'a str,
     item: usize,
     moves: &mut u32,
-    hist: &'a mut Vec<String>
+    hist: &'a mut Vec<String>,
 ) {
     let message = format!("({}) Skipping because {}", item as u32, attr);
-    if
-        *args::ARGS_WEB ||
-        *args::ARGS_GUI ||
-        *args::ARGS_CHECK ||
-        *args::ARGS_UPDATE ||
-        *args::ARGS_LOG
+    if *args::ARGS_WEB
+        || *args::ARGS_GUI
+        || *args::ARGS_CHECK
+        || *args::ARGS_UPDATE
+        || *args::ARGS_LOG
     {
         log!(&message);
     }
@@ -1228,13 +1230,15 @@ pub(crate) fn skip_custom<'a>(
 }
 
 pub(crate) fn skip(attr: String, item: usize, moves: &mut u32, hist: &mut Vec<String>, start: u32) {
-    let al_dow = format!("({}) Skipping because file is already downloaded {}", item, attr);
-    if
-        *args::ARGS_WEB ||
-        *args::ARGS_GUI ||
-        *args::ARGS_CHECK ||
-        *args::ARGS_UPDATE ||
-        *args::ARGS_LOG
+    let al_dow = format!(
+        "({}) Skipping because file is already downloaded {}",
+        item, attr
+    );
+    if *args::ARGS_WEB
+        || *args::ARGS_GUI
+        || *args::ARGS_CHECK
+        || *args::ARGS_UPDATE
+        || *args::ARGS_LOG
     {
         log!(&al_dow);
     }
@@ -1243,12 +1247,11 @@ pub(crate) fn skip(attr: String, item: usize, moves: &mut u32, hist: &mut Vec<St
 }
 pub(crate) fn skip_offset(item: usize, moves: &mut u32, hist: &mut Vec<String>) {
     let al_dow = format!("({}) Skipping because of offset", item);
-    if
-        *args::ARGS_WEB ||
-        *args::ARGS_GUI ||
-        *args::ARGS_CHECK ||
-        *args::ARGS_UPDATE ||
-        *args::ARGS_LOG
+    if *args::ARGS_WEB
+        || *args::ARGS_GUI
+        || *args::ARGS_CHECK
+        || *args::ARGS_UPDATE
+        || *args::ARGS_LOG
     {
         log!(&al_dow);
     }
@@ -1257,9 +1260,16 @@ pub(crate) fn skip_offset(item: usize, moves: &mut u32, hist: &mut Vec<String>) 
 }
 
 #[allow(dead_code)]
-pub(crate) fn debug_print<T>(item: T, file: &str) -> Result<(), MdownError> where T: std::fmt::Debug {
-    let mut file_inst = match
-        std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(file)
+pub(crate) fn debug_print<T>(item: T, file: &str) -> Result<(), MdownError>
+where
+    T: std::fmt::Debug,
+{
+    let mut file_inst = match std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(file)
     {
         Ok(file) => file,
         Err(err) => {
@@ -1277,7 +1287,11 @@ pub(crate) fn debug_print<T>(item: T, file: &str) -> Result<(), MdownError> wher
 
 pub(crate) fn generate_random_id(length: usize) -> Box<str> {
     let rng = rand::rng();
-    let id: String = rng.sample_iter(&Alphanumeric).take(length).map(char::from).collect();
+    let id: String = rng
+        .sample_iter(&Alphanumeric)
+        .take(length)
+        .map(char::from)
+        .collect();
     id.into_boxed_str()
 }
 

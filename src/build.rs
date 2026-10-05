@@ -1,4 +1,8 @@
-use std::{ fs::{ self, File }, io::prelude::*, path::Path };
+use std::{
+    fs::{self, File},
+    io::prelude::*,
+    path::Path,
+};
 
 #[cfg(not(target_os = "windows"))]
 compile_error!("This app only supports Windows.");
@@ -92,14 +96,12 @@ fn setup(directory_path: &str) {
                 .collect::<Vec<_>>()
                 .join(",");
 
-            match
-                write!(
-                    &mut dest_file,
-                    "pub(crate) const {}: &[u8] = &[{}];",
-                    file_stem.to_uppercase(),
-                    data
-                )
-            {
+            match write!(
+                &mut dest_file,
+                "pub(crate) const {}: &[u8] = &[{}];",
+                file_stem.to_uppercase(),
+                data
+            ) {
                 Ok(_) => (),
                 Err(err) => {
                     eprintln!("Failed to write to file: {}", err);
@@ -126,42 +128,37 @@ fn setup(directory_path: &str) {
                     return;
                 }
             };
-            if
-                Path::new(&format!("{}/m1_combat_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m1_end_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m1_start_c_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m1_stealth_mp3.rs", out_dir)).exists()
+            if Path::new(&format!("{}/m1_combat_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m1_end_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m1_start_c_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m1_stealth_mp3.rs", out_dir)).exists()
             {
                 println!("cargo:rustc-cfg=music_m1");
             }
-            if
-                Path::new(&format!("{}/m2_combat_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m2_end_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m2_start_c_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m2_stealth_mp3.rs", out_dir)).exists()
+            if Path::new(&format!("{}/m2_combat_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m2_end_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m2_start_c_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m2_stealth_mp3.rs", out_dir)).exists()
             {
                 println!("cargo:rustc-cfg=music_m2");
             }
-            if
-                Path::new(&format!("{}/m3_combat_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m3_end_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m3_start_c_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m3_stealth_mp3.rs", out_dir)).exists()
+            if Path::new(&format!("{}/m3_combat_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m3_end_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m3_start_c_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m3_stealth_mp3.rs", out_dir)).exists()
             {
                 println!("cargo:rustc-cfg=music_m3");
             }
-            if
-                Path::new(&format!("{}/m4_combat_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m4_end_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m4_start_c_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m4_stealth_mp3.rs", out_dir)).exists()
+            if Path::new(&format!("{}/m4_combat_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m4_end_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m4_start_c_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m4_stealth_mp3.rs", out_dir)).exists()
             {
                 println!("cargo:rustc-cfg=music_m4");
             }
-            if
-                Path::new(&format!("{}/m5_combat_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m5_end_mp3.rs", out_dir)).exists() &&
-                Path::new(&format!("{}/m5_start_c_mp3.rs", out_dir)).exists()
+            if Path::new(&format!("{}/m5_combat_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m5_end_mp3.rs", out_dir)).exists()
+                && Path::new(&format!("{}/m5_start_c_mp3.rs", out_dir)).exists()
             {
                 println!("cargo:rustc-cfg=music_m5");
             }

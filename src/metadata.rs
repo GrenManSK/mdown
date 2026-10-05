@@ -1,5 +1,5 @@
 use chrono::Utc;
-use serde::{ Deserialize, Serialize };
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use crate::resolute;
@@ -93,7 +93,7 @@ impl ChapterMetadata {
     /// An `Option<&ChapterMetadata>`, where `Some(chapter)` is the next chapter, or `None` if this is the last chapter.
     pub(crate) fn get_next_chapter<'a>(
         &self,
-        chapters: &'a [ChapterMetadata]
+        chapters: &'a [ChapterMetadata],
     ) -> Option<&'a ChapterMetadata> {
         // Find the index of the current chapter
         let current_index = chapters.iter().position(|x| x.id == self.id)?;
@@ -120,7 +120,7 @@ impl ChapterMetadata {
     /// An `Option<&ChapterMetadata>`, where `Some(chapter)` is the previous chapter, or `None` if this is the first chapter.
     pub(crate) fn get_previous_chapter<'a>(
         &self,
-        chapters: &'a [ChapterMetadata]
+        chapters: &'a [ChapterMetadata],
     ) -> Option<&'a ChapterMetadata> {
         // Find the index of the current chapter
         let current_index = chapters.iter().position(|x| x.id == self.id)?;
@@ -348,7 +348,7 @@ impl LogsMetadata {
         name: &str,
         time_end: &str,
         time_start: &str,
-        r#type: &str
+        r#type: &str,
     ) -> LogsMetadata {
         LogsMetadata {
             id: id.to_string(),

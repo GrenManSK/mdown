@@ -1,29 +1,21 @@
 use lazy_static::lazy_static;
-use percent_encoding::{ NON_ALPHANUMERIC, percent_decode_str, percent_encode };
-use serde_json::{ json, Value };
-use std::{ collections::HashMap, fs::File, io::{ Read, Write }, net::TcpListener };
+use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
+use serde_json::{json, Value};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Read, Write},
+    net::TcpListener,
+};
 
 use crate::{
-    args,
-    db,
+    args, db,
     error::MdownError,
-    getter,
-    handle_error,
-    log,
-    log_end,
+    getter, handle_error, log, log_end,
     resolute::{
-        self,
-        CURRENT_CHAPTER,
-        CURRENT_CHAPTER_PARSED,
-        CURRENT_CHAPTER_PARSED_MAX,
-        CURRENT_PAGE,
-        CURRENT_PAGE_MAX,
-        CURRENT_PERCENT,
-        CURRENT_SIZE,
-        CURRENT_SIZE_MAX,
-        MANGA_NAME,
-        SCANLATION_GROUPS,
-        WEB_DOWNLOADED,
+        self, CURRENT_CHAPTER, CURRENT_CHAPTER_PARSED, CURRENT_CHAPTER_PARSED_MAX, CURRENT_PAGE,
+        CURRENT_PAGE_MAX, CURRENT_PERCENT, CURRENT_SIZE, CURRENT_SIZE_MAX, MANGA_NAME,
+        SCANLATION_GROUPS, WEB_DOWNLOADED,
     },
     utils,
     version_manager::get_current_version,
@@ -41,15 +33,13 @@ lazy_static! {
             Err(_err) => std::process::exit(11309),
         };
         match db::read_resource(&conn, "1001") {
-            Ok(value) =>
-                match value {
-                    Some(value) => value,
-                    None => std::process::exit(1001),
-                }
+            Ok(value) => match value {
+                Some(value) => value,
+                None => std::process::exit(1001),
+            },
             Err(_err) => std::process::exit(1001),
         }
     };
-
     static ref SYSTEM_HAVEN_OGG: Vec<u8> = {
         let db_path = match getter::get_db_path() {
             Ok(path) => path,
@@ -60,11 +50,10 @@ lazy_static! {
             Err(_err) => std::process::exit(11311),
         };
         match db::read_resource(&conn, "1002") {
-            Ok(value) =>
-                match value {
-                    Some(value) => value,
-                    None => std::process::exit(1002),
-                }
+            Ok(value) => match value {
+                Some(value) => value,
+                None => std::process::exit(1002),
+            },
             Err(_err) => std::process::exit(1002),
         }
     };
@@ -165,9 +154,10 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
                 };
             }
             _ => {
-                return Err(
-                    MdownError::JsonError(String::from("Could not parse manga json"), 11300)
-                );
+                return Err(MdownError::JsonError(
+                    String::from("Could not parse manga json"),
+                    11300,
+                ));
             }
         }
     }
@@ -184,7 +174,10 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
             (
                 "files",
                 serde_json::Value::Array(
-                    downloaded_files.into_iter().map(serde_json::Value::String).collect()
+                    downloaded_files
+                        .into_iter()
+                        .map(serde_json::Value::String)
+                        .collect(),
                 ),
             ),
             (
@@ -195,17 +188,17 @@ async fn resolve_web_download(url: &str) -> Result<String, MdownError> {
                         .into_iter()
                         .map(|x| x.name)
                         .map(serde_json::Value::String)
-                        .collect()
+                        .collect(),
                 ),
             ),
         ]
-            .iter()
-            .cloned()
-            .collect();
+        .iter()
+        .cloned()
+        .collect();
 
         match serde_json::to_string(&response_map) {
             Ok(value) => Ok(value),
-            Err(err) => { Err(MdownError::JsonError(err.to_string(), 11301)) }
+            Err(err) => Err(MdownError::JsonError(err.to_string(), 11301)),
         }
     }
 }
@@ -272,7 +265,10 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
     let path = match parts.get(1) {
         Some(part) => *part,
         None => {
-            return Err(MdownError::NotFoundError(String::from("Invalid request"), 11315));
+            return Err(MdownError::NotFoundError(
+                String::from("Invalid request"),
+                11315,
+            ));
         }
     };
 
@@ -292,8 +288,10 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
 
                 *resolute::HANDLE_ID.lock() = handle_id.clone();
                 let json = match resolve_web_download(&decoded_url).await {
-                    Ok(response) =>
-                        format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}", response),
+                    Ok(response) => format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}",
+                        response
+                    ),
 
                     Err(err) => {
                         handle_error!(&err, String::from("web_manga"));
@@ -333,13 +331,11 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
                 "rambling_pleat" => &RAMBLING_PLEAT_OGG,
                 "system_haven" => &SYSTEM_HAVEN_OGG,
                 _ => {
-                    return Err(
-                        MdownError::CustomError(
-                            String::from("Didn't find resource"),
-                            String::from("Resource"),
-                            11303
-                        )
-                    );
+                    return Err(MdownError::CustomError(
+                        String::from("Didn't find resource"),
+                        String::from("Resource"),
+                        11303,
+                    ));
                 }
             };
             match stream.write_all(content) {
@@ -357,14 +353,13 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
             #[allow(deprecated)]
             let base64_content: Vec<String> = content.iter().map(base64::encode).collect();
 
-            match
-                stream.write_all(
-                    format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}",
-                        json!({ "images": base64_content })
-                    ).as_bytes()
+            match stream.write_all(
+                format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}",
+                    json!({ "images": base64_content })
                 )
-            {
+                .as_bytes(),
+            ) {
                 Ok(()) => (),
                 Err(_err) => (),
             }
@@ -407,7 +402,7 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
             log!("REQUEST Type: end");
             end = true;
             response = String::from(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"ok\"}"
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"ok\"}",
             );
             match stream.write_all(response.as_bytes()) {
                 Ok(()) => (),
@@ -442,13 +437,12 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
             }
         }
     } else {
-        match
-            stream.write_all(
-                String::from(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}"
-                ).as_bytes()
+        match stream.write_all(
+            String::from(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"error\"}",
             )
-        {
+            .as_bytes(),
+        ) {
             Ok(()) => (),
             Err(_err) => (),
         }
@@ -516,21 +510,39 @@ async fn handle_client(mut stream: std::net::TcpStream) -> Result<(), MdownError
 fn parse_request(url: String) -> Result<String, MdownError> {
     if url == *"main" {
         let html = get_html();
-        Ok(format!("{}{}", "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n", html))
+        Ok(format!(
+            "{}{}",
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n", html
+        ))
     } else if url == *"progress" {
         let downloaded_files = WEB_DOWNLOADED.lock().clone();
         let scanlation = SCANLATION_GROUPS.lock().clone();
         let response_map: HashMap<&str, serde_json::Value> = [
             ("status", serde_json::Value::String("ok".to_string())),
-            ("name", serde_json::Value::String(MANGA_NAME.lock().to_string())),
-            ("current", serde_json::Value::String(CURRENT_CHAPTER.lock().to_string())),
-            ("current_page", serde_json::Value::String(CURRENT_PAGE.lock().to_string())),
-            ("current_page_max", serde_json::Value::String(CURRENT_PAGE_MAX.lock().to_string())),
+            (
+                "name",
+                serde_json::Value::String(MANGA_NAME.lock().to_string()),
+            ),
+            (
+                "current",
+                serde_json::Value::String(CURRENT_CHAPTER.lock().to_string()),
+            ),
+            (
+                "current_page",
+                serde_json::Value::String(CURRENT_PAGE.lock().to_string()),
+            ),
+            (
+                "current_page_max",
+                serde_json::Value::String(CURRENT_PAGE_MAX.lock().to_string()),
+            ),
             (
                 "current_percent",
                 serde_json::Value::String(format!("{:.2}", CURRENT_PERCENT.lock())),
             ),
-            ("current_size", serde_json::Value::String(format!("{:.2}", CURRENT_SIZE.lock()))),
+            (
+                "current_size",
+                serde_json::Value::String(format!("{:.2}", CURRENT_SIZE.lock())),
+            ),
             (
                 "current_size_max",
                 serde_json::Value::String(format!("{:.2}", CURRENT_SIZE_MAX.lock())),
@@ -546,7 +558,10 @@ fn parse_request(url: String) -> Result<String, MdownError> {
             (
                 "files",
                 serde_json::Value::Array(
-                    downloaded_files.into_iter().map(serde_json::Value::String).collect()
+                    downloaded_files
+                        .into_iter()
+                        .map(serde_json::Value::String)
+                        .collect(),
                 ),
             ),
             (
@@ -557,20 +572,23 @@ fn parse_request(url: String) -> Result<String, MdownError> {
                         .into_iter()
                         .map(|x| x.name)
                         .map(serde_json::Value::String)
-                        .collect()
+                        .collect(),
                 ),
             ),
         ]
-            .iter()
-            .cloned()
-            .collect();
+        .iter()
+        .cloned()
+        .collect();
         let json = match serde_json::to_string(&response_map) {
             Ok(value) => value,
             Err(err) => {
                 return Err(MdownError::JsonError(err.to_string(), 11304));
             }
         };
-        Ok(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}", json))
+        Ok(format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}",
+            json
+        ))
     } else {
         Err(MdownError::NotFoundError(String::new(), 11305))
     }
@@ -715,13 +733,11 @@ pub(crate) async fn start() -> Result<(), MdownError> {
     match handler {
         Ok(()) => (),
         Err(err) => {
-            return Err(
-                MdownError::CustomError(
-                    format!("Failed setting up ctrl handler, {}", err),
-                    String::from("CTRL_handler"),
-                    11307
-                )
-            );
+            return Err(MdownError::CustomError(
+                format!("Failed setting up ctrl handler, {}", err),
+                String::from("CTRL_handler"),
+                11307,
+            ));
         }
     }
     web().await

@@ -104,7 +104,7 @@ use std::{
     cmp::Ordering,
     collections::HashSet,
     env,
-    fs::{ self, File },
+    fs::{self, File},
     io::Write,
     process::exit,
     sync::Arc,
@@ -154,12 +154,11 @@ mod web;
 /// This function uses `stdscr()` from the `curses` library to manage terminal output.
 #[inline]
 fn string(y: u32, x: u32, value: &str) {
-    if
-        *args::ARGS_WEB ||
-        *args::ARGS_GUI ||
-        *args::ARGS_CHECK ||
-        *args::ARGS_UPDATE ||
-        *args::ARGS_QUIET
+    if *args::ARGS_WEB
+        || *args::ARGS_GUI
+        || *args::ARGS_CHECK
+        || *args::ARGS_UPDATE
+        || *args::ARGS_QUIET
     {
         return;
     }
@@ -235,7 +234,11 @@ lazy_static! {
 #[inline]
 fn wrong_uuid_format(url: &str) -> &str {
     string(3, 0, &format!("Wrong format of UUID ({})", url));
-    string(4, 0, "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)");
+    string(
+        4,
+        0,
+        "Should be 8-4-4-4-12 (123e4567-e89b-12d3-a456-426614174000)",
+    );
     "*"
 }
 
@@ -395,7 +398,11 @@ async fn start() -> Result<(), error::MdownError> {
     match env::set_current_dir(args::ARGS_CWD.as_str()) {
         Ok(()) => debug!("cwd set to {}", *args::ARGS_CWD),
         Err(err) => {
-            return Err(error::MdownError::IoError(err, args::ARGS_CWD.to_string(), 10100));
+            return Err(error::MdownError::IoError(
+                err,
+                args::ARGS_CWD.to_string(),
+                10100,
+            ));
         }
     }
 
@@ -518,13 +525,11 @@ async fn start() -> Result<(), error::MdownError> {
     let mut status_code = match reqwest::StatusCode::from_u16(200) {
         Ok(code) => code,
         Err(err) => {
-            return Err(
-                error::MdownError::CustomError(
-                    err.to_string(),
-                    String::from("InvalidStatusCode"),
-                    10101
-                )
-            );
+            return Err(error::MdownError::CustomError(
+                err.to_string(),
+                String::from("InvalidStatusCode"),
+                10101,
+            ));
         }
     };
     let mut err_code_network = 0;
@@ -592,7 +597,12 @@ async fn start() -> Result<(), error::MdownError> {
     }
 
     // Finalize the process and cleanup
-    match utils::resolve_end(&main_lock_file_path, &manga_name, status_code, err_code_network) {
+    match utils::resolve_end(
+        &main_lock_file_path,
+        &manga_name,
+        status_code,
+        err_code_network,
+    ) {
         Ok(()) => (),
         Err(err) => eprintln!("Error: {}", err),
     }
@@ -641,7 +651,7 @@ async fn start() -> Result<(), error::MdownError> {
 async fn process_manga_json(
     id: &str,
     err_code_network: &mut u32,
-    status_code: &mut reqwest::StatusCode
+    status_code: &mut reqwest::StatusCode,
 ) -> Result<String, error::MdownError> {
     debug!("id acquired: {}\n", id);
     *resolute::MANGA_ID.lock() = id.to_string();
@@ -664,7 +674,11 @@ async fn process_manga_json(
         Err(code) => {
             string(1, 0, "Getting manga information ERROR");
             process_manga_error(code, err_code_network, status_code);
-            Err(error::MdownError::CustomError(String::from(""), String::from(""), 10110))
+            Err(error::MdownError::CustomError(
+                String::from(""),
+                String::from(""),
+                10110,
+            ))
         }
     }
 }
@@ -697,7 +711,7 @@ async fn process_manga_json(
 /// # Error Handling:
 /// - If the function encounters an error while fetching or parsing the JSON, it returns an appropriate `MdownError`, such as a `ChainedError` or a `JsonError`.
 async fn perform_manga_download(
-    manga_name_json: String
+    manga_name_json: String,
 ) -> Result<serde_json::Map<String, serde_json::Value>, error::MdownError> {
     #[cfg(feature = "music")]
     {
@@ -713,7 +727,10 @@ async fn perform_manga_download(
         debug!("parsed manga information");
         Ok(obj)
     } else {
-        Err(error::MdownError::JsonError(String::from("Unexpected JSON value"), 10102))
+        Err(error::MdownError::JsonError(
+            String::from("Unexpected JSON value"),
+            10102,
+        ))
     }
 }
 
@@ -747,7 +764,7 @@ async fn perform_manga_download(
 fn process_manga_error(
     code: error::MdownError,
     err_code_network: &mut u32,
-    status_code: &mut reqwest::StatusCode
+    status_code: &mut reqwest::StatusCode,
 ) {
     match code {
         error::MdownError::NetworkError(ref err, err_code) => {
@@ -848,7 +865,7 @@ fn resolve_error_code(code: error::MdownError, status_code: &mut reqwest::Status
 ///
 pub(crate) async fn download_manga(
     manga_json: String,
-    arg_force: bool
+    arg_force: bool,
 ) -> Result<Vec<String>, error::MdownError> {
     debug!("");
     debug!("download_manga");
@@ -865,7 +882,9 @@ pub(crate) async fn download_manga(
     // Chapter to download set by user
     let arg_chapter = getter::get_arg(&chapter);
     // Offset set by user
-    let arg_offset: u32 = getter::get_arg(&args::ARGS.lock().offset).parse().unwrap_or_default();
+    let arg_offset: u32 = getter::get_arg(&args::ARGS.lock().offset)
+        .parse()
+        .unwrap_or_default();
     // Initialize storage for downloaded files and other metrics
     let (mut downloaded, hist) = (vec![], &mut vec![]);
     let (mut times, mut moves) = (0, 0);
@@ -948,9 +967,8 @@ pub(crate) async fn download_manga(
                     let (chapter_attr, lang, _, chapter_num, title) =
                         getter::get_metadata(array_item);
 
-                    if
-                        (all_num.contains(&chapter_num) || all_ids.contains(&id_string)) &&
-                        !arg_force
+                    if (all_num.contains(&chapter_num) || all_ids.contains(&id_string))
+                        && !arg_force
                     {
                         data_array.remove(index);
                         let vol = match chapter_attr.volume.unwrap_or_default().as_str() {
@@ -978,7 +996,10 @@ pub(crate) async fn download_manga(
                             );
                         } else {
                             utils::skip(folder_path, data_number, &mut moves, hist, 1);
-                            debug!("Removing {} from data array because is already downloaded", id_string);
+                            debug!(
+                                "Removing {} from data array because is already downloaded",
+                                id_string
+                            );
                         }
                         *resolute::CURRENT_CHAPTER_PARSED_MAX.lock() -= 1;
                     } else if lang != language && language != "*" {
@@ -1036,12 +1057,11 @@ pub(crate) async fn download_manga(
                 debug!("chapter id: {}", id);
 
                 let message = format!("({}) Found chapter with id: {}", item as u32, id);
-                if
-                    *args::ARGS_WEB ||
-                    *args::ARGS_GUI ||
-                    *args::ARGS_CHECK ||
-                    *args::ARGS_UPDATE ||
-                    *args::ARGS_LOG
+                if *args::ARGS_WEB
+                    || *args::ARGS_GUI
+                    || *args::ARGS_CHECK
+                    || *args::ARGS_UPDATE
+                    || *args::ARGS_LOG
                 {
                     log!(&message);
                 }
@@ -1076,17 +1096,22 @@ pub(crate) async fn download_manga(
                 let folder_path = filename.get_folder_name();
 
                 // Determine if chapter should be downloaded
-                if
-                    (lang == language || language == "*") &&
-                    fs::metadata(filename.get_file_w_folder()).is_ok() &&
-                    !arg_force &&
-                    !(match resolute::check_for_metadata_saver(&filename.get_file_w_folder()) {
-                        Ok(metadata) => if !*args::ARGS_CHECK { metadata } else { false }
+                if (lang == language || language == "*")
+                    && fs::metadata(filename.get_file_w_folder()).is_ok()
+                    && !arg_force
+                    && !(match resolute::check_for_metadata_saver(&filename.get_file_w_folder()) {
+                        Ok(metadata) => {
+                            if !*args::ARGS_CHECK {
+                                metadata
+                            } else {
+                                false
+                            }
+                        }
                         Err(err) => {
                             return Err(error::MdownError::ChainedError(Box::new(err), 10124));
                         }
-                    }) &&
-                    ({
+                    })
+                    && ({
                         if *args::ARGS_CHECK {
                             let chapter_ids = resolute::CHAPTER_IDS.lock();
                             let data_id = match chapter_ids.get(&chapter_num) {
@@ -1113,47 +1138,39 @@ pub(crate) async fn download_manga(
                             };
 
                             match DateTime::parse_from_rfc3339(&cur_date) {
-                                Ok(datetime_cur) => {
-                                    match datetime_cur.cmp(&datetime) {
-                                        Ordering::Greater => {
-                                            debug!(
+                                Ok(datetime_cur) => match datetime_cur.cmp(&datetime) {
+                                    Ordering::Greater => {
+                                        debug!(
                                                 "dates didn't match but date in local database was ahead of the date in mangadex database"
                                             );
-                                            resolute::FIXED_DATES
-                                                .lock()
-                                                .push(chapter_num.to_string());
-                                            resolute::CHAPTERS_TO_REMOVE
-                                                .lock()
-                                                .push(
-                                                    metadata::ChapterMetadata::new(
-                                                        &chapter_num,
-                                                        &cur_date,
-                                                        id
-                                                    )
-                                                );
-                                        }
-                                        Ordering::Less => {
-                                            debug!(
+                                        resolute::FIXED_DATES.lock().push(chapter_num.to_string());
+                                        resolute::CHAPTERS_TO_REMOVE.lock().push(
+                                            metadata::ChapterMetadata::new(
+                                                &chapter_num,
+                                                &cur_date,
+                                                id,
+                                            ),
+                                        );
+                                    }
+                                    Ordering::Less => {
+                                        debug!(
                                                 "dates didn't match so program will download it if update flag is set"
                                             );
-                                            date_change = true;
-                                            cont = false;
-                                            dates.remove(&chapter_num);
-                                            if *args::ARGS_UPDATE {
-                                                resolute::CHAPTERS_TO_REMOVE
-                                                    .lock()
-                                                    .push(
-                                                        metadata::ChapterMetadata::new(
-                                                            &chapter_num,
-                                                            &cur_date,
-                                                            id
-                                                        )
-                                                    );
-                                            }
+                                        date_change = true;
+                                        cont = false;
+                                        dates.remove(&chapter_num);
+                                        if *args::ARGS_UPDATE {
+                                            resolute::CHAPTERS_TO_REMOVE.lock().push(
+                                                metadata::ChapterMetadata::new(
+                                                    &chapter_num,
+                                                    &cur_date,
+                                                    id,
+                                                ),
+                                            );
                                         }
-                                        Ordering::Equal => (),
                                     }
-                                }
+                                    Ordering::Equal => (),
+                                },
                                 Err(_err) => (),
                             }
                         }
@@ -1163,7 +1180,11 @@ pub(crate) async fn download_manga(
                     if cont && (lang == language || language == "*") {
                         resolute::CHAPTERS
                             .lock()
-                            .push(metadata::ChapterMetadata::new(&chapter_num, &update_date, id));
+                            .push(metadata::ChapterMetadata::new(
+                                &chapter_num,
+                                &update_date,
+                                id,
+                            ));
                         utils::skip(folder_path, item, &mut moves, hist, 2);
                         continue;
                     }
@@ -1199,15 +1220,14 @@ pub(crate) async fn download_manga(
                     }
                     continue;
                 }
-                if
-                    ((lang == language || language == "*") &&
-                        !resolute::CHAPTERS
-                            .lock()
-                            .iter()
-                            .any(|item| item.number == chapter_num) &&
-                        !all_ids.contains(&id_string)) ||
-                    arg_force ||
-                    *args::ARGS_INFO != args::ARGS_UNSPECIFIED
+                if ((lang == language || language == "*")
+                    && !resolute::CHAPTERS
+                        .lock()
+                        .iter()
+                        .any(|item| item.number == chapter_num)
+                    && !all_ids.contains(&id_string))
+                    || arg_force
+                    || *args::ARGS_INFO != args::ARGS_UNSPECIFIED
                 {
                     if *args::ARGS_CHECK {
                         if all_num.contains(&chapter_num) {
@@ -1255,12 +1275,11 @@ pub(crate) async fn download_manga(
                             _ => format!("; Title: {}", title),
                         }
                     );
-                    if
-                        *args::ARGS_WEB ||
-                        *args::ARGS_GUI ||
-                        *args::ARGS_CHECK ||
-                        *args::ARGS_UPDATE ||
-                        *args::ARGS_LOG
+                    if *args::ARGS_WEB
+                        || *args::ARGS_GUI
+                        || *args::ARGS_CHECK
+                        || *args::ARGS_UPDATE
+                        || *args::ARGS_LOG
                     {
                         log!(&message);
                     }
@@ -1282,19 +1301,19 @@ pub(crate) async fn download_manga(
                         println!("Pages: {}", pages);
                         println!("Title: {}", title);
                     }
-                    if
-                        (!*args::ARGS_CHECK ||
-                            !resolute::CHAPTERS
-                                .lock()
-                                .iter()
-                                .any(|chapter| chapter.number == chapter_num)) &&
-                        *args::ARGS_INFO == args::ARGS_UNSPECIFIED
+                    if (!*args::ARGS_CHECK
+                        || !resolute::CHAPTERS
+                            .lock()
+                            .iter()
+                            .any(|chapter| chapter.number == chapter_num))
+                        && *args::ARGS_INFO == args::ARGS_UNSPECIFIED
                     {
                         if *args::ARGS_CHECK {
                             debug!("was added to to download list because check flag is set");
                             match date_change {
-                                true =>
-                                    resolute::TO_DOWNLOAD_DATE.lock().push(chapter_num.to_string()),
+                                true => resolute::TO_DOWNLOAD_DATE
+                                    .lock()
+                                    .push(chapter_num.to_string()),
                                 false => resolute::TO_DOWNLOAD.lock().push(chapter_num.to_string()),
                             }
                             continue;
@@ -1311,8 +1330,7 @@ pub(crate) async fn download_manga(
                         };
                         debug!(
                             "found chapter's scanlation group: {} {}",
-                            scanlation_group.name,
-                            scanlation_group.website
+                            scanlation_group.name, scanlation_group.website
                         );
 
                         let start_time = std::time::Instant::now();
@@ -1322,19 +1340,21 @@ pub(crate) async fn download_manga(
                                 let json_value = match utils::get_json(&json) {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::MdownError::ChainedError(Box::new(err), 10125)
-                                        );
+                                        return Err(error::MdownError::ChainedError(
+                                            Box::new(err),
+                                            10125,
+                                        ));
                                     }
                                 };
-                                let obj = match
-                                    serde_json::from_value::<metadata::ChapterData>(json_value)
-                                {
+                                let obj = match serde_json::from_value::<metadata::ChapterData>(
+                                    json_value,
+                                ) {
                                     Ok(value) => value,
                                     Err(err) => {
-                                        return Err(
-                                            error::MdownError::JsonError(err.to_string(), 10103)
-                                        );
+                                        return Err(error::MdownError::JsonError(
+                                            err.to_string(),
+                                            10103,
+                                        ));
                                     }
                                 };
                                 #[cfg(feature = "music")]
@@ -1342,16 +1362,16 @@ pub(crate) async fn download_manga(
                                     *resolute::MUSIC_STAGE.lock() = metadata::MusicStage::Start;
                                 }
                                 debug!("starting to download chapter");
-                                match
-                                    download_chapter(
-                                        id,
-                                        obj,
-                                        array_item,
-                                        &title,
-                                        &filename,
-                                        &update_date,
-                                        &scanlation_group
-                                    ).await
+                                match download_chapter(
+                                    id,
+                                    obj,
+                                    array_item,
+                                    &title,
+                                    &filename,
+                                    &update_date,
+                                    &scanlation_group,
+                                )
+                                .await
                                 {
                                     Ok(()) => (),
                                     Err(err) => handle_error!(&err, String::from("chapter")),
@@ -1362,13 +1382,17 @@ pub(crate) async fn download_manga(
                         if *IS_END.lock() {
                             return Ok(downloaded);
                         }
-                        if !resolute::SCANLATION_GROUPS.lock().contains(&scanlation_group) {
+                        if !resolute::SCANLATION_GROUPS
+                            .lock()
+                            .contains(&scanlation_group)
+                        {
                             match resolute::get_scanlation_group_to_file(&scanlation_group) {
                                 Ok(()) => (),
                                 Err(err) => {
-                                    return Err(
-                                        error::MdownError::ChainedError(Box::new(err), 10109)
-                                    );
+                                    return Err(error::MdownError::ChainedError(
+                                        Box::new(err),
+                                        10109,
+                                    ));
                                 }
                             }
                         }
@@ -1379,16 +1403,18 @@ pub(crate) async fn download_manga(
                             &format!(
                                 "  Converting images to cbz files: {}.cbz",
                                 filename.get_folder()
-                            )
+                            ),
                         );
                         let file_name = filename.get_file_w_folder();
                         zip_func::to_zip(folder_path, &file_name);
                         match remove_dir_all(folder_path) {
                             Ok(()) => (),
                             Err(err) => {
-                                return Err(
-                                    error::MdownError::IoError(err, folder_path.to_string(), 10104)
-                                );
+                                return Err(error::MdownError::IoError(
+                                    err,
+                                    folder_path.to_string(),
+                                    10104,
+                                ));
                             }
                         }
 
@@ -1401,17 +1427,16 @@ pub(crate) async fn download_manga(
                                 &format!(
                                     "  Sleeping for {} seconds",
                                     (interval - elapsed).as_secs_f64()
-                                )
+                                ),
                             );
                             std::thread::sleep(interval - elapsed);
                         }
 
                         utils::clear_screen(2);
-                        if
-                            *args::ARGS_WEB ||
-                            *args::ARGS_GUI ||
-                            *args::ARGS_CHECK ||
-                            *args::ARGS_UPDATE
+                        if *args::ARGS_WEB
+                            || *args::ARGS_GUI
+                            || *args::ARGS_CHECK
+                            || *args::ARGS_UPDATE
                         {
                             resolute::WEB_DOWNLOADED.lock().push(file_name);
                         } else {
@@ -1425,8 +1450,7 @@ pub(crate) async fn download_manga(
                     string(2, 0, &" ".repeat(MAXPOINTS.max_x as usize).to_string());
                     let message = format!(
                         "Skipping because of wrong language; found '{}', target '{}' ...",
-                        lang,
-                        language
+                        lang, language
                     );
                     string(2, 0, &format!("  {}", message));
 
@@ -1439,12 +1463,11 @@ pub(crate) async fn download_manga(
                         all_num.insert(chapter_num);
                     }
 
-                    if
-                        *args::ARGS_WEB ||
-                        *args::ARGS_GUI ||
-                        *args::ARGS_CHECK ||
-                        *args::ARGS_UPDATE ||
-                        *args::ARGS_LOG
+                    if *args::ARGS_WEB
+                        || *args::ARGS_GUI
+                        || *args::ARGS_CHECK
+                        || *args::ARGS_UPDATE
+                        || *args::ARGS_LOG
                     {
                         log!(&format!("({}) {}", item, message));
                     }
@@ -1545,18 +1568,28 @@ pub(crate) async fn download_chapter(
     title: &str,
     filename: &utils::FileName,
     update_date: &str,
-    scanlation: &metadata::ScanlationMetadata
+    scanlation: &metadata::ScanlationMetadata,
 ) -> Result<(), error::MdownError> {
     let manga_name = &filename.manga_name;
     let vol = &filename.vol;
     let chapter = &filename.chapter_num;
-    string(3, 0, &format!("  Downloading images in folder: {}:", filename.get_folder_name()));
+    string(
+        3,
+        0,
+        &format!(
+            "  Downloading images in folder: {}:",
+            filename.get_folder_name()
+        ),
+    );
     if *args::ARGS_WEB || *args::ARGS_GUI || *args::ARGS_UPDATE || *args::ARGS_LOG {
         let mut current_chapter = resolute::CURRENT_CHAPTER.lock();
         current_chapter.clear();
         current_chapter.push_str(&filename.get_folder_name());
         drop(current_chapter);
-        log!(&format!("Downloading images in folder: {}", filename.get_folder_name()));
+        log!(&format!(
+            "Downloading images in folder: {}",
+            filename.get_folder_name()
+        ));
     }
     let image_base_url = obj.baseUrl;
     let data_array = obj.chapter;
@@ -1564,11 +1597,10 @@ pub(crate) async fn download_chapter(
     let saver = get_saver!();
     let mut images = match saver {
         metadata::Saver::data => data_array.data.clone(),
-        metadata::Saver::dataSaver =>
-            match data_array.dataSaver {
-                Some(ref data) => data.clone(),
-                None => Vec::new(),
-            }
+        metadata::Saver::dataSaver => match data_array.dataSaver {
+            Some(ref data) => data.clone(),
+            None => Vec::new(),
+        },
     };
     if images.is_empty() {
         images = match get_saver!(true) {
@@ -1597,11 +1629,16 @@ pub(crate) async fn download_chapter(
     debug!("lock file created successfully");
     match fs::create_dir_all(filename.get_folder_w_end()) {
         Ok(()) => (),
-        Err(err) => eprintln!("Error: creating directory {} {}", filename.get_folder_w_end(), err),
+        Err(err) => eprintln!(
+            "Error: creating directory {} {}",
+            filename.get_folder_w_end(),
+            err
+        ),
     }
     debug!("folder in cache created successfully");
 
-    let mut metadata_file = match File::create(format!("{}_metadata", filename.get_folder_w_end())) {
+    let mut metadata_file = match File::create(format!("{}_metadata", filename.get_folder_w_end()))
+    {
         Ok(file) => file,
         Err(err) => {
             return Err(error::MdownError::IoError(err, lock_file.clone(), 10107));
@@ -1680,27 +1717,28 @@ pub(crate) async fn download_chapter(
             let image_base_url = Arc::from(image_base_url.clone());
             let page = item + 1;
 
-            let folder_name = utils::process_filename(
-                &format!("{} - {}Ch.{}{}", manga_name, vol, chapter, pr_title)
-            );
+            let folder_name = utils::process_filename(&format!(
+                "{} - {}Ch.{}{}",
+                manga_name, vol, chapter, pr_title
+            ));
             let file_name = format!("{} - {}.jpg", folder_name, page);
             let file_name_brief = format!("{}Ch.{} - {}.jpg", vol, chapter, page);
 
             let full_path = format!(".cache/{}/{}", folder_name, file_name);
 
             tokio::spawn(async move {
-                match
-                    download::download_image(
-                        image_base_url,
-                        chapter_hash,
-                        image,
-                        page,
-                        &folder_name,
-                        &file_name_brief,
-                        &full_path,
-                        saver,
-                        start
-                    ).await
+                match download::download_image(
+                    image_base_url,
+                    chapter_hash,
+                    image,
+                    page,
+                    &folder_name,
+                    &file_name_brief,
+                    &full_path,
+                    saver,
+                    start,
+                )
+                .await
                 {
                     Ok(()) => (),
                     Err(err) => {
@@ -1731,7 +1769,10 @@ pub(crate) async fn download_chapter(
 
     match resolute::resolve_dat() {
         Ok(()) => (),
-        Err(err) => eprintln!("resolute::resolve_dat() in download_chapter() Error: {}", err),
+        Err(err) => eprintln!(
+            "resolute::resolve_dat() in download_chapter() Error: {}",
+            err
+        ),
     }
     match fs::remove_file(&lock_file) {
         Ok(()) => (),

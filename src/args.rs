@@ -1,4 +1,4 @@
-use clap::{ ArgGroup, Parser, Subcommand };
+use clap::{ArgGroup, Parser, Subcommand};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 
@@ -216,7 +216,11 @@ pub(crate) struct ParserArgs {
     pub(crate) chapter: String,
 
     /// Use data-saver images
-    #[arg(short, long, help = "Download smaller/compressed images (faster, less bandwidth)")]
+    #[arg(
+        short,
+        long,
+        help = "Download smaller/compressed images (faster, less bandwidth)"
+    )]
     pub(crate) saver: bool,
 
     /// Generate download statistics
@@ -404,7 +408,10 @@ pub(crate) enum Commands {
     ///   mdown settings --clear
     Settings {
         /// Set default download folder
-        #[arg(long, help = "Set default folder for downloads\n  No value = remove setting")]
+        #[arg(
+            long,
+            help = "Set default folder for downloads\n  No value = remove setting"
+        )]
         folder: Option<Option<String>>,
 
         /// Auto-enable statistics
@@ -458,7 +465,10 @@ pub(crate) enum Commands {
         delete: bool,
 
         /// Factory reset
-        #[arg(long, help = "Delete all files and reset to defaults (asks for confirmation)")]
+        #[arg(
+            long,
+            help = "Delete all files and reset to defaults (asks for confirmation)"
+        )]
         reset: bool,
 
         /// Create backup
@@ -744,7 +754,7 @@ impl Args {
         max_consecutive: usize,
         force: bool,
         offset: String,
-        database_offset: String
+        database_offset: String,
     ) -> Args {
         Args {
             url,

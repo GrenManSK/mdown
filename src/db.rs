@@ -1,13 +1,14 @@
-use rusqlite::{ Connection, OptionalExtension, params };
-use std::{ io::{ Read, Write }, process::Command, result::Result };
+use rusqlite::{params, Connection, OptionalExtension};
+use std::{
+    io::{Read, Write},
+    process::Command,
+    result::Result,
+};
 
 use crate::{
-    args,
-    download,
-    debug,
-    error::{ MdownError, suspend_error },
-    getter,
-    metadata,
+    args, debug, download,
+    error::{suspend_error, MdownError},
+    getter, metadata,
     tutorial::TUTORIAL,
 };
 
@@ -114,18 +115,15 @@ pub(crate) fn get_update_time() -> Result<Option<String>, MdownError> {
         }
     };
     match read_resource(&conn, DB_UPDATE_TIME) {
-        Ok(Some(value)) =>
-            match
-                String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10628)
-                )
-            {
-                Ok(update_time) => {
-                    debug!("update_time from database: {:?}", update_time);
-                    Ok(Some(update_time))
-                }
-                Err(err) => Err(MdownError::ChainedError(Box::new(err), 10679)),
+        Ok(Some(value)) => match String::from_utf8(value)
+            .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10628))
+        {
+            Ok(update_time) => {
+                debug!("update_time from database: {:?}", update_time);
+                Ok(Some(update_time))
             }
+            Err(err) => Err(MdownError::ChainedError(Box::new(err), 10679)),
+        },
         Ok(None) => Ok(None),
         Err(err) => Err(MdownError::ChainedError(Box::new(err), 10680)),
     }
@@ -182,18 +180,15 @@ pub(crate) fn read_resource_lone(name: &str) -> Result<Option<String>, MdownErro
         }
     };
     match read_resource(&conn, name) {
-        Ok(Some(value)) =>
-            match
-                String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10639)
-                )
-            {
-                Ok(resource) => {
-                    debug!("{} from database: {:?}", name, resource);
-                    Ok(Some(resource))
-                }
-                Err(err) => Err(MdownError::ChainedError(Box::new(err), 10681)),
+        Ok(Some(value)) => match String::from_utf8(value)
+            .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10639))
+        {
+            Ok(resource) => {
+                debug!("{} from database: {:?}", name, resource);
+                Ok(Some(resource))
             }
+            Err(err) => Err(MdownError::ChainedError(Box::new(err), 10681)),
+        },
         Ok(None) => Ok(None),
         Err(err) => Err(MdownError::ChainedError(Box::new(err), 10682)),
     }
@@ -234,7 +229,7 @@ pub(crate) fn read_resource_lone(name: &str) -> Result<Option<String>, MdownErro
 pub(crate) fn write_resource_lone(
     name: &str,
     data: &[u8],
-    is_binary: bool
+    is_binary: bool,
 ) -> Result<u64, MdownError> {
     let db_path = match getter::get_db_path() {
         Ok(path) => path,
@@ -277,17 +272,15 @@ pub(crate) fn write_resource_lone(
 /// # Panics
 /// * This function does not explicitly panic.
 fn initialize_db(conn: &Connection) -> Result<(), MdownError> {
-    match
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS resources (
+    match conn.execute(
+        "CREATE TABLE IF NOT EXISTS resources (
             id INTEGER PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
             data TEXT NOT NULL,
             is_binary BOOLEAN NOT NULL
         )",
-            []
-        )
-    {
+        [],
+    ) {
         Ok(_) => (),
         Err(err) => {
             return Err(MdownError::DatabaseError(err, 10600));
@@ -329,51 +322,44 @@ pub(crate) fn read_resource(conn: &Connection, name: &str) -> Result<Option<Vec<
     };
 
     // Execute the query and process the result
-    match
-        stmt
-            .query_row(params![name], |row| {
-                // Extract the data and is_binary fields from the row
-                let data: String = match row.get(0) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        // Return the error if fetching the data field fails
-                        return Err(err);
-                    }
-                };
-                let is_binary: bool = match row.get(1) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        // Return the error if fetching the is_binary field fails
-                        return Err(err);
-                    }
-                };
-
-                // Decode the data based on whether it is binary
-                if is_binary {
-                    #[allow(deprecated)]
-                    let decoded_data = match
-                        base64::decode(&data).map_err(|e| {
-                            // Wrap base64 decoding errors in a CustomError
-                            MdownError::CustomError(
-                                e.to_string(),
-                                String::from("Base64Error"),
-                                10602
-                            )
-                        })
-                    {
-                        Ok(value) => value,
-                        Err(_err) => {
-                            // Return an InvalidQuery error if base64 decoding fails
-                            return Err(rusqlite::Error::InvalidQuery);
-                        }
-                    };
-                    Ok(Some(decoded_data))
-                } else {
-                    // Return the data as raw bytes if it is not binary
-                    Ok(Some(data.into_bytes()))
+    match stmt
+        .query_row(params![name], |row| {
+            // Extract the data and is_binary fields from the row
+            let data: String = match row.get(0) {
+                Ok(value) => value,
+                Err(err) => {
+                    // Return the error if fetching the data field fails
+                    return Err(err);
                 }
-            })
-            .optional()
+            };
+            let is_binary: bool = match row.get(1) {
+                Ok(value) => value,
+                Err(err) => {
+                    // Return the error if fetching the is_binary field fails
+                    return Err(err);
+                }
+            };
+
+            // Decode the data based on whether it is binary
+            if is_binary {
+                #[allow(deprecated)]
+                let decoded_data = match base64::decode(&data).map_err(|e| {
+                    // Wrap base64 decoding errors in a CustomError
+                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10602)
+                }) {
+                    Ok(value) => value,
+                    Err(_err) => {
+                        // Return an InvalidQuery error if base64 decoding fails
+                        return Err(rusqlite::Error::InvalidQuery);
+                    }
+                };
+                Ok(Some(decoded_data))
+            } else {
+                // Return the data as raw bytes if it is not binary
+                Ok(Some(data.into_bytes()))
+            }
+        })
+        .optional()
     {
         Ok(result) => Ok(result.unwrap_or_default()),
         Err(err) => Err(MdownError::DatabaseError(err, 10603)),
@@ -409,19 +395,17 @@ fn write_resource(
     conn: &Connection,
     name: &str,
     data: &[u8],
-    is_binary: bool
+    is_binary: bool,
 ) -> Result<u64, MdownError> {
     // Convert data to a string representation based on whether it is binary or not
     let data_str = if is_binary {
         #[allow(deprecated)]
         base64::encode(data)
     } else {
-        match
-            String::from_utf8(data.to_vec()).map_err(|e| {
-                // Wrap UTF-8 conversion errors in a CustomError
-                MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10604)
-            })
-        {
+        match String::from_utf8(data.to_vec()).map_err(|e| {
+            // Wrap UTF-8 conversion errors in a CustomError
+            MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10604)
+        }) {
             Ok(value) => value,
             Err(err) => {
                 // Return the error if UTF-8 conversion fails
@@ -431,13 +415,11 @@ fn write_resource(
     };
 
     // Execute the SQL statement to insert or update the resource
-    match
-        conn.execute(
-            "INSERT INTO resources (name, data, is_binary) VALUES (?1, ?2, ?3)
+    match conn.execute(
+        "INSERT INTO resources (name, data, is_binary) VALUES (?1, ?2, ?3)
             ON CONFLICT(name) DO UPDATE SET data = excluded.data, is_binary = excluded.is_binary",
-            params![name, data_str, is_binary]
-        )
-    {
+        params![name, data_str, is_binary],
+    ) {
         Ok(_) => {
             // Return the ID of the inserted or updated resource
             let id = conn.last_insert_rowid() as u64;
@@ -618,16 +600,15 @@ pub(crate) async fn init() -> Result<(), MdownError> {
 
                 // Execute yt-dlp to process the file
                 for _ in 0..2 {
-                    match
-                        Command::new(".\\yt-dlp_min.exe")
-                            .arg(url)
-                            .arg("--output")
-                            .arg(name)
-                            .arg("--format")
-                            .arg("ba")
-                            .stdout(std::process::Stdio::piped())
-                            .stderr(std::process::Stdio::piped())
-                            .spawn()
+                    match Command::new(".\\yt-dlp_min.exe")
+                        .arg(url)
+                        .arg("--output")
+                        .arg(name)
+                        .arg("--format")
+                        .arg("ba")
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped())
+                        .spawn()
                     {
                         Ok(mut child) => {
                             match child.stdout.take() {
@@ -743,7 +724,10 @@ pub(crate) async fn init() -> Result<(), MdownError> {
 ///
 /// # Panics
 /// * This function does not explicitly panic.
-fn print_output<R>(reader: R, label: String) where R: Read + Send + 'static {
+fn print_output<R>(reader: R, label: String)
+where
+    R: Read + Send + 'static,
+{
     let mut reader = std::io::BufReader::new(reader);
     let mut buffer = [0; 1024];
     std::thread::spawn(move || {
@@ -900,16 +884,15 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let mut last_check_time = std::time::Instant::now();
 
     while
-        //prettier-ignore
-        // Read chunks of data from the response and write them to the file
-        let Some(chunk) = match response.chunk().await {
-            Ok(Some(chunk)) => Some(chunk),
-            Ok(None) => None,
-            Err(err) => {
-                return Err(MdownError::NetworkError(err, 10615));
-            }
+    //prettier-ignore
+    // Read chunks of data from the response and write them to the file
+    let Some(chunk) = match response.chunk().await {
+        Ok(Some(chunk)) => Some(chunk),
+        Ok(None) => None,
+        Err(err) => {
+            return Err(MdownError::NetworkError(err, 10615));
         }
-    {
+    } {
         // Write the chunk to the file
         match file.write_all(&chunk) {
             Ok(()) => (),
@@ -928,10 +911,7 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
             let current_mbs = bytefmt::format(downloaded - last_size);
             let message = format!(
                 "Downloading yt-dlp_min.exe {}% - {} of {} [{}/s]\r",
-                perc_string,
-                current_mb,
-                final_size_string,
-                current_mbs
+                perc_string, current_mb, final_size_string, current_mbs
             );
             print!("{}", message);
             match std::io::stdout().flush() {
@@ -949,7 +929,10 @@ async fn download_yt_dlp(full_path: &str) -> Result<(), MdownError> {
     let max_mb = bytefmt::format(total_size);
 
     // Print the final download progress
-    let message = format!("Downloading yt-dlp_min.exe {}% - {} of {}", 100, current_mb, max_mb);
+    let message = format!(
+        "Downloading yt-dlp_min.exe {}% - {} of {}",
+        100, current_mb, max_mb
+    );
     println!("{}\n", message);
     Ok(())
 }
@@ -994,8 +977,11 @@ async fn get_ytdlp() -> Result<String, MdownError> {
         }
     };
 
-    let response = match
-        client.get(url).header("User-Agent", "Rust-yt-dlp-downloader").send().await
+    let response = match client
+        .get(url)
+        .header("User-Agent", "Rust-yt-dlp-downloader")
+        .send()
+        .await
     {
         Ok(response) => response,
         Err(err) => {
@@ -1004,13 +990,11 @@ async fn get_ytdlp() -> Result<String, MdownError> {
     };
 
     if !response.status().is_success() {
-        return Err(
-            MdownError::CustomError(
-                String::from("ResponseError"),
-                String::from("Response is not success"),
-                10633
-            )
-        );
+        return Err(MdownError::CustomError(
+            String::from("ResponseError"),
+            String::from("Response is not success"),
+            10633,
+        ));
     }
 
     let json: serde_json::Value = match response.json().await {
@@ -1023,27 +1007,30 @@ async fn get_ytdlp() -> Result<String, MdownError> {
     let assets = match json["assets"].as_array() {
         Some(assets) => assets,
         None => {
-            return Err(
-                MdownError::NotFoundError(
-                    String::from("No 'assets' array found in the JSON response"),
-                    10637
-                )
-            );
+            return Err(MdownError::NotFoundError(
+                String::from("No 'assets' array found in the JSON response"),
+                10637,
+            ));
         }
     };
 
-    if
-        let Some(asset) = assets
-            .iter()
-            .find(|asset| { asset["name"].as_str() == Some("yt-dlp.exe") })
+    if let Some(asset) = assets
+        .iter()
+        .find(|asset| asset["name"].as_str() == Some("yt-dlp.exe"))
     {
         if let Some(download_url) = asset["browser_download_url"].as_str() {
             Ok(download_url.to_string())
         } else {
-            Err(MdownError::NotFoundError("Download URL for yt-dlp.exe not found".into(), 10635))
+            Err(MdownError::NotFoundError(
+                "Download URL for yt-dlp.exe not found".into(),
+                10635,
+            ))
         }
     } else {
-        Err(MdownError::NotFoundError("yt-dlp.exe not found in the release assets".into(), 10636))
+        Err(MdownError::NotFoundError(
+            "yt-dlp.exe not found in the release assets".into(),
+            10636,
+        ))
     }
 }
 
@@ -1105,17 +1092,15 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
 
     // Update settings in the database based on command-line arguments
     match args::ARGS.lock().subcommands.clone() {
-        Some(
-            args::Commands::Settings {
-                folder,
-                stat,
-                backup,
-                clear,
-                #[cfg(feature = "music")]
-                music,
-                ..
-            },
-        ) => {
+        Some(args::Commands::Settings {
+            folder,
+            stat,
+            backup,
+            clear,
+            #[cfg(feature = "music")]
+            music,
+            ..
+        }) => {
             match folder {
                 Some(Some(folder)) => {
                     match write_resource(&conn, DB_FOLDER, folder.as_bytes(), false) {
@@ -1125,14 +1110,12 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                         }
                     }
                 }
-                Some(None) => {
-                    match delete_resource(&conn, DB_FOLDER) {
-                        Ok(_id) => (),
-                        Err(err) => {
-                            return Err(MdownError::ChainedError(Box::new(err), 10653));
-                        }
+                Some(None) => match delete_resource(&conn, DB_FOLDER) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(MdownError::ChainedError(Box::new(err), 10653));
                     }
-                }
+                },
                 None => (),
             }
             match stat {
@@ -1145,23 +1128,19 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                             }
                         }
                     } else {
-                        suspend_error(
-                            MdownError::CustomError(
-                                String::from("stat should be 1 or 0"),
-                                String::from("UserError"),
-                                10619
-                            )
-                        );
+                        suspend_error(MdownError::CustomError(
+                            String::from("stat should be 1 or 0"),
+                            String::from("UserError"),
+                            10619,
+                        ));
                     }
                 }
-                Some(None) => {
-                    match delete_resource(&conn, DB_STAT) {
-                        Ok(_id) => (),
-                        Err(err) => {
-                            return Err(MdownError::ChainedError(Box::new(err), 10655));
-                        }
+                Some(None) => match delete_resource(&conn, DB_STAT) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(MdownError::ChainedError(Box::new(err), 10655));
                     }
-                }
+                },
                 None => (),
             }
             match backup {
@@ -1173,14 +1152,12 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                         }
                     }
                 }
-                Some(None) => {
-                    match delete_resource(&conn, DB_BACKUP) {
-                        Ok(_id) => (),
-                        Err(err) => {
-                            return Err(MdownError::ChainedError(Box::new(err), 10657));
-                        }
+                Some(None) => match delete_resource(&conn, DB_BACKUP) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(MdownError::ChainedError(Box::new(err), 10657));
                     }
-                }
+                },
                 None => (),
             }
             #[cfg(feature = "music")]
@@ -1193,14 +1170,12 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
                         }
                     }
                 }
-                Some(None) => {
-                    match delete_resource(&conn, DB_MUSIC) {
-                        Ok(_id) => (),
-                        Err(err) => {
-                            return Err(MdownError::ChainedError(Box::new(err), 10659));
-                        }
+                Some(None) => match delete_resource(&conn, DB_MUSIC) {
+                    Ok(_id) => (),
+                    Err(err) => {
+                        return Err(MdownError::ChainedError(Box::new(err), 10659));
                     }
-                }
+                },
                 None => (),
             }
             if clear {
@@ -1244,20 +1219,17 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
 
     // Read the folder setting from the database
     let folder = match read_resource(&conn, DB_FOLDER) {
-        Ok(Some(value)) =>
-            match
-                String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10620)
-                )
-            {
-                Ok(folder) => {
-                    debug!("folder from database: {:?}", folder);
-                    folder
-                }
-                Err(err) => {
-                    return Err(MdownError::ChainedError(Box::new(err), 10665));
-                }
+        Ok(Some(value)) => match String::from_utf8(value)
+            .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10620))
+        {
+            Ok(folder) => {
+                debug!("folder from database: {:?}", folder);
+                folder
             }
+            Err(err) => {
+                return Err(MdownError::ChainedError(Box::new(err), 10665));
+            }
+        },
         Ok(None) => args::ARGS.lock().folder.clone(),
         Err(err) => {
             return Err(MdownError::ChainedError(Box::new(err), 10666));
@@ -1265,34 +1237,29 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
     };
     // Read the stat setting from the database
     let stat = match read_resource(&conn, DB_STAT) {
-        Ok(Some(value)) =>
-            match
-                String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10621)
-                )
-            {
-                Ok(stat) => {
-                    let stat = match stat.as_str() {
-                        "1" => true,
-                        "0" => false,
-                        _ => {
-                            suspend_error(
-                                MdownError::CustomError(
-                                    String::from("stat should be 1 or 0"),
-                                    String::from("UserError"),
-                                    10622
-                                )
-                            );
-                            false
-                        }
-                    };
-                    debug!("stat from database: {:?}", stat);
-                    stat
-                }
-                Err(err) => {
-                    return Err(MdownError::ChainedError(Box::new(err), 10667));
-                }
+        Ok(Some(value)) => match String::from_utf8(value)
+            .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10621))
+        {
+            Ok(stat) => {
+                let stat = match stat.as_str() {
+                    "1" => true,
+                    "0" => false,
+                    _ => {
+                        suspend_error(MdownError::CustomError(
+                            String::from("stat should be 1 or 0"),
+                            String::from("UserError"),
+                            10622,
+                        ));
+                        false
+                    }
+                };
+                debug!("stat from database: {:?}", stat);
+                stat
             }
+            Err(err) => {
+                return Err(MdownError::ChainedError(Box::new(err), 10667));
+            }
+        },
         Ok(None) => args::ARGS.lock().stat,
         Err(err) => {
             return Err(MdownError::ChainedError(Box::new(err), 10668));
@@ -1301,34 +1268,29 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
 
     // Read the backup setting from the database
     let backup = match read_resource(&conn, DB_BACKUP) {
-        Ok(Some(value)) =>
-            match
-                String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10623)
-                )
-            {
-                Ok(backup) => {
-                    let backup = match backup.as_str() {
-                        "1" => true,
-                        "0" => false,
-                        _ => {
-                            suspend_error(
-                                MdownError::CustomError(
-                                    String::from("backup should be 1 or 0"),
-                                    String::from("UserError"),
-                                    10624
-                                )
-                            );
-                            false
-                        }
-                    };
-                    debug!("backup from database: {:?}", backup);
-                    backup
-                }
-                Err(err) => {
-                    return Err(MdownError::ChainedError(Box::new(err), 10669));
-                }
+        Ok(Some(value)) => match String::from_utf8(value)
+            .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10623))
+        {
+            Ok(backup) => {
+                let backup = match backup.as_str() {
+                    "1" => true,
+                    "0" => false,
+                    _ => {
+                        suspend_error(MdownError::CustomError(
+                            String::from("backup should be 1 or 0"),
+                            String::from("UserError"),
+                            10624,
+                        ));
+                        false
+                    }
+                };
+                debug!("backup from database: {:?}", backup);
+                backup
             }
+            Err(err) => {
+                return Err(MdownError::ChainedError(Box::new(err), 10669));
+            }
+        },
         Ok(None) => true,
         Err(err) => {
             return Err(MdownError::ChainedError(Box::new(err), 10670));
@@ -1338,20 +1300,17 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
     #[cfg(feature = "music")]
     // Read the music setting from the database
     let music = match read_resource(&conn, DB_MUSIC) {
-        Ok(Some(value)) =>
-            match
-                String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10625)
-                )
-            {
-                Ok(music) => {
-                    debug!("music from database: {:?}", music);
-                    Some(Some(music))
-                }
-                Err(err) => {
-                    return Err(MdownError::ChainedError(Box::new(err), 10671));
-                }
+        Ok(Some(value)) => match String::from_utf8(value)
+            .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10625))
+        {
+            Ok(music) => {
+                debug!("music from database: {:?}", music);
+                Some(Some(music))
             }
+            Err(err) => {
+                return Err(MdownError::ChainedError(Box::new(err), 10671));
+            }
+        },
         Ok(None) => args::ARGS.lock().music.clone(),
         Err(err) => {
             return Err(MdownError::ChainedError(Box::new(err), 10672));
@@ -1359,7 +1318,13 @@ pub(crate) fn setup_settings() -> Result<(metadata::Settings, bool), MdownError>
     };
 
     // Create and return the settings object
-    let settings = metadata::Settings { folder, stat, backup, #[cfg(feature = "music")] music };
+    let settings = metadata::Settings {
+        folder,
+        stat,
+        backup,
+        #[cfg(feature = "music")]
+        music,
+    };
 
     debug!("{:?}\n", settings);
 
@@ -1417,35 +1382,31 @@ pub(crate) fn check_tutorial() -> Result<(), MdownError> {
     };
 
     match read_resource(&conn, DB_TUTORIAL) {
-        Ok(Some(value)) =>
-            match
-                String::from_utf8(value).map_err(|e|
-                    MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10627)
-                )
-            {
-                Ok(tutorial) => {
-                    debug!("tutorial from database: {:?}", tutorial);
-                    if tutorial == "1" {
-                        *TUTORIAL.lock() = true;
-                    }
-                }
-                Err(err) => {
-                    return Err(MdownError::ChainedError(Box::new(err), 10674));
+        Ok(Some(value)) => match String::from_utf8(value)
+            .map_err(|e| MdownError::CustomError(e.to_string(), String::from("Base64Error"), 10627))
+        {
+            Ok(tutorial) => {
+                debug!("tutorial from database: {:?}", tutorial);
+                if tutorial == "1" {
+                    *TUTORIAL.lock() = true;
                 }
             }
+            Err(err) => {
+                return Err(MdownError::ChainedError(Box::new(err), 10674));
+            }
+        },
         Ok(None) => {
-            if
-                !*args::ARGS_WEB &&
-                !*args::ARGS_GUI &&
-                !*args::ARGS_CHECK &&
-                !*args::ARGS_UPDATE &&
-                !*args::ARGS_QUIET &&
-                !*args::ARGS_RESET &&
-                !args::ARGS_SHOW.is_some() &&
-                !args::ARGS_SHOW_ALL.is_some() &&
-                *args::ARGS_ENCODE == String::new() &&
-                !*args::ARGS_DELETE &&
-                !*args::ARGS_SHOW_LOG
+            if !*args::ARGS_WEB
+                && !*args::ARGS_GUI
+                && !*args::ARGS_CHECK
+                && !*args::ARGS_UPDATE
+                && !*args::ARGS_QUIET
+                && !*args::ARGS_RESET
+                && !args::ARGS_SHOW.is_some()
+                && !args::ARGS_SHOW_ALL.is_some()
+                && *args::ARGS_ENCODE == String::new()
+                && !*args::ARGS_DELETE
+                && !*args::ARGS_SHOW_LOG
             {
                 *TUTORIAL.lock() = true;
                 match write_resource(&conn, DB_TUTORIAL, b"0", false) {

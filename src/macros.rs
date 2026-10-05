@@ -17,28 +17,32 @@
 /// log!("This is a log message", "MyName");
 /// ```
 macro_rules! log {
-    ($message:expr_2021) => {
-        {
-            tracing::info!("@{}  {}", $crate::resolute::HANDLE_ID.lock(), $message);
-            $crate::resolute::LOGS.lock().push($crate::metadata::Log::new($message));
+    ($message:expr_2021) => {{
+        tracing::info!("@{}  {}", $crate::resolute::HANDLE_ID.lock(), $message);
+        $crate::resolute::LOGS
+            .lock()
+            .push($crate::metadata::Log::new($message));
+    }};
+    ($message:expr_2021, $name:expr_2021, $to_write:expr_2021) => {{
+        if $to_write {
+            tracing::info!(
+                "@{}  {}",
+                $crate::resolute::HANDLE_ID.lock().clone().into_string(),
+                $message
+            );
         }
-    };
-    ($message:expr_2021, $name:expr_2021, $to_write:expr_2021) => {
-        {
-            if $to_write {
-                tracing::info!("@{}  {}", $crate::resolute::HANDLE_ID.lock().clone().into_string(), $message);
-            }
-            $crate::resolute::LOGS.lock().push($crate::metadata::Log::new_with_name($message, $name));
+        $crate::resolute::LOGS
+            .lock()
+            .push($crate::metadata::Log::new_with_name($message, $name));
+    }};
+    ($message:expr_2021, $name:expr_2021) => {{
+        tracing::info!("@{}  {}", $name, $message);
+        if *$crate::args::ARGS_LOG {
+            $crate::resolute::LOGS
+                .lock()
+                .push($crate::metadata::Log::new_with_handle_id($message, $name));
         }
-    };
-    ($message:expr_2021, $name:expr_2021) => {
-        {
-            tracing::info!("@{}  {}", $name, $message);
-            if *$crate::args::ARGS_LOG {
-                $crate::resolute::LOGS.lock().push($crate::metadata::Log::new_with_handle_id($message, $name));
-            }
-        }
-    };
+    }};
 }
 
 #[macro_export]
@@ -62,7 +66,7 @@ macro_rules! debug {
             if *$crate::args::ARGS_DEBUG || *$crate::args::ARGS_DEBUG_FILE {
                 println!($($arg)*);
             }
-            
+
             if *$crate::args::ARGS_DEBUG_FILE {
                 if let Ok(mut file_inst) = $crate::fs::OpenOptions::new().create(true).append(true).open("debug.log") {
                     writeln!(file_inst, $($arg)*).expect("Failed to write to debug.log");
@@ -101,8 +105,8 @@ macro_rules! get_saver {
                 true => $crate::metadata::Saver::data,
                 false => $crate::metadata::Saver::dataSaver,
             }
-        } else  {
-            match *$crate::resolute::SAVER.lock()  {
+        } else {
+            match *$crate::resolute::SAVER.lock() {
                 true => $crate::metadata::Saver::dataSaver,
                 false => $crate::metadata::Saver::data,
             }

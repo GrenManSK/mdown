@@ -67,10 +67,10 @@
 
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
+use smallvec::{smallvec, SmallVec};
 use thiserror::Error;
-use smallvec::{ SmallVec, smallvec };
 
-use crate::{ MAXPOINTS, resolute::INITSCR_INIT, string };
+use crate::{resolute::INITSCR_INIT, string, MAXPOINTS};
 
 lazy_static! {
     pub static ref SUSPENDED: Mutex<SmallVec<[MdownError; 3]>> = Mutex::new(smallvec![]);
@@ -106,7 +106,6 @@ pub enum MdownError {
     // /// Represents an error related to regular expressions, capturing the `regex::Error`.
     // #[error("Regex error: {0} ({1})")]
     // RegexError(regex::Error, u32),
-
     /// Represents a JSON parsing or serialization error with an associated message.
     #[error("Json error: {0} ({1})")]
     JsonError(String, u32),
@@ -131,7 +130,8 @@ pub enum MdownError {
     #[error("{1} error: {0} ({2})")]
     CustomError(String, String, u32),
 
-    #[error("{0} ({1})")] ChainedError(Box<MdownError>, u32),
+    #[error("{0} ({1})")]
+    ChainedError(Box<MdownError>, u32),
 }
 
 impl MdownError {
@@ -147,8 +147,9 @@ impl MdownError {
             MdownError::ZipError(msg, err_code) => format!("{} Code: {}", msg, err_code),
             //MdownError::RegexError(msg, err_code) => format!("{} Code: {}", msg, err_code),
             MdownError::DatabaseError(msg, err_code) => format!("{} Code: {}", msg, err_code),
-            MdownError::CustomError(msg, name, err_code) =>
-                format!("Error: {} {} Code {}", name, msg, err_code),
+            MdownError::CustomError(msg, name, err_code) => {
+                format!("Error: {} {} Code {}", name, msg, err_code)
+            }
             MdownError::ChainedError(msg, err_code) => {
                 let mut err_codes = vec![err_code];
 
@@ -208,7 +209,7 @@ impl MdownError {
         MdownError::CustomError(
             String::from("Nothing to worry about"),
             String::from("TestError"),
-            11000
+            11000,
         )
     }
 }
@@ -246,12 +247,10 @@ pub(crate) fn handle_error(err: &MdownError, from: Option<String>) {
         None => String::new(),
     };
     match err {
-        MdownError::IoError(err, name, err_code) => {
-            match name.as_str() {
-                "" => eprintln!("IO Error {} ({}) Code: {}", err, to, err_code),
-                name => eprintln!("IO Error {} in file {}{} Code: {}", err, name, to, err_code),
-            }
-        }
+        MdownError::IoError(err, name, err_code) => match name.as_str() {
+            "" => eprintln!("IO Error {} ({}) Code: {}", err, to, err_code),
+            name => eprintln!("IO Error {} in file {}{} Code: {}", err, name, to, err_code),
+        },
         error => eprintln!("{}{}", error, to),
     }
 }
@@ -266,18 +265,14 @@ pub(crate) fn handle_error(err: &MdownError, from: Option<String>) {
 /// ```
 #[macro_export]
 macro_rules! handle_error {
-    ($err:expr_2021) => {
-        {
-            let err_code = $crate::error::handle_error($err, None);
-            err_code
-        }
-    };
-    ($err:expr_2021, $from:expr_2021) => {
-        {
-            let err_code = $crate::error::handle_error($err, Some($from));
-            err_code
-        }
-    };
+    ($err:expr_2021) => {{
+        let err_code = $crate::error::handle_error($err, None);
+        err_code
+    }};
+    ($err:expr_2021, $from:expr_2021) => {{
+        let err_code = $crate::error::handle_error($err, Some($from));
+        err_code
+    }};
 }
 
 /// Handles all suspended errors by printing them out. The suspended errors are those
@@ -293,19 +288,13 @@ pub(crate) fn handle_suspended() {
         for (times, err) in suspended.iter().enumerate() {
             let to = " (suspended)";
             let message = match err {
-                MdownError::IoError(err, name, err_code) => {
-                    match name.as_str() {
-                        "" => format!("Error: IO Error {} {} Code: {}", err, to, err_code),
-                        name =>
-                            format!(
-                                "Error: IO Error {} in file {}{} Code: {}",
-                                err,
-                                name,
-                                to,
-                                err_code
-                            ),
-                    }
-                }
+                MdownError::IoError(err, name, err_code) => match name.as_str() {
+                    "" => format!("Error: IO Error {} {} Code: {}", err, to, err_code),
+                    name => format!(
+                        "Error: IO Error {} in file {}{} Code: {}",
+                        err, name, to, err_code
+                    ),
+                },
                 error => format!("Error: {}{}", error, to),
             };
             string(start + (times as u32), 0, &message);

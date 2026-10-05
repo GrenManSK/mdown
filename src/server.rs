@@ -1,23 +1,17 @@
 use if_addrs::get_if_addrs;
-use serde_json::{ Value, json };
+use serde_json::{json, Value};
 use std::{
-    fs::{ self, File },
-    io::{ self, BufRead, BufReader, Read, Write },
-    net::{ TcpListener, TcpStream },
+    fs::{self, File},
+    io::{self, BufRead, BufReader, Read, Write},
+    net::{TcpListener, TcpStream},
     path::Path,
     thread,
 };
 include!(concat!(env!("OUT_DIR"), "/error_404_jpg.rs"));
 
 use crate::{
-    args,
-    error::MdownError,
-    getter::get_query,
-    handle_error,
-    log,
-    utils,
-    version_manager::get_current_version,
-    zip_func,
+    args, error::MdownError, getter::get_query, handle_error, log, utils,
+    version_manager::get_current_version, zip_func,
 };
 
 /// Retrieves the content of a directory and returns it as a JSON object.
@@ -72,12 +66,10 @@ fn get_directory_content(path: &str) -> Result<Value, MdownError> {
         let file_name = match entry.file_name().into_string() {
             Ok(file_name) => file_name,
             Err(_err) => {
-                return Err(
-                    MdownError::ConversionError(
-                        String::from("Failed to convert file name to string"),
-                        11203
-                    )
-                );
+                return Err(MdownError::ConversionError(
+                    String::from("Failed to convert file name to string"),
+                    11203,
+                ));
             }
         };
         let metadata = match entry.metadata() {
@@ -86,8 +78,7 @@ fn get_directory_content(path: &str) -> Result<Value, MdownError> {
                 return Err(MdownError::IoError(err, file_name, 11204));
             }
         };
-        let mut file_info =
-            json!({
+        let mut file_info = json!({
             "size": metadata.len(),
             "modified": match metadata.modified() {
                 Ok(value) => value,
@@ -104,12 +95,10 @@ fn get_directory_content(path: &str) -> Result<Value, MdownError> {
                 match file_info.as_object_mut() {
                     Some(value) => value.insert("content".to_string(), sub_dir_content),
                     None => {
-                        return Err(
-                            MdownError::NotFoundError(
-                                String::from("Could not get file_info as mutable object"),
-                                11206
-                            )
-                        );
+                        return Err(MdownError::NotFoundError(
+                            String::from("Could not get file_info as mutable object"),
+                            11206,
+                        ));
                     }
                 };
             }
@@ -172,8 +161,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
 
     if method.eq_ignore_ascii_case("OPTIONS") {
         log!("Options");
-        let response =
-            "HTTP/1.1 204 No Content\r\n\
+        let response = "HTTP/1.1 204 No Content\r\n\
                     Access-Control-Allow-Origin: *\r\n\
                     Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\
                     Access-Control-Allow-Headers: Content-Type\r\n\r\n";
@@ -280,14 +268,13 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
                 }
             };
 
-            let mut decoded_str = match
-                percent_encoding::percent_decode_str(&file_path).decode_utf8()
-            {
-                Ok(decoded_str) => decoded_str.to_string(),
-                Err(err) => {
-                    return Err(MdownError::ConversionError(err.to_string(), 11215));
-                }
-            };
+            let mut decoded_str =
+                match percent_encoding::percent_decode_str(&file_path).decode_utf8() {
+                    Ok(decoded_str) => decoded_str.to_string(),
+                    Err(err) => {
+                        return Err(MdownError::ConversionError(err.to_string(), 11215));
+                    }
+                };
 
             if decoded_str.ends_with('/') {
                 decoded_str.pop();
@@ -359,13 +346,11 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             let content = match file_path.as_str() {
                 "error_404" => ERROR_404_JPG,
                 _ => {
-                    return Err(
-                        MdownError::CustomError(
-                            String::from("Didn't find resource"),
-                            String::from("Resource"),
-                            11221
-                        )
-                    );
+                    return Err(MdownError::CustomError(
+                        String::from("Didn't find resource"),
+                        String::from("Resource"),
+                        11221,
+                    ));
                 }
             };
             match stream.get_mut().write_all(content) {
@@ -378,8 +363,7 @@ fn handle_client(stream: TcpStream) -> Result<(), MdownError> {
             let html = get_html();
             let response = format!(
                 "{}{}",
-                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n",
-                html
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n", html
             );
             match stream.get_mut().write_all(response.as_bytes()) {
                 Ok(_n) => (),
@@ -526,13 +510,11 @@ pub(crate) fn start() -> Result<(), MdownError> {
     let ip_address = match ips.get(number - 1) {
         Some(value) => value,
         None => {
-            return Err(
-                MdownError::CustomError(
-                    String::from("Invalid IP address"),
-                    String::from("IP_address"),
-                    11233
-                )
-            );
+            return Err(MdownError::CustomError(
+                String::from("Invalid IP address"),
+                String::from("IP_address"),
+                11233,
+            ));
         }
     };
 
@@ -552,13 +534,11 @@ pub(crate) fn start() -> Result<(), MdownError> {
     match handler {
         Ok(()) => (),
         Err(err) => {
-            return Err(
-                MdownError::CustomError(
-                    format!("Failed setting up ctrl handler, {}", err),
-                    String::from("CTRL_handler"),
-                    11234
-                )
-            );
+            return Err(MdownError::CustomError(
+                format!("Failed setting up ctrl handler, {}", err),
+                String::from("CTRL_handler"),
+                11234,
+            ));
         }
     }
 
